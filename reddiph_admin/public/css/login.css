@@ -1,0 +1,1121 @@
+/* =========================================================
+   Pulse Alert / Reddi PH — Login Page Styles
+   Single consolidated stylesheet for all 3 login modules:
+   1. Hospital Admin Login Module (.hospitaladmin-*)
+   2. Doctor Login Module (.doctor-*)
+   3. Nurse Login Module (.nurse-*) [Ready for expansion]
+   ========================================================= */
+
+/* =========================================================
+   GLOBAL / SHARED BASE TOKENS & RESETS
+   ========================================================= */
+:root {
+  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+  /* Shared general tokens */
+  --color-primary-red: #6f0e13;
+  --color-primary-red-hover: #59090d;
+  --color-heading: #0a0a0a;
+  --color-label: #1a1a1a;
+  --color-input-bg: #cecece;
+  --color-input-placeholder: #7c7c7c;
+  --color-white: #ffffff;
+
+  /* Hospital Admin Theme Palette */
+  --bg-sidebar-admin: #4a2429;
+  --bg-sidebar-admin-alt: #472227;
+  --color-subtext-admin: #cfb2b6;
+
+  /* Doctor Theme Palette (from Doctor Portal Module) */
+  --bg-sidebar-doctor: linear-gradient(180deg, rgba(0, 0, 0, 0.15) 57.21%, rgba(102, 102, 102, 0.15) 85%),
+    linear-gradient(0deg, #020544, #020544);
+  --bg-sidebar-doctor-alt: #020544;
+  --color-subtext-doctor: #c6b5c4;
+
+  /* Nurse Theme Palette (from Nurse Portal Module) */
+  --bg-sidebar-nurse: #354044;
+  --bg-sidebar-nurse-alt: #2b3538;
+  --color-subtext-nurse: #b5c3c7;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  height: 100%;
+  font-family: var(--font-family);
+  background-color: var(--color-white);
+  color: var(--color-heading);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* =========================================================
+   1. HOSPITAL ADMIN LOGIN MODULE
+   ========================================================= */
+
+/* ---------- Layout Container ---------- */
+.hospitaladmin-login-container {
+  display: flex;
+  min-height: 100vh;
+  width: 100%;
+}
+
+/* ---------- Left Column / Info Panel ---------- */
+.hospitaladmin-login-panel {
+  flex: 0 0 48.5%;
+  background: var(--bg-sidebar-admin);
+  color: var(--color-white);
+  padding: 3.5rem 4rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  position: relative;
+  overflow: hidden;
+}
+
+.hospitaladmin-login-panel__top {
+  display: flex;
+  align-items: flex-start;
+}
+
+.hospitaladmin-login-back-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--color-white);
+  cursor: pointer;
+  padding: 0.4rem;
+  margin-left: -0.4rem;
+  border-radius: 50%;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  text-decoration: none;
+}
+
+.hospitaladmin-login-back-btn:hover {
+  opacity: 0.8;
+  transform: translateX(-3px);
+}
+
+.hospitaladmin-login-back-btn svg {
+  width: 24px;
+  height: 24px;
+}
+
+/* Bottom hero banner text & icon */
+.hospitaladmin-login-panel__bottom {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  max-width: 440px;
+}
+
+.hospitaladmin-login-panel__icon {
+  margin-bottom: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-white);
+}
+
+.hospitaladmin-login-panel__icon svg {
+  width: 48px;
+  height: 48px;
+}
+
+.hospitaladmin-login-panel__title {
+  font-size: clamp(2.2rem, 3.2vw, 3rem);
+  font-weight: 900;
+  line-height: 1.1;
+  letter-spacing: -0.035em;
+  color: var(--color-white);
+  margin-bottom: 0.75rem;
+}
+
+.hospitaladmin-login-panel__subtitle {
+  font-size: 1.05rem;
+  line-height: 1.45;
+  color: var(--color-subtext-admin);
+  font-weight: 400;
+}
+
+/* ---------- Right Column / Form Area ---------- */
+.hospitaladmin-login-content {
+  flex: 1;
+  background: var(--color-white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2.5rem 3rem;
+}
+
+.hospitaladmin-login-form-wrapper {
+  width: 100%;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+}
+
+.hospitaladmin-login-header {
+  margin-bottom: 2rem;
+}
+
+.hospitaladmin-login-eyebrow {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-primary-red);
+  margin-bottom: 0.45rem;
+}
+
+.hospitaladmin-login-main-title {
+  font-size: 1.6rem;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  color: var(--color-heading);
+  line-height: 1.2;
+}
+
+.hospitaladmin-login-errors {
+  margin: -1rem 0 1.25rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid #e5b8bc;
+  border-radius: 8px;
+  background: #fff2f3;
+  color: #8b1e26;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+/* Form Groups & Inputs */
+.hospitaladmin-login-form {
+  display: flex;
+  flex-direction: column;
+}
+
+.hospitaladmin-form-group {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 1.2rem;
+}
+
+.hospitaladmin-form-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-label);
+  margin-bottom: 0.45rem;
+}
+
+.hospitaladmin-form-input {
+  width: 100%;
+  padding: 0.7rem 0.9rem;
+  background-color: var(--color-input-bg);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 0.8rem;
+  color: #111;
+  outline: none;
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hospitaladmin-form-input::placeholder {
+  color: var(--color-input-placeholder);
+  font-size: 0.75rem;
+}
+
+.hospitaladmin-form-input:focus {
+  background-color: #dcdcdc;
+  border-color: rgba(111, 14, 19, 0.4);
+  box-shadow: 0 0 0 2px rgba(111, 14, 19, 0.15);
+}
+
+/* Submit Button */
+.hospitaladmin-login-submit-btn {
+  width: 100%;
+  padding: 0.75rem 1.25rem;
+  background-color: var(--color-primary-red);
+  color: var(--color-white);
+  border: none;
+  border-radius: 9999px;
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  margin-top: 1.1rem;
+  transition: background-color 0.2s ease, transform 0.1s ease, box-shadow 0.2s ease;
+}
+
+.hospitaladmin-login-submit-btn:hover {
+  background-color: var(--color-primary-red-hover);
+  box-shadow: 0 4px 12px rgba(111, 14, 19, 0.25);
+}
+
+.hospitaladmin-login-submit-btn:active {
+  transform: scale(0.985);
+}
+
+/* Forgot Password Link */
+.hospitaladmin-forgot-password-wrap {
+  text-align: right;
+  margin-top: 0.55rem;
+}
+
+.hospitaladmin-forgot-password-link {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--color-primary-red);
+  text-decoration: none;
+  transition: opacity 0.2s ease;
+}
+
+.hospitaladmin-forgot-password-link:hover {
+  opacity: 0.8;
+  text-decoration: underline;
+}
+
+/* Footer / Signup prompt */
+.hospitaladmin-login-footer {
+  margin-top: 2rem;
+  text-align: center;
+  font-size: 0.76rem;
+  color: #333333;
+}
+
+.hospitaladmin-signup-link {
+  color: var(--color-primary-red);
+  font-weight: 700;
+  text-decoration: none;
+  transition: opacity 0.2s ease;
+}
+
+.hospitaladmin-signup-link:hover {
+  opacity: 0.8;
+  text-decoration: underline;
+}
+
+/* Hospital Admin Responsive Design */
+@media (max-width: 960px) {
+  .hospitaladmin-login-panel {
+    padding: 2.5rem;
+    flex: 0 0 45%;
+  }
+
+  .hospitaladmin-login-content {
+    padding: 2rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .hospitaladmin-login-container {
+    flex-direction: column;
+    min-height: 100vh;
+  }
+
+  .hospitaladmin-login-panel {
+    flex: none;
+    padding: 2rem 1.5rem;
+    min-height: 240px;
+    gap: 2rem;
+  }
+
+  .hospitaladmin-login-panel__title {
+    font-size: 1.85rem;
+  }
+
+  .hospitaladmin-login-panel__subtitle {
+    font-size: 0.9rem;
+  }
+
+  .hospitaladmin-login-content {
+    flex: 1;
+    padding: 2.5rem 1.5rem;
+    align-items: flex-start;
+  }
+
+  .hospitaladmin-login-form-wrapper {
+    max-width: 100%;
+  }
+}
+
+/* =========================================================
+   2. DOCTOR LOGIN MODULE
+   ========================================================= */
+
+/* ---------- Layout Container ---------- */
+.doctor-login-container {
+  display: flex;
+  min-height: 100vh;
+  width: 100%;
+}
+
+/* ---------- Left Column / Info Panel ---------- */
+.doctor-login-panel {
+  flex: 0 0 48.5%;
+  background: var(--bg-sidebar-doctor);
+  color: var(--color-white);
+  padding: 3.5rem 4rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  position: relative;
+  overflow: hidden;
+}
+
+.doctor-login-panel__top {
+  display: flex;
+  align-items: flex-start;
+}
+
+.doctor-login-back-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--color-white);
+  cursor: pointer;
+  padding: 0.4rem;
+  margin-left: -0.4rem;
+  border-radius: 50%;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  text-decoration: none;
+}
+
+.doctor-login-back-btn:hover {
+  opacity: 0.8;
+  transform: translateX(-3px);
+}
+
+.doctor-login-back-btn svg {
+  width: 24px;
+  height: 24px;
+}
+
+/* Bottom hero banner text & icon */
+.doctor-login-panel__bottom {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  max-width: 440px;
+}
+
+.doctor-login-panel__icon {
+  margin-bottom: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-white);
+}
+
+.doctor-login-panel__icon svg {
+  width: 44px;
+  height: 44px;
+  fill: #ffffff;
+}
+
+.doctor-login-panel__title {
+  font-size: clamp(2.2rem, 3.2vw, 3rem);
+  font-weight: 900;
+  line-height: 1.1;
+  letter-spacing: -0.035em;
+  color: var(--color-white);
+  margin-bottom: 0.75rem;
+}
+
+.doctor-login-panel__subtitle {
+  font-size: 1.05rem;
+  line-height: 1.45;
+  color: var(--color-subtext-doctor);
+  font-weight: 400;
+}
+
+/* ---------- Right Column / Form Area ---------- */
+.doctor-login-content {
+  flex: 1;
+  background: var(--color-white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2.5rem 3rem;
+}
+
+.doctor-login-form-wrapper {
+  width: 100%;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+}
+
+.doctor-login-header {
+  margin-bottom: 2rem;
+}
+
+.doctor-login-eyebrow {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #020544;
+  margin-bottom: 0.45rem;
+}
+
+.doctor-login-main-title {
+  font-size: 1.6rem;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  color: var(--color-heading);
+  line-height: 1.2;
+}
+
+/* Form Groups & Inputs */
+.doctor-login-form {
+  display: flex;
+  flex-direction: column;
+}
+
+.doctor-form-group {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 1.2rem;
+}
+
+.doctor-form-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-label);
+  margin-bottom: 0.45rem;
+}
+
+.doctor-form-input {
+  width: 100%;
+  padding: 0.7rem 0.9rem;
+  background-color: var(--color-input-bg);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 0.8rem;
+  color: #111;
+  outline: none;
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.doctor-form-input::placeholder {
+  color: var(--color-input-placeholder);
+  font-size: 0.75rem;
+}
+
+.doctor-form-input:focus {
+  background-color: #dcdcdc;
+  border-color: rgba(111, 14, 19, 0.4);
+  box-shadow: 0 0 0 2px rgba(111, 14, 19, 0.15);
+}
+
+/* Submit Button */
+.doctor-login-submit-btn {
+  width: 100%;
+  padding: 0.75rem 1.25rem;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.15) 57.21%, rgba(102, 102, 102, 0.15) 85%),
+    linear-gradient(0deg, #020544, #020544);
+  color: var(--color-white);
+  border: none;
+  border-radius: 9999px;
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  margin-top: 1.1rem;
+  transition: background-color 0.2s ease, transform 0.1s ease, box-shadow 0.2s ease;
+}
+
+.doctor-login-submit-btn:hover {
+  filter: brightness(1.12);
+  box-shadow: 0 4px 12px rgba(2, 5, 68, 0.25);
+}
+
+.doctor-login-submit-btn:active {
+  transform: scale(0.985);
+}
+
+/* Forgot Password Link */
+.doctor-forgot-password-wrap {
+  text-align: right;
+  margin-top: 0.55rem;
+}
+
+.doctor-forgot-password-link {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #020544;
+  text-decoration: none;
+  transition: opacity 0.2s ease;
+}
+
+.doctor-forgot-password-link:hover {
+  opacity: 0.8;
+  text-decoration: underline;
+}
+
+/* Footer / Signup prompt */
+.doctor-login-footer {
+  margin-top: 2rem;
+  text-align: center;
+  font-size: 0.76rem;
+  color: #333333;
+}
+
+.doctor-signup-link {
+  color: #020544;
+  font-weight: 700;
+  text-decoration: none;
+  transition: opacity 0.2s ease;
+}
+
+.doctor-signup-link:hover {
+  opacity: 0.8;
+  text-decoration: underline;
+}
+
+/* Doctor Responsive Design */
+@media (max-width: 960px) {
+  .doctor-login-panel {
+    padding: 2.5rem;
+    flex: 0 0 45%;
+  }
+
+  .doctor-login-content {
+    padding: 2rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .doctor-login-container {
+    flex-direction: column;
+    min-height: 100vh;
+  }
+
+  .doctor-login-panel {
+    flex: none;
+    padding: 2rem 1.5rem;
+    min-height: 240px;
+    gap: 2rem;
+  }
+
+  .doctor-login-panel__title {
+    font-size: 1.85rem;
+  }
+
+  .doctor-login-panel__subtitle {
+    font-size: 0.9rem;
+  }
+
+  .doctor-login-content {
+    flex: 1;
+    padding: 2.5rem 1.5rem;
+    align-items: flex-start;
+  }
+
+  .doctor-login-form-wrapper {
+    max-width: 100%;
+  }
+}
+
+/* =========================================================
+   3. NURSE LOGIN MODULE
+   ========================================================= */
+
+/* ---------- Layout Container ---------- */
+.nurse-login-container {
+  display: flex;
+  min-height: 100vh;
+  width: 100%;
+}
+
+/* ---------- Left Column / Info Panel ---------- */
+.nurse-login-panel {
+  flex: 0 0 48.5%;
+  background: var(--bg-sidebar-nurse);
+  color: var(--color-white);
+  padding: 3.5rem 4rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  position: relative;
+  overflow: hidden;
+}
+
+.nurse-login-panel__top {
+  display: flex;
+  align-items: flex-start;
+}
+
+.nurse-login-back-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--color-white);
+  cursor: pointer;
+  padding: 0.4rem;
+  margin-left: -0.4rem;
+  border-radius: 50%;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  text-decoration: none;
+}
+
+.nurse-login-back-btn:hover {
+  opacity: 0.8;
+  transform: translateX(-3px);
+}
+
+.nurse-login-back-btn svg {
+  width: 24px;
+  height: 24px;
+}
+
+/* Bottom hero banner text & icon */
+.nurse-login-panel__bottom {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  max-width: 440px;
+}
+
+.nurse-login-panel__icon {
+  margin-bottom: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-white);
+}
+
+.nurse-login-panel__icon svg {
+  width: 48px;
+  height: 48px;
+}
+
+.nurse-login-panel__title {
+  font-size: clamp(2.2rem, 3.2vw, 3rem);
+  font-weight: 900;
+  line-height: 1.1;
+  letter-spacing: -0.035em;
+  color: var(--color-white);
+  margin-bottom: 0.75rem;
+}
+
+.nurse-login-panel__subtitle {
+  font-size: 1.05rem;
+  line-height: 1.45;
+  color: var(--color-subtext-nurse);
+  font-weight: 400;
+}
+
+/* ---------- Right Column / Form Area ---------- */
+.nurse-login-content {
+  flex: 1;
+  background: var(--color-white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2.5rem 3rem;
+}
+
+.nurse-login-form-wrapper {
+  width: 100%;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+}
+
+.nurse-login-header {
+  margin-bottom: 2rem;
+}
+
+.nurse-login-eyebrow {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-primary-red);
+  margin-bottom: 0.45rem;
+}
+
+.nurse-login-main-title {
+  font-size: 1.6rem;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  color: var(--color-heading);
+  line-height: 1.2;
+}
+
+/* Form Groups & Inputs */
+.nurse-login-form {
+  display: flex;
+  flex-direction: column;
+}
+
+.nurse-form-group {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 1.2rem;
+}
+
+.nurse-form-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-label);
+  margin-bottom: 0.45rem;
+}
+
+.nurse-form-input {
+  width: 100%;
+  padding: 0.7rem 0.9rem;
+  background-color: var(--color-input-bg);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 0.8rem;
+  color: #111;
+  outline: none;
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.nurse-form-input::placeholder {
+  color: var(--color-input-placeholder);
+  font-size: 0.75rem;
+}
+
+.nurse-form-input:focus {
+  background-color: #dcdcdc;
+  border-color: rgba(111, 14, 19, 0.4);
+  box-shadow: 0 0 0 2px rgba(111, 14, 19, 0.15);
+}
+
+/* Submit Button */
+.nurse-login-submit-btn {
+  width: 100%;
+  padding: 0.75rem 1.25rem;
+  background-color: var(--color-primary-red);
+  color: var(--color-white);
+  border: none;
+  border-radius: 9999px;
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  margin-top: 1.1rem;
+  transition: background-color 0.2s ease, transform 0.1s ease, box-shadow 0.2s ease;
+}
+
+.nurse-login-submit-btn:hover {
+  background-color: var(--color-primary-red-hover);
+  box-shadow: 0 4px 12px rgba(111, 14, 19, 0.25);
+}
+
+.nurse-login-submit-btn:active {
+  transform: scale(0.985);
+}
+
+/* Forgot Password Link */
+.nurse-forgot-password-wrap {
+  text-align: right;
+  margin-top: 0.55rem;
+}
+
+.nurse-forgot-password-link {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--color-primary-red);
+  text-decoration: none;
+  transition: opacity 0.2s ease;
+}
+
+.nurse-forgot-password-link:hover {
+  opacity: 0.8;
+  text-decoration: underline;
+}
+
+/* Footer / Signup prompt */
+.nurse-login-footer {
+  margin-top: 2rem;
+  text-align: center;
+  font-size: 0.76rem;
+  color: #333333;
+}
+
+.nurse-signup-link {
+  color: var(--color-primary-red);
+  font-weight: 700;
+  text-decoration: none;
+  transition: opacity 0.2s ease;
+}
+
+.nurse-signup-link:hover {
+  opacity: 0.8;
+  text-decoration: underline;
+}
+
+/* Nurse Responsive Design */
+@media (max-width: 960px) {
+  .nurse-login-panel {
+    padding: 2.5rem;
+    flex: 0 0 45%;
+  }
+
+  .nurse-login-content {
+    padding: 2rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .nurse-login-container {
+    flex-direction: column;
+    min-height: 100vh;
+  }
+
+  .nurse-login-panel {
+    flex: none;
+    padding: 2rem 1.5rem;
+    min-height: 240px;
+    gap: 2rem;
+  }
+
+  .nurse-login-panel__title {
+    font-size: 1.85rem;
+  }
+
+  .nurse-login-panel__subtitle {
+    font-size: 0.9rem;
+  }
+
+  .nurse-login-content {
+    flex: 1;
+    padding: 2.5rem 1.5rem;
+    align-items: flex-start;
+  }
+
+  .nurse-login-form-wrapper {
+    max-width: 100%;
+  }
+}
+
+/* =========================================================
+   NURSE FORGOT PASSWORD MODULE (Custom glassmorphism modal)
+   ========================================================= */
+
+.nurseforgotpass-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  background: rgba(0, 0, 0, 0.42);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+    visibility 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity, visibility;
+}
+
+.nurseforgotpass-overlay.is-open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.nurseforgotpass-card {
+  position: relative;
+  width: 100%;
+  max-width: 380px;
+  background: rgba(53, 64, 68, 0.76);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1.5px solid rgba(255, 255, 255, 0.2);
+  border-radius: 24px;
+  padding: 1.8rem 2.1rem 2.2rem;
+  color: #ffffff;
+  box-shadow: 0 20px 50px -10px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(255, 255, 255, 0.08) inset;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  transform: scale(0.94) translate3d(0, 8px, 0);
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform;
+}
+
+.nurseforgotpass-overlay.is-open .nurseforgotpass-card {
+  transform: scale(1) translate3d(0, 0, 0);
+}
+
+.nurseforgotpass-back-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: flex-start;
+  background: transparent;
+  border: none;
+  color: #ffffff;
+  cursor: pointer;
+  padding: 0.35rem;
+  margin-left: -0.35rem;
+  margin-bottom: 1.35rem;
+  border-radius: 50%;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.nurseforgotpass-back-btn:hover {
+  opacity: 0.75;
+  transform: translateX(-3px);
+}
+
+.nurseforgotpass-back-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.nurseforgotpass-logo {
+  display: block;
+  align-self: flex-start;
+  margin-bottom: 1.15rem;
+}
+
+.nurseforgotpass-logo__text {
+  display: inline-block;
+  padding: 0.3rem 0.45rem;
+  border: 1.5px solid rgba(255, 255, 255, 0.7);
+  color: #ffffff;
+  font-size: 0.62rem;
+  font-weight: 900;
+  line-height: 1.2;
+  letter-spacing: 0.04em;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.nurseforgotpass-eyebrow {
+  display: block;
+  width: 100%;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #ffffff;
+  margin-bottom: 0.35rem;
+  opacity: 0.95;
+}
+
+.nurseforgotpass-title {
+  font-size: 1.45rem;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  color: #ffffff;
+  line-height: 1.2;
+  margin-bottom: 0.5rem;
+}
+
+.nurseforgotpass-subtitle {
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.75);
+  font-weight: 400;
+  margin-bottom: 1.35rem;
+}
+
+.nurseforgotpass-form {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.nurseforgotpass-form-group {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 1.1rem;
+}
+
+.nurseforgotpass-form-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #ffffff;
+  margin-bottom: 0.4rem;
+}
+
+.nurseforgotpass-form-input {
+  width: 100%;
+  padding: 0.65rem 0.85rem;
+  background-color: #cecece;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 0.78rem;
+  color: #111111;
+  outline: none;
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.nurseforgotpass-form-input::placeholder {
+  color: #7c7c7c;
+  font-size: 0.74rem;
+}
+
+.nurseforgotpass-form-input:focus {
+  background-color: #dcdcdc;
+  border-color: rgba(53, 64, 68, 0.5);
+  box-shadow: 0 0 0 2px rgba(53, 64, 68, 0.2);
+}
+
+.nurseforgotpass-submit-btn {
+  width: 100%;
+  padding: 0.68rem 1.15rem;
+  background-color: var(--color-primary-red);
+  color: #ffffff;
+  border: none;
+  border-radius: 9999px;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  margin-top: 0.35rem;
+  transition: background-color 0.2s ease, transform 0.1s ease, box-shadow 0.2s ease;
+}
+
+.nurseforgotpass-submit-btn:hover {
+  background-color: var(--color-primary-red-hover);
+  box-shadow: 0 4px 14px rgba(111, 14, 19, 0.35);
+}
+
+.nurseforgotpass-submit-btn:active {
+  transform: scale(0.985);
+}
+
+@media (max-width: 480px) {
+  .nurseforgotpass-card {
+    padding: 1.6rem 1.4rem 1.8rem;
+    border-radius: 18px;
+    max-width: 100%;
+  }
+
+  .nurseforgotpass-title {
+    font-size: 1.3rem;
+  }
+
+  .nurseforgotpass-subtitle {
+    font-size: 0.74rem;
+  }
+}

@@ -1,0 +1,2021 @@
+/* =========================================================
+   PULSE ALERT — EMERGENCY ALERTS
+   =========================================================
+   Emergency Alerts-specific content styling.
+
+   Sidebar + header intentionally match the
+   Pulse Alert Dashboard / Incoming Dispatches layout.
+
+   IMPORTANT:
+   Every Emergency Alerts selector is isolated using
+   the emergency_alert_ prefix.
+   ========================================================= */
+
+
+/* =========================================================
+   VARIABLES
+   ========================================================= */
+
+:root {
+    --emergency_alert_red: #811d19;
+    --emergency_alert_red_dark: #681510;
+    --emergency_alert_red_soft: #f5e9e7;
+
+    --emergency_alert_bg: #eeebe7;
+    --emergency_alert_white: #ffffff;
+
+    --emergency_alert_text: #111111;
+    --emergency_alert_muted: #716b68;
+    --emergency_alert_border: #ded6d1;
+    --emergency_alert_grid: #eadfda;
+
+    /* Same colors as Dashboard */
+
+    --emergency_alert_maroon: #7a1f2b;
+    --emergency_alert_maroon_dark: #5c1620;
+    --emergency_alert_black: #16161a;
+
+    --emergency_alert_card_bg: #ffffff;
+    --emergency_alert_card_border: #e3e0da;
+
+    --emergency_alert_text_main: #1c1b1f;
+    --emergency_alert_text_muted: #8a8790;
+
+    --emergency_alert_green: #2e9e5b;
+    --emergency_alert_green_dark: #008d08;
+    --emergency_alert_green_soft: #edf8ef;
+
+    --emergency_alert_gray: #8b8b8b;
+
+    --emergency_alert_radius_lg: 16px;
+    --emergency_alert_radius_md: 12px;
+
+    --emergency_alert_shadow:
+        0 1px 2px rgba(20, 18, 14, 0.06),
+        0 1px 1px rgba(20, 18, 14, 0.04);
+}
+
+
+/* =========================================================
+   GLOBAL
+   ========================================================= */
+
+* {
+    box-sizing: border-box;
+}
+
+
+/* =========================================================
+   BODY
+   ========================================================= */
+
+body.emergency_alert_body {
+    margin: 0;
+
+    min-height: 100vh;
+
+    font-family:
+        'Inter',
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
+
+    background: var(--emergency_alert_bg);
+
+    color: var(--emergency_alert_text);
+
+    -webkit-font-smoothing: antialiased;
+
+    overflow-x: hidden;
+}
+
+
+/* =========================================================
+   SHELL
+   =========================================================
+   EXACT SAME DIMENSION AS DASHBOARD
+   ========================================================= */
+
+.emergency_alert_shell {
+    display: grid;
+
+    grid-template-columns: 220px 1fr;
+
+    min-height: 100vh;
+
+    width: 100%;
+}
+
+
+/* =========================================================
+   SIDEBAR
+   =========================================================
+   MATCHES DASHBOARD SIDEBAR
+   ========================================================= */
+
+.emergency_alert_sidebar {
+    background: var(--emergency_alert_card_bg);
+
+    border-right: 1px solid var(--emergency_alert_card_border);
+
+    padding: 24px 16px;
+
+    display: flex;
+
+    flex-direction: column;
+
+    gap: 24px;
+
+    width: auto;
+
+    min-width: 0;
+
+    height: auto;
+}
+
+
+/* =========================================================
+   BRAND
+   ========================================================= */
+
+.emergency_alert_brand {
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    gap: 10px;
+
+    min-height: 44px;
+
+    padding: 12px;
+
+    border-radius: var(--emergency_alert_radius_md);
+
+    background: transparent;
+
+    height: auto;
+}
+
+
+.emergency_alert_brand_badge {
+    width: auto;
+
+    height: auto;
+
+    padding: 4px 6px;
+
+    display: block;
+
+    color: var(--emergency_alert_maroon);
+
+    border: 1.5px solid var(--emergency_alert_maroon);
+
+    border-radius: 8px;
+
+    font-size: 9px;
+
+    font-weight: 800;
+
+    line-height: 1.1;
+
+    letter-spacing: 0.02em;
+}
+
+
+.emergency_alert_brand_tag {
+    color: var(--emergency_alert_text_main);
+
+    font-size: 11px;
+
+    font-weight: 700;
+
+    letter-spacing: 0.08em;
+}
+
+
+/* =========================================================
+   NAVIGATION
+   =========================================================
+   MATCHES DASHBOARD NAVIGATION
+   ========================================================= */
+
+.emergency_alert_nav {
+    display: flex;
+
+    flex-direction: column;
+
+    gap: 2px;
+
+    flex: 1;
+
+    padding: 0;
+}
+
+
+.emergency_alert_nav_item {
+    display: flex;
+
+    align-items: center;
+
+    gap: 12px;
+
+    padding: 11px 12px;
+
+    min-height: 0;
+
+    border-radius: var(--emergency_alert_radius_md);
+
+    color: var(--emergency_alert_text_muted);
+
+    text-decoration: none;
+
+    font-size: 13.5px;
+
+    font-weight: 500;
+
+    transition:
+        background-color 0.15s ease,
+        color 0.15s ease;
+}
+
+
+.emergency_alert_nav_item:hover {
+    background: #f4f2ee;
+
+    color: var(--emergency_alert_text_main);
+
+    transform: none;
+}
+
+
+.emergency_alert_nav_item_active {
+    background: #fbeaea;
+
+    color: var(--emergency_alert_maroon);
+
+    font-weight: 700;
+}
+
+
+/* =========================================================
+   NAVIGATION ICON
+   ========================================================= */
+
+.emergency_alert_nav_icon {
+    width: 18px;
+
+    height: 18px;
+
+    flex: 0 0 18px;
+
+    display: inline-flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    text-align: center;
+
+    font-size: 14px;
+
+    line-height: 1;
+}
+
+
+/* =========================================================
+   SYSTEM STATUS
+   =========================================================
+   Matches Dashboard / Incoming Dispatches.
+   ========================================================= */
+
+.emergency_alert_system_status {
+    display: flex;
+
+    gap: 10px;
+
+    padding: 12px;
+
+    background: #8f3442;
+
+    border-radius: var(--emergency_alert_radius_md);
+}
+
+
+.emergency_alert_system_status_icon {
+    width: 20px;
+
+    height: 20px;
+
+    flex-shrink: 0;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    border-radius: 50%;
+
+    background: var(--emergency_alert_maroon);
+
+    color: #ffffff;
+
+    font-size: 12px;
+
+    font-weight: 700;
+}
+
+
+.emergency_alert_system_status_title {
+    margin: 0;
+
+    font-size: 12.5px;
+
+    font-weight: 700;
+
+    color: #ffffff;
+}
+
+
+.emergency_alert_system_status_sub {
+    margin: 2px 0 0;
+
+    color: rgba(255, 255, 255, 0.7);
+
+    font-size: 11.5px;
+}
+
+
+/* =========================================================
+   MAIN
+   =========================================================
+   SAME AS DASHBOARD
+   ========================================================= */
+
+.emergency_alert_main {
+    padding: 28px 36px 48px;
+
+    max-width: 1180px;
+
+    min-width: 0;
+
+    width: auto;
+
+    margin-left: 0;
+}
+
+
+/* =========================================================
+   HEADER
+   =========================================================
+   SAME AS DASHBOARD
+   ========================================================= */
+
+.emergency_alert_header {
+    display: grid;
+
+    grid-template-columns: minmax(0, 1fr) auto;
+
+    align-items: flex-start;
+
+    gap: 24px;
+
+    margin-bottom: 24px;
+}
+
+
+/* =========================================================
+   HEADER COPY
+   ========================================================= */
+
+.emergency_alert_header_copy {
+    min-width: 0;
+}
+
+
+.emergency_alert_hospital_name {
+    margin: 0 0 6px;
+
+    font-size: 24px;
+
+    font-weight: 800;
+
+    overflow-wrap: anywhere;
+}
+
+
+.emergency_alert_title {
+    margin: 0 0 6px;
+
+    color: var(--emergency_alert_maroon);
+
+    font-size: 15px;
+
+    font-weight: 700;
+}
+
+
+.emergency_alert_subtitle {
+    margin: 2px 0 0;
+
+    color: var(--emergency_alert_text_muted);
+
+    font-size: 12.5px;
+
+    font-weight: 400;
+}
+
+
+/* =========================================================
+   HEADER CONTROLS
+   ========================================================= */
+
+.emergency_alert_header_controls {
+    position: relative;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: flex-end;
+
+    gap: 16px;
+
+    min-width: max-content;
+}
+
+
+/* =========================================================
+   SEARCH
+   ========================================================= */
+
+.emergency_alert_search {
+    position: relative;
+
+    display: flex;
+
+    align-items: center;
+}
+
+
+.emergency_alert_search_icon {
+    position: absolute;
+
+    left: 12px;
+
+    color: var(--emergency_alert_text_muted);
+
+    font-size: 13px;
+
+    line-height: 1;
+
+    pointer-events: none;
+}
+
+
+.emergency_alert_search_input {
+    width: 300px;
+
+    height: auto;
+
+    padding: 10px 12px 10px 32px;
+
+    border: 1px solid var(--emergency_alert_card_border);
+
+    border-radius: 999px;
+
+    outline: none;
+
+    background: var(--emergency_alert_card_bg);
+
+    color: var(--emergency_alert_text_main);
+
+    font-family: inherit;
+
+    font-size: 13px;
+
+    transition:
+        width 0.2s ease,
+        box-shadow 0.15s ease,
+        border-color 0.15s ease;
+}
+
+
+.emergency_alert_search_input::placeholder {
+    color: var(--emergency_alert_text_muted);
+}
+
+
+.emergency_alert_search_input:focus {
+    width: 340px;
+
+    border-color: var(--emergency_alert_maroon);
+
+    box-shadow:
+        0 0 0 3px rgba(122, 31, 43, 0.12);
+}
+
+
+.emergency_alert_search--focused .emergency_alert_search_input {
+    width: 340px;
+
+    border-color: var(--emergency_alert_maroon);
+
+    box-shadow:
+        0 0 0 3px rgba(122, 31, 43, 0.12);
+}
+
+
+/* =========================================================
+   NOTIFICATION BELL
+   ========================================================= */
+
+.emergency_alert_bell {
+    position: relative;
+
+    width: 38px;
+
+    height: 38px;
+
+    min-width: 38px;
+
+    padding: 0;
+
+    border: 1px solid var(--emergency_alert_card_border);
+
+    border-radius: 50%;
+
+    background: var(--emergency_alert_card_bg);
+
+    color: #5e5755;
+
+    font-size: 15px;
+
+    cursor: pointer;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    transition:
+        transform 0.15s ease;
+
+    z-index: 2;
+}
+
+
+.emergency_alert_bell:hover {
+    transform: translateY(-1px);
+}
+
+.emergency_alert_bell:focus-visible {
+    outline: 2px solid var(--emergency_alert_maroon);
+    outline-offset: 3px;
+}
+
+
+/* =========================================================
+   BELL DOT
+   ========================================================= */
+
+.emergency_alert_bell_dot {
+    position: absolute;
+
+    top: 7px;
+
+    right: 8px;
+
+    width: 8px;
+
+    height: 8px;
+
+    border-radius: 50%;
+
+    background: var(--emergency_alert_maroon);
+}
+
+.emergency_alert_notification_wrap {
+    position: relative;
+    z-index: 30;
+    flex: 0 0 38px;
+}
+
+.emergency_alert_notification_panel {
+    position: absolute;
+    top: calc(100% + 12px);
+    right: 0;
+    z-index: 1000;
+    width: min(360px, calc(100vw - 28px));
+    max-height: min(440px, calc(100vh - 110px));
+    overflow: auto;
+    padding: 14px;
+    border: 1px solid var(--emergency_alert_card_border);
+    border-radius: 8px;
+    background: #fff;
+    box-shadow: 0 12px 32px rgba(25, 18, 15, .16);
+}
+
+.emergency_alert_notification_title {
+    display: block;
+    margin: 2px 2px 10px;
+    color: #211c1a;
+    font-size: 13px;
+}
+
+.emergency_alert_notification_list {
+    display: grid;
+    gap: 6px;
+}
+
+.emergency_alert_notification_item {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 3px 8px;
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #eee8e4;
+    border-radius: 5px;
+    background: #fff;
+    color: #211c1a;
+    text-align: left;
+    cursor: pointer;
+}
+
+.emergency_alert_notification_item:hover {
+    background: #faf7f5;
+    border-color: #d9cbc6;
+}
+
+.emergency_alert_notification_item strong {
+    overflow: hidden;
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.emergency_alert_notification_item small {
+    grid-column: 1 / -1;
+    color: var(--emergency_alert_text_muted);
+    font-size: 11px;
+}
+
+.emergency_alert_notification_status {
+    align-self: start;
+    padding: 2px 5px;
+    border-radius: 3px;
+    background: #f5e8e7;
+    color: #8b211c;
+    font-size: 9px;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.emergency_alert_notification_status_urgent {
+    background: #fff3dc;
+    color: #815400;
+}
+
+.emergency_alert_notification_empty {
+    padding: 12px 4px;
+    color: var(--emergency_alert_text_muted);
+    font-size: 12px;
+}
+
+
+/* =========================================================
+   USER
+   ========================================================= */
+
+.emergency_alert_user {
+    display: flex;
+
+    align-items: center;
+
+    gap: 10px;
+
+    padding: 0;
+
+    border: 0;
+
+    background: transparent;
+
+    cursor: pointer;
+
+    font-family: inherit;
+
+    text-align: right;
+}
+
+
+.emergency_alert_user_text {
+    display: flex;
+
+    flex-direction: column;
+
+    align-items: flex-end;
+}
+
+
+.emergency_alert_user_name {
+    margin: 0;
+
+    color: var(--emergency_alert_text_main);
+
+    font-size: 13px;
+
+    font-weight: 700;
+}
+
+
+.emergency_alert_user_role {
+    margin: 1px 0 0;
+
+    color: var(--emergency_alert_text_muted);
+
+    font-size: 11.5px;
+}
+
+
+/* =========================================================
+   USER AVATAR
+   ========================================================= */
+
+.emergency_alert_avatar {
+    width: 36px;
+
+    height: 36px;
+
+    min-width: 36px;
+
+    overflow: hidden;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    border-radius: 50%;
+
+    background:
+        linear-gradient(135deg,
+            #c98a8a,
+            #7a1f2b);
+
+    color: #ffffff;
+
+    font-size: 11px;
+
+    font-weight: 700;
+}
+
+.emergency_alert_avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+
+/* =========================================================
+   SUMMARY CARDS
+   ========================================================= */
+
+.emergency_alert_summary {
+    display: grid;
+
+    grid-template-columns:
+        repeat(4, minmax(0, 1fr));
+
+    gap: 20px;
+
+    margin-bottom: 27px;
+}
+
+
+.emergency_alert_summary_card {
+    min-width: 0;
+
+    min-height: 109px;
+
+    padding: 21px 22px;
+
+    border: 1px solid #dfd6d1;
+
+    border-radius: 16px;
+
+    background: #ffffff;
+
+    box-shadow:
+        0 1px 2px rgba(40, 25, 20, 0.02);
+
+    text-align: left;
+
+    font-family: inherit;
+
+    cursor: pointer;
+
+    transition:
+        background-color 0.15s ease,
+        color 0.15s ease,
+        border-color 0.15s ease,
+        transform 0.15s ease;
+}
+
+
+.emergency_alert_summary_card:hover {
+    transform: translateY(-1px);
+}
+
+
+/* =========================================================
+   SUMMARY LABEL
+   ========================================================= */
+
+.emergency_alert_summary_label {
+    display: block;
+
+    margin: 0 0 10px;
+
+    color: #6e6763;
+
+    font-size: 11px;
+
+    font-weight: 400;
+}
+
+
+/* =========================================================
+   SUMMARY VALUE
+   ========================================================= */
+
+.emergency_alert_summary_value {
+    display: block;
+
+    color: #800000;
+
+    font-size: 30px;
+
+    line-height: 1;
+
+    font-weight: 800;
+
+    letter-spacing: -0.7px;
+}
+
+
+/* =========================================================
+   SUMMARY ACTIVE STATES
+   ========================================================= */
+
+.emergency_alert_summary_card_active {
+    color: #ffffff !important;
+
+    border-color: transparent !important;
+}
+
+
+.emergency_alert_summary_card_active .emergency_alert_summary_label,
+.emergency_alert_summary_card_active .emergency_alert_summary_value,
+.emergency_alert_summary_card_critical_active .emergency_alert_summary_label,
+.emergency_alert_summary_card_critical_active .emergency_alert_summary_value,
+.emergency_alert_summary_card_urgent_active .emergency_alert_summary_label,
+.emergency_alert_summary_card_urgent_active .emergency_alert_summary_value,
+.emergency_alert_summary_card_stable_active .emergency_alert_summary_label,
+.emergency_alert_summary_card_stable_active .emergency_alert_summary_value {
+    color: #ffffff !important;
+}
+
+
+/* Critical */
+
+.emergency_alert_summary_card[data-status="critical"].emergency_alert_summary_card_active,
+.emergency_alert_summary_card.emergency_alert_summary_card_critical_active {
+    background: #800000 !important;
+    border-color: #800000 !important;
+}
+
+
+/* Urgent */
+
+.emergency_alert_summary_card[data-status="urgent"].emergency_alert_summary_card_active,
+.emergency_alert_summary_card.emergency_alert_summary_card_urgent_active {
+    background: #757575 !important;
+    border-color: #757575 !important;
+}
+
+
+/* Stable */
+
+.emergency_alert_summary_card[data-status="stable"].emergency_alert_summary_card_active,
+.emergency_alert_summary_card.emergency_alert_summary_card_stable_active {
+    background: #008000 !important;
+    border-color: #008000 !important;
+}
+
+
+/* =========================================================
+   FILTER BAR
+   ========================================================= */
+
+.emergency_alert_filter_bar {
+    display: flex;
+
+    align-items: center;
+
+    gap: 8px;
+
+    margin: 0 0 24px 14px;
+}
+
+
+.emergency_alert_filter {
+    min-height: 32px;
+
+    padding: 0 17px;
+
+    border: 0;
+
+    border-radius: 999px;
+
+    background: #ffffff;
+
+    color: #16161a;
+
+    font-family: inherit;
+
+    font-size: 10px;
+
+    font-weight: 800;
+
+    cursor: pointer;
+
+    transition:
+        background-color 0.15s ease,
+        color 0.15s ease,
+        transform 0.15s ease;
+}
+
+
+.emergency_alert_filter:hover {
+    transform: translateY(-1px);
+}
+
+
+.emergency_alert_filter_active {
+    background: #16161a;
+
+    color: #ffffff;
+}
+
+
+/* Critical filter */
+
+.emergency_alert_filter[data-status="critical"].emergency_alert_filter_active,
+.emergency_alert_filter.emergency_alert_filter_active_critical {
+    background: #800000 !important;
+    color: #ffffff !important;
+}
+
+
+/* Urgent filter */
+
+.emergency_alert_filter[data-status="urgent"].emergency_alert_filter_active,
+.emergency_alert_filter.emergency_alert_filter_active_urgent {
+    background: #757575 !important;
+    color: #ffffff !important;
+}
+
+
+/* Stable filter */
+
+.emergency_alert_filter[data-status="stable"].emergency_alert_filter_active,
+.emergency_alert_filter.emergency_alert_filter_active_stable {
+    background: #008000 !important;
+    color: #ffffff !important;
+}
+
+
+/* =========================================================
+   CRITICAL NOTICE
+   ========================================================= */
+
+.emergency_alert_notice {
+    display: none;
+
+    min-height: 45px;
+
+    margin: 0 0 16px;
+
+    padding: 0 20px;
+
+    align-items: center;
+
+    justify-content: center;
+
+    border: 1px solid #8f7b76;
+
+    border-radius: 10px;
+
+    background: #eadbd7;
+
+    color: #7a1717;
+
+    font-size: 10px;
+
+    font-weight: 800;
+
+    text-align: center;
+}
+
+
+.emergency_alert_notice_active {
+    display: flex;
+}
+
+
+/* =========================================================
+   TABLE PANEL
+   ========================================================= */
+
+.emergency_alert_table_panel {
+    width: 100%;
+
+    background: #ffffff;
+
+    border: 1px solid #dfd6d1;
+
+    border-radius: 0;
+
+    overflow: hidden;
+}
+
+
+/* =========================================================
+   TABLE WRAPPER
+   ========================================================= */
+
+.emergency_alert_table_wrap {
+    width: 100%;
+
+    overflow-x: auto;
+}
+
+
+/* =========================================================
+   TABLE
+   ========================================================= */
+
+.emergency_alert_table {
+    width: 100%;
+
+    border-collapse: collapse;
+
+    table-layout: fixed;
+}
+
+
+/* =========================================================
+   TABLE HEADER
+   ========================================================= */
+
+.emergency_alert_table thead {
+    background: #eadbd7;
+}
+
+
+.emergency_alert_table th {
+    height: 44px;
+
+    padding: 0 21px;
+
+    color: #191616;
+
+    text-align: left;
+
+    font-size: 9px;
+
+    font-weight: 800;
+}
+
+
+/* All Alerts */
+
+.emergency_alert_table_all th:nth-child(1) {
+    width: 16%;
+}
+
+
+.emergency_alert_table_all th:nth-child(2) {
+    width: 21%;
+}
+
+
+.emergency_alert_table_all th:nth-child(3) {
+    width: 19%;
+}
+
+
+.emergency_alert_table_all th:nth-child(4) {
+    width: 19%;
+}
+
+
+.emergency_alert_table_all th:nth-child(5) {
+    width: 12%;
+}
+
+
+.emergency_alert_table_all th:nth-child(6) {
+    width: 12%;
+}
+
+
+/* =========================================================
+   TABLE BODY
+   ========================================================= */
+
+.emergency_alert_table td {
+    height: 58px;
+
+    padding: 0 21px;
+
+    border-top: 1px solid #e5ddd8;
+
+    color: #6e6865;
+
+    font-size: 11px;
+
+    white-space: nowrap;
+
+    overflow: hidden;
+
+    text-overflow: ellipsis;
+}
+
+.emergency_alert_table td:first-child {
+    padding-right: 10px;
+    padding-left: 10px;
+    overflow: visible;
+    text-overflow: clip;
+}
+
+
+/* =========================================================
+   INCIDENT CELL
+   ========================================================= */
+
+.emergency_alert_incident_cell {
+    overflow: visible !important;
+}
+
+
+.emergency_alert_incident {
+    display: block;
+
+    color: #171515;
+
+    font-size: 11px;
+
+    font-weight: 700;
+
+    white-space: nowrap;
+
+    overflow: hidden;
+
+    text-overflow: ellipsis;
+}
+
+
+.emergency_alert_patient_info {
+    display: grid;
+    gap: 2px;
+    margin-top: 4px;
+    color: #716b68;
+    font-size: 10px;
+    font-weight: 500;
+}
+
+.emergency_alert_patient_name {
+    color: #342b28;
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+}
+
+.emergency_alert_location {
+    vertical-align: middle;
+}
+
+.emergency_alert_location small {
+    display: block;
+    margin-top: 3px;
+    color: var(--emergency_alert_muted);
+    font-size: 10px;
+}
+
+.emergency_alert_response_info {
+    display: grid;
+    gap: 3px;
+    white-space: normal;
+}
+
+.emergency_alert_response_info strong {
+    color: #292321;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.emergency_alert_response_info span {
+    color: #716b68;
+    font-size: 10px;
+}
+
+.emergency_alert_reported {
+    display: grid;
+    gap: 2px;
+    white-space: normal;
+    line-height: 1.25;
+}
+
+.emergency_alert_reported_date {
+    color: #292321;
+    font-size: 10px;
+    font-weight: 600;
+}
+
+.emergency_alert_reported_clock {
+    color: #716b68;
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
+}
+
+.emergency_alert_actions_cell {
+    height: auto !important;
+    padding-top: 8px !important;
+    padding-bottom: 8px !important;
+    white-space: normal !important;
+    overflow: visible !important;
+    line-height: 1.6;
+}
+
+
+/* =========================================================
+   STATUS BADGES
+   ========================================================= */
+
+.emergency_alert_status {
+    display: inline-flex;
+
+    align-items: center;
+
+    min-height: 21px;
+
+    padding: 0 10px;
+
+    border-radius: 999px;
+
+    font-size: 9px;
+
+    font-weight: 700;
+}
+
+
+/* Critical */
+
+.emergency_alert_status_critical {
+    background: #f5e8e7;
+
+    color: #8b211c;
+}
+
+
+/* Urgent */
+
+.emergency_alert_status_urgent {
+    background: #ffffff;
+
+    border: 1px solid #d9cbc6;
+
+    color: #68615e;
+}
+
+.emergency_alert_status_select {
+    display: block;
+    width: 100%;
+    max-width: 100px;
+    min-width: 0;
+    min-height: 34px;
+    padding: 0 24px 0 9px;
+    border: 1px solid #ded6d1;
+    border-radius: 5px;
+    appearance: none;
+    background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='m2 4 4 4 4-4' fill='none' stroke='%236e6865' stroke-width='1.5'/%3E%3C/svg%3E") no-repeat right 9px center;
+    color: #25211f;
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.emergency_alert_status_select:focus-visible {
+    outline: 2px solid #7a1f2b;
+    outline-offset: 2px;
+}
+
+.emergency_alert_pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    min-height: 56px;
+    padding: 10px 20px;
+    border-top: 1px solid #e5ddd8;
+    color: #716b68;
+    font-size: 12px;
+}
+
+.emergency_alert_page_controls {
+    display: flex;
+    gap: 8px;
+}
+
+.emergency_alert_page_controls button {
+    min-height: 34px;
+    padding: 0 12px;
+    border: 1px solid #ded6d1;
+    border-radius: 4px;
+    background: #fff;
+    color: #25211f;
+    font: inherit;
+    cursor: pointer;
+}
+
+.emergency_alert_page_controls button:disabled {
+    opacity: .45;
+    cursor: default;
+}
+
+
+/* Stable */
+
+.emergency_alert_status_stable {
+    background: #edf8ef;
+
+    color: #36833b;
+}
+
+
+/* =========================================================
+   ACTION BUTTONS
+   ========================================================= */
+
+.emergency_alert_action {
+    display: inline-block;
+    margin-right: 8px;
+
+    padding: 0;
+
+    border: 0;
+
+    background: transparent;
+
+    color: var(--emergency_alert_maroon);
+
+    font-family: inherit;
+
+    font-size: 10px;
+
+    font-weight: 800;
+
+    white-space: nowrap;
+
+    cursor: pointer;
+
+    transition:
+        color 0.15s ease,
+        transform 0.15s ease;
+}
+
+
+.emergency_alert_action:hover {
+    color: var(--emergency_alert_maroon_dark);
+
+    transform: translateX(2px);
+}
+
+
+.emergency_alert_action span {
+    margin-left: 3px;
+
+    font-size: 14px;
+
+    line-height: 1;
+}
+
+
+/* =========================================================
+   EMPTY STATE
+   ========================================================= */
+
+.emergency_alert_empty {
+    padding: 45px 20px;
+
+    color: var(--emergency_alert_text_muted);
+
+    font-size: 13px;
+
+    text-align: center;
+}
+
+
+/* =========================================================
+   MODAL
+   ========================================================= */
+
+.emergency_alert_modal {
+    position: fixed;
+
+    inset: 0;
+
+    z-index: 1000;
+
+    display: none;
+
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+}
+
+
+.emergency_alert_modal_active {
+    display: flex;
+}
+
+
+.emergency_alert_modal_backdrop {
+    position: absolute;
+
+    inset: 0;
+
+    background: rgba(22, 20, 19, 0.42);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+}
+
+
+.emergency_alert_modal_card {
+    position: relative;
+
+    z-index: 1;
+
+    display: flex;
+    flex-direction: column;
+    width: min(600px, 100%);
+    max-height: min(86vh, 760px);
+    overflow-y: auto;
+    padding: 28px;
+
+    border: 1px solid #eadfda;
+
+    border-radius: 12px;
+
+    background: #fffaf8;
+
+    box-shadow: 0 24px 72px rgba(30, 20, 18, 0.24);
+
+    animation: emergency_alert_modal_in 0.2s ease both;
+}
+
+
+.emergency_alert_modal_close {
+    position: absolute;
+
+    top: 12px;
+
+    right: 15px;
+
+    width: 32px;
+
+    height: 32px;
+
+    padding: 0;
+
+    border: 0;
+
+    border-radius: 50%;
+
+    background: #f4f2ee;
+
+    color: #625b58;
+
+    font-size: 21px;
+
+    line-height: 1;
+
+    cursor: pointer;
+}
+
+
+.emergency_alert_modal_kicker {
+    margin: 0 0 7px;
+
+    color: var(--emergency_alert_maroon);
+
+    font-size: 10px;
+
+    font-weight: 800;
+
+    text-transform: uppercase;
+
+    letter-spacing: 0.08em;
+}
+
+
+.emergency_alert_modal_title {
+    margin: 0 0 22px;
+
+    color: #111111;
+
+    font-size: 21px;
+
+    font-weight: 800;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+}
+
+
+.emergency_alert_modal_body {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 22px;
+    row-gap: 15px;
+    color: #625b58;
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.emergency_alert_detail_item {
+    display: grid;
+    align-content: start;
+    gap: 4px;
+    min-width: 0;
+}
+
+.emergency_alert_detail_label {
+    color: #89817e;
+    font-size: 10px;
+    line-height: 1.2;
+}
+
+.emergency_alert_detail_value {
+    display: block;
+    color: #211c1a;
+    font-size: 13px;
+    font-weight: 650;
+    overflow-wrap: anywhere;
+}
+
+.emergency_alert_detail_item_notes {
+    grid-column: 1 / -1;
+}
+
+.emergency_alert_modal_actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 24px;
+    padding-top: 18px;
+    border-top: 1px solid #eee4e0;
+}
+
+.emergency_alert_drawer_action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 40px;
+    padding: 0 15px;
+    border: 1px solid #ded6d1;
+    border-radius: 5px;
+    background: #fff;
+    color: #342b28;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.emergency_alert_drawer_action_primary {
+    border-color: var(--emergency_alert_maroon);
+    background: var(--emergency_alert_maroon);
+    color: #fff;
+}
+
+
+/* =========================================================
+   TOAST
+   ========================================================= */
+
+.emergency_alert_toast {
+    position: fixed;
+
+    right: 24px;
+
+    bottom: 24px;
+
+    z-index: 1100;
+
+    max-width: 360px;
+
+    padding: 12px 16px;
+
+    border-radius: 10px;
+
+    background: #171515;
+
+    color: #ffffff;
+
+    font-size: 12px;
+
+    font-weight: 600;
+
+    box-shadow:
+        0 8px 25px rgba(20, 15, 13, 0.18);
+
+    opacity: 0;
+
+    visibility: hidden;
+
+    transform: translateY(10px);
+
+    transition:
+        opacity 0.2s ease,
+        visibility 0.2s ease,
+        transform 0.2s ease;
+}
+
+
+.emergency_alert_toast_active {
+    opacity: 1;
+
+    visibility: visible;
+
+    transform: translateY(0);
+}
+
+
+/* =========================================================
+   ANIMATIONS
+   ========================================================= */
+
+@keyframes emergency_alert_modal_in {
+
+    from {
+        opacity: 0;
+
+        transform:
+            translateY(10px) scale(0.98);
+    }
+
+    to {
+        opacity: 1;
+
+        transform:
+            translateY(0) scale(1);
+    }
+
+}
+
+@keyframes emergency_alert_drawer_in {
+    from {
+        opacity: 0;
+        transform: translateX(24px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+
+@keyframes emergency_alert_row_in {
+
+    from {
+        opacity: 0;
+
+        transform: translateY(5px);
+    }
+
+    to {
+        opacity: 1;
+
+        transform: translateY(0);
+    }
+
+}
+
+
+.emergency_alert_row {
+    animation:
+        emergency_alert_row_in 0.25s ease both;
+}
+
+
+/* =========================================================
+   RESPONSIVE — 1200px
+   ========================================================= */
+
+@media (max-width: 1200px) {
+
+    .emergency_alert_main {
+        padding: 28px 36px 48px;
+    }
+
+    .emergency_alert_header_controls {
+        gap: 12px;
+    }
+
+    .emergency_alert_search_input {
+        width: 280px;
+    }
+
+    .emergency_alert_search_input:focus {
+        width: 320px;
+    }
+
+}
+
+
+/* =========================================================
+   RESPONSIVE — 1000px
+   ========================================================= */
+
+@media (max-width: 1000px) {
+
+    .emergency_alert_summary {
+        grid-template-columns:
+            repeat(2, minmax(0, 1fr));
+    }
+
+    .emergency_alert_header {
+        grid-template-columns: 1fr;
+
+        gap: 18px;
+    }
+
+    .emergency_alert_header_controls {
+        width: 100%;
+
+        min-width: 0;
+    }
+
+    .emergency_alert_search {
+        flex: 1;
+    }
+
+    .emergency_alert_search_input {
+        width: 100%;
+    }
+
+    .emergency_alert_search_input:focus {
+        width: 100%;
+    }
+
+}
+
+
+/* =========================================================
+   RESPONSIVE — 750px
+   ========================================================= */
+
+@media (max-width: 750px) {
+
+    /*
+     * Mobile changes the shell into one column.
+     * Same behavior as Dashboard.
+     */
+
+    .emergency_alert_shell {
+        grid-template-columns: 1fr;
+    }
+
+
+    /* -----------------------------------------
+       SIDEBAR
+       ----------------------------------------- */
+
+    .emergency_alert_sidebar {
+        width: 100%;
+
+        min-width: 100%;
+
+        min-height: auto;
+
+        height: auto;
+    }
+
+
+    .emergency_alert_brand {
+        height: auto;
+    }
+
+
+    .emergency_alert_nav {
+        flex-direction: row;
+
+        overflow-x: auto;
+
+        padding-bottom: 12px;
+    }
+
+
+    .emergency_alert_nav_item {
+        flex-shrink: 0;
+    }
+
+
+    .emergency_alert_system_status {
+        display: none;
+    }
+
+
+    /* -----------------------------------------
+       MAIN
+       ----------------------------------------- */
+
+    .emergency_alert_main {
+        width: 100%;
+
+        max-width: 100%;
+
+        padding: 28px 18px 25px;
+    }
+
+
+    /* -----------------------------------------
+       HEADER
+       ----------------------------------------- */
+
+    .emergency_alert_header {
+        grid-template-columns: 1fr;
+
+        gap: 18px;
+    }
+
+
+    .emergency_alert_header_controls {
+        width: 100%;
+
+        flex-wrap: wrap;
+    }
+
+
+    .emergency_alert_search {
+        flex: 1;
+
+        min-width: 220px;
+    }
+
+
+    .emergency_alert_search_input {
+        width: 100%;
+    }
+
+
+    .emergency_alert_search_input:focus {
+        width: 100%;
+    }
+
+
+    .emergency_alert_search--focused .emergency_alert_search_input {
+        width: 100%;
+    }
+
+
+    /* -----------------------------------------
+       SUMMARY
+       ----------------------------------------- */
+
+    .emergency_alert_summary {
+        grid-template-columns:
+            1fr 1fr;
+    }
+
+
+    /* -----------------------------------------
+       FILTER
+       ----------------------------------------- */
+
+    .emergency_alert_filter_bar {
+        margin-left: 0;
+
+        overflow-x: auto;
+
+        padding-bottom: 3px;
+    }
+
+
+    .emergency_alert_filter {
+        flex-shrink: 0;
+    }
+
+
+    /* -----------------------------------------
+       TABLE
+       ----------------------------------------- */
+
+    .emergency_alert_table_wrap {
+        overflow-x: auto;
+    }
+
+
+    .emergency_alert_table {
+        min-width: 760px;
+    }
+
+}
+
+
+/* =========================================================
+   RESPONSIVE — 500px
+   ========================================================= */
+
+@media (max-width: 500px) {
+
+    .emergency_alert_modal {
+        padding: 14px;
+    }
+
+    .emergency_alert_main {
+        padding-left: 14px;
+
+        padding-right: 14px;
+    }
+
+
+    .emergency_alert_summary {
+        grid-template-columns: 1fr;
+    }
+
+
+    .emergency_alert_summary_card {
+        min-height: 100px;
+    }
+
+
+    .emergency_alert_hospital_name {
+        font-size: 23px;
+    }
+
+
+    .emergency_alert_title {
+        font-size: 14px;
+    }
+
+
+    .emergency_alert_header_controls {
+        gap: 10px;
+    }
+
+
+    .emergency_alert_user_text {
+        display: none;
+    }
+
+
+    .emergency_alert_notice {
+        padding-left: 12px;
+
+        padding-right: 12px;
+
+        font-size: 8px;
+    }
+
+
+    .emergency_alert_modal_card {
+        max-height: 90vh;
+        padding: 24px 20px 20px;
+    }
+
+    .emergency_alert_modal_body {
+        grid-template-columns: minmax(0, 1fr);
+        row-gap: 13px;
+    }
+
+    .emergency_alert_detail_item_notes {
+        grid-column: auto;
+    }
+
+    .emergency_alert_modal_actions {
+        margin-top: 20px;
+    }
+
+}

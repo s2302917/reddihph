@@ -1,0 +1,756 @@
+/* Nurse Sign Up Page */
+:root {
+    --signup-bg: #354044;
+    --signup-card: rgba(53, 64, 68, 0.96);
+    --signup-card-border: rgba(0, 0, 0, 0.9);
+    --signup-white: #f4f4f4;
+    --signup-soft: rgba(255, 255, 255, 0.75);
+    --signup-input: rgba(222, 222, 222, 0.9);
+    --signup-input-placeholder: rgba(62, 62, 62, 0.8);
+    --signup-button: #a60f18;
+    --signup-button-hover: #8f0d15;
+    --signup-link: #f2f2f2;
+    --signup-shadow: rgba(27, 31, 33, 0.2);
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    margin: 0;
+    min-height: 100%;
+    font-family: 'Inter', sans-serif;
+    background: var(--signup-bg);
+    color: var(--signup-white);
+}
+
+body.nurse-signup-page {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 32px;
+}
+
+body.doctor-signup-page {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 32px;
+    background: #443542;
+    --signup-bg: #443542;
+    --signup-card: rgba(68, 53, 66, 0.98);
+    --signup-card-border: rgba(0, 0, 0, 0.6);
+    --signup-button: #6f0e13;
+    --signup-button-hover: #59090d;
+}
+
+body.hospitaladmin-signup-page {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 32px;
+    background: #4a2429;
+    --signup-bg: #4a2429;
+    --signup-card: rgba(74, 36, 41, 0.98);
+    --signup-card-border: rgba(0, 0, 0, 0.6);
+    --signup-button: #6f0e13;
+    --signup-button-hover: #59090d;
+}
+
+.nurse-signup-shell,
+.doctor-signup-shell,
+.hospitaladmin-signup-shell {
+    position: relative;
+    width: min(1200px, 92vw);
+    min-height: 500px;
+    background: var(--signup-card);
+    border: 2px solid var(--signup-card-border);
+    border-radius: 38px;
+    box-shadow: 0 18px 34px var(--signup-shadow);
+    display: flex;
+    align-items: stretch;
+    overflow: hidden;
+    isolation: isolate;
+    outline: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.nurse-signup-shell::before,
+.doctor-signup-shell::before,
+.hospitaladmin-signup-shell::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.00));
+    pointer-events: none;
+}
+
+.nurse-signup-brand,
+.doctor-signup-brand,
+.hospitaladmin-signup-brand {
+    position: relative;
+    width: 40%;
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-start;
+    padding: 54px 0 0 54px;
+    z-index: 1;
+}
+
+.nurse-signup-icon,
+.doctor-signup-icon,
+.hospitaladmin-signup-icon {
+    width: 112px;
+    height: 112px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    margin-top: 2px;
+    padding: 0;
+}
+
+.nurse-signup-icon svg {
+    width: 56px;
+    height: 56px;
+    color: var(--signup-white);
+    stroke-width: 2.1;
+}
+
+.doctor-signup-icon svg {
+    width: 56px;
+    height: 56px;
+    color: #ffffff;
+    stroke-width: 2.1;
+}
+
+.hospitaladmin-signup-icon svg {
+    width: 56px;
+    height: 56px;
+    color: #ffffff;
+    stroke-width: 2;
+}
+
+.nurse-signup-copy,
+.doctor-signup-copy,
+.hospitaladmin-signup-copy {
+    position: absolute;
+    left: 56px;
+    bottom: 54px;
+    z-index: 1;
+    max-width: 320px;
+}
+
+.nurse-signup-copy h2,
+.doctor-signup-copy h2,
+.hospitaladmin-signup-copy h2 {
+    margin: 0;
+    font-size: clamp(4.25rem, 4.7vw, 6rem);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 0.84;
+    color: rgba(250, 250, 250, 0.96);
+    padding-left: 2px;
+}
+
+.nurse-signup-copy p,
+.doctor-signup-copy p,
+.hospitaladmin-signup-copy p {
+    margin-top: 14px;
+    font-size: 1.05rem;
+    line-height: 1.35;
+    color: rgba(255, 255, 255, 0.78);
+    max-width: 230px;
+    padding-left: 2px;
+}
+
+.nurse-signup-form-wrap,
+.doctor-signup-form-wrap,
+.hospitaladmin-signup-form-wrap {
+    position: relative;
+    width: 60%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 42px 52px 36px 52px;
+    z-index: 1;
+}
+
+.nurse-signup-form-box,
+.doctor-signup-form-box,
+.hospitaladmin-signup-form-box {
+    width: min(100%, 420px);
+}
+
+.nurse-signup-kicker,
+.doctor-signup-kicker,
+.hospitaladmin-signup-kicker {
+    display: block;
+    margin-bottom: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.76);
+}
+
+.nurse-signup-title,
+.doctor-signup-title,
+.hospitaladmin-signup-title {
+    margin: 0 0 24px;
+    font-size: clamp(1.8rem, 2.3vw, 2.8rem);
+    line-height: 1.1;
+    letter-spacing: -0.05em;
+    color: rgba(255, 255, 255, 0.94);
+}
+
+.nurse-signup-form,
+.doctor-signup-form,
+.hospitaladmin-signup-form {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.nurse-signup-row,
+.doctor-signup-row,
+.hospitaladmin-signup-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 14px;
+}
+
+.nurse-signup-field,
+.doctor-signup-field,
+.hospitaladmin-signup-field {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.nurse-signup-field label,
+.doctor-signup-field label,
+.hospitaladmin-signup-field label {
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.9);
+    letter-spacing: 0.01em;
+}
+
+.nurse-signup-field input,
+.doctor-signup-field input,
+.hospitaladmin-signup-field input,
+.nurse-signup-field select,
+.doctor-signup-field select,
+.hospitaladmin-signup-field select {
+    width: 100%;
+    min-width: 0;
+    height: 40px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: var(--signup-input);
+    border-radius: 8px;
+    padding: 0 14px;
+    font-size: 0.82rem;
+    color: #1a1a1a;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.nurse-signup-field input::placeholder,
+.doctor-signup-field input::placeholder,
+.hospitaladmin-signup-field input::placeholder {
+    color: var(--signup-input-placeholder);
+    font-size: 0.75rem;
+}
+
+.nurse-signup-field input:focus,
+.doctor-signup-field input:focus,
+.hospitaladmin-signup-field input:focus,
+.nurse-signup-field select:focus,
+.doctor-signup-field select:focus,
+.hospitaladmin-signup-field select:focus {
+    outline: none;
+    border-color: rgba(255, 255, 255, 0.3);
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.12);
+}
+
+.nurse-signup-submit,
+.doctor-signup-submit,
+.hospitaladmin-signup-submit {
+    width: 100%;
+    height: 52px;
+    border: none;
+    border-radius: 12px;
+    background: linear-gradient(180deg, var(--signup-button), #8f1018);
+    color: #fff;
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    cursor: pointer;
+    margin-top: 6px;
+    box-shadow: 0 10px 22px rgba(117, 15, 20, 0.3);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+}
+
+.nurse-signup-submit:hover,
+.doctor-signup-submit:hover,
+.hospitaladmin-signup-submit:hover {
+    filter: brightness(1.02);
+    transform: translateY(-1px);
+    box-shadow: 0 14px 26px rgba(117, 15, 20, 0.45);
+}
+
+.nurse-signup-submit:active,
+.doctor-signup-submit:active,
+.hospitaladmin-signup-submit:active {
+    transform: translateY(0);
+}
+
+.nurse-signup-footer,
+.doctor-signup-footer,
+.hospitaladmin-signup-footer {
+    margin-top: 16px;
+    text-align: center;
+    font-size: 0.84rem;
+    color: rgba(255, 255, 255, 0.82);
+}
+
+.nurse-signup-footer a,
+.doctor-signup-footer a,
+.hospitaladmin-signup-footer a {
+    color: var(--signup-link);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    font-weight: 600;
+}
+
+.nurse-signup-status,
+.doctor-signup-status,
+.hospitaladmin-signup-status {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    font-size: 0.82rem;
+    line-height: 1.4;
+}
+
+.nurse-signup-status.success,
+.doctor-signup-status.success,
+.hospitaladmin-signup-status.success {
+    background: rgba(39, 172, 105, 0.18);
+    color: #dff9eb;
+    border: 1px solid rgba(39, 172, 105, 0.35);
+}
+
+.nurse-signup-status.error,
+.doctor-signup-status.error,
+.hospitaladmin-signup-status.error {
+    background: rgba(255, 90, 90, 0.1);
+    color: #ffd8d8;
+    border: 1px solid rgba(255, 90, 90, 0.22);
+}
+
+@media (max-width: 900px) {
+
+    .nurse-signup-shell,
+    .doctor-signup-shell,
+    .hospitaladmin-signup-shell {
+        flex-direction: column;
+        padding: 28px 20px 32px;
+        min-height: auto;
+    }
+
+    .nurse-signup-brand,
+    .nurse-signup-form-wrap,
+    .doctor-signup-brand,
+    .doctor-signup-form-wrap,
+    .hospitaladmin-signup-brand,
+    .hospitaladmin-signup-form-wrap {
+        width: 100%;
+    }
+
+    .nurse-signup-brand,
+    .doctor-signup-brand,
+    .hospitaladmin-signup-brand {
+        justify-content: center;
+        padding: 0;
+    }
+
+    .nurse-signup-copy,
+    .doctor-signup-copy,
+    .hospitaladmin-signup-copy {
+        position: static;
+        margin: 20px auto 0;
+        text-align: center;
+    }
+
+    .nurse-signup-copy p,
+    .doctor-signup-copy p,
+    .hospitaladmin-signup-copy p {
+        max-width: 100%;
+    }
+
+    .nurse-signup-form-wrap,
+    .doctor-signup-form-wrap,
+    .hospitaladmin-signup-form-wrap {
+        padding: 18px 0 0;
+    }
+}
+
+@media (max-width: 560px) {
+
+    .nurse-signup-row,
+    .doctor-signup-row,
+    .hospitaladmin-signup-row {
+        grid-template-columns: 1fr;
+    }
+
+    body.nurse-signup-page,
+    body.doctor-signup-page,
+    body.hospitaladmin-signup-page {
+        padding: 20px 14px;
+    }
+
+    .nurse-signup-shell,
+    .doctor-signup-shell,
+    .hospitaladmin-signup-shell {
+        border-radius: 28px;
+    }
+}
+
+@media (min-width: 561px) {
+
+    .nurse-signup-shell,
+    .doctor-signup-shell,
+    .hospitaladmin-signup-shell {
+        width: min(700px, 94vw);
+        min-height: 410px;
+    }
+
+    .nurse-signup-brand,
+    .doctor-signup-brand,
+    .hospitaladmin-signup-brand {
+        padding-top: 42px;
+        padding-left: 40px;
+    }
+
+    .nurse-signup-form-wrap,
+    .doctor-signup-form-wrap,
+    .hospitaladmin-signup-form-wrap {
+        padding-right: 34px;
+        padding-left: 12px;
+    }
+
+    .nurse-signup-title,
+    .doctor-signup-title,
+    .hospitaladmin-signup-title {
+        font-size: 1.12rem;
+    }
+
+    .nurse-signup-field label,
+    .doctor-signup-field label,
+    .hospitaladmin-signup-field label {
+        font-size: .5rem;
+    }
+
+    .nurse-signup-field input,
+    .doctor-signup-field input,
+    .hospitaladmin-signup-field input,
+    .nurse-signup-field select,
+    .doctor-signup-field select,
+    .hospitaladmin-signup-field select {
+        height: 25px;
+        min-height: 25px;
+        font-size: .54rem;
+    }
+
+    .nurse-signup-submit,
+    .doctor-signup-submit,
+    .hospitaladmin-signup-submit {
+        height: 27px;
+        font-size: .54rem;
+    }
+}
+
+/* Reference signup layout: compact two-column card shared by every role. */
+.nurse-signup-page,
+.doctor-signup-page,
+.hospitaladmin-signup-page {
+    --signup-bg: #5a3839;
+    --signup-card: #543334;
+    --signup-card-border: rgba(10, 8, 8, .88);
+    --signup-input: #dedede;
+    --signup-button: #a00000;
+    --signup-button-hover: #850000;
+    min-height: 100vh;
+    padding: 24px;
+    background: var(--signup-bg);
+}
+
+.nurse-signup-shell,
+.doctor-signup-shell,
+.hospitaladmin-signup-shell {
+    width: min(640px, 100%);
+    min-height: 372px;
+    border: 1px solid var(--signup-card-border);
+    border-radius: 32px;
+    background: var(--signup-card);
+    box-shadow: none;
+}
+
+.nurse-signup-shell::before,
+.doctor-signup-shell::before,
+.hospitaladmin-signup-shell::before {
+    display: none;
+}
+
+.nurse-signup-brand,
+.doctor-signup-brand,
+.hospitaladmin-signup-brand {
+    width: 48%;
+    padding: 38px 0 0 34px;
+}
+
+.nurse-signup-icon,
+.doctor-signup-icon,
+.hospitaladmin-signup-icon {
+    width: 54px;
+    height: 54px;
+}
+
+.nurse-signup-icon svg,
+.doctor-signup-icon svg,
+.hospitaladmin-signup-icon svg {
+    width: 42px;
+    height: 42px;
+}
+
+.nurse-signup-copy,
+.doctor-signup-copy,
+.hospitaladmin-signup-copy {
+    left: 20px;
+    bottom: 68px;
+    max-width: 220px;
+}
+
+.nurse-signup-copy h2,
+.doctor-signup-copy h2,
+.hospitaladmin-signup-copy h2 {
+    padding-left: 0;
+    font-size: 2rem;
+    line-height: .95;
+    letter-spacing: -.03em;
+}
+
+.nurse-signup-copy p,
+.doctor-signup-copy p,
+.hospitaladmin-signup-copy p {
+    margin-top: 6px;
+    padding-left: 0;
+    font-size: .78rem;
+    line-height: 1.18;
+    max-width: 180px;
+}
+
+.nurse-signup-form-wrap,
+.doctor-signup-form-wrap,
+.hospitaladmin-signup-form-wrap {
+    width: 52%;
+    padding: 34px 26px 28px 8px;
+}
+
+.nurse-signup-form-box,
+.doctor-signup-form-box,
+.hospitaladmin-signup-form-box {
+    width: 100%;
+}
+
+.nurse-signup-kicker,
+.doctor-signup-kicker,
+.hospitaladmin-signup-kicker {
+    margin-bottom: 3px;
+    font-size: .5rem;
+    letter-spacing: .04em;
+}
+
+.nurse-signup-title,
+.doctor-signup-title,
+.hospitaladmin-signup-title {
+    margin-bottom: 18px;
+    font-size: 1rem;
+    letter-spacing: -.02em;
+}
+
+.nurse-signup-form,
+.doctor-signup-form,
+.hospitaladmin-signup-form {
+    gap: 10px;
+}
+
+.nurse-signup-row,
+.doctor-signup-row,
+.hospitaladmin-signup-row {
+    gap: 10px;
+}
+
+.nurse-signup-field,
+.doctor-signup-field,
+.hospitaladmin-signup-field {
+    gap: 3px;
+}
+
+.nurse-signup-field label,
+.doctor-signup-field label,
+.hospitaladmin-signup-field label {
+    font-size: .45rem;
+    line-height: 1;
+}
+
+.nurse-signup-field input,
+.doctor-signup-field input,
+.hospitaladmin-signup-field input,
+.nurse-signup-field select,
+.doctor-signup-field select,
+.hospitaladmin-signup-field select {
+    height: 22px;
+    min-height: 22px;
+    border: 0;
+    border-radius: 3px;
+    padding: 0 7px;
+    font-size: .48rem;
+}
+
+.nurse-signup-field input::placeholder,
+.doctor-signup-field input::placeholder,
+.hospitaladmin-signup-field input::placeholder {
+    font-size: .42rem;
+}
+
+.nurse-signup-submit,
+.doctor-signup-submit,
+.hospitaladmin-signup-submit {
+    height: 23px;
+    margin-top: 5px;
+    border-radius: 12px;
+    background: var(--signup-button);
+    box-shadow: none;
+    font-size: .48rem;
+}
+
+.nurse-signup-footer,
+.doctor-signup-footer,
+.hospitaladmin-signup-footer {
+    margin-top: 18px;
+    font-size: .45rem;
+}
+
+.nurse-signup-status,
+.doctor-signup-status,
+.hospitaladmin-signup-status {
+    margin: 0 0 8px;
+    padding: 6px 8px;
+    border-radius: 5px;
+    font-size: .55rem;
+}
+
+@media (max-width: 700px) {
+
+    .nurse-signup-shell,
+    .doctor-signup-shell,
+    .hospitaladmin-signup-shell {
+        width: min(640px, 100%);
+    }
+}
+
+@media (max-width: 560px) {
+
+    .nurse-signup-shell,
+    .doctor-signup-shell,
+    .hospitaladmin-signup-shell {
+        border-radius: 24px;
+    }
+
+    .nurse-signup-brand,
+    .doctor-signup-brand,
+    .hospitaladmin-signup-brand,
+    .nurse-signup-form-wrap,
+    .doctor-signup-form-wrap,
+    .hospitaladmin-signup-form-wrap {
+        width: 100%;
+    }
+
+    .nurse-signup-brand,
+    .doctor-signup-brand,
+    .hospitaladmin-signup-brand {
+        padding: 24px 24px 0;
+        justify-content: flex-start;
+    }
+
+    .nurse-signup-copy,
+    .doctor-signup-copy,
+    .hospitaladmin-signup-copy {
+        left: 24px;
+        bottom: auto;
+        margin-top: 12px;
+        text-align: left;
+    }
+
+    .nurse-signup-form-wrap,
+    .doctor-signup-form-wrap,
+    .hospitaladmin-signup-form-wrap {
+        padding: 108px 24px 26px;
+    }
+}
+
+body.doctor-signup-page {
+    --signup-bg: #020544;
+    --signup-card-border: rgba(255, 255, 255, 0.2);
+    background:
+        linear-gradient(180deg, rgba(0, 0, 0, 0.15) 57.21%, rgba(102, 102, 102, 0.15) 85%),
+        linear-gradient(0deg, #020544, #020544);
+}
+
+.doctor-signup-shell {
+    background:
+        linear-gradient(180deg, rgba(0, 0, 0, 0.15) 57.21%, rgba(102, 102, 102, 0.15) 85%),
+        rgba(2, 5, 68, 0.76);
+    border-color: var(--signup-card-border);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+}
+
+.doctor-signup-submit {
+    background:
+        linear-gradient(180deg, rgba(0, 0, 0, 0.15) 57.21%, rgba(102, 102, 102, 0.15) 85%),
+        linear-gradient(0deg, #020544, #020544);
+    box-shadow: 0 10px 22px rgba(2, 5, 68, 0.3);
+}
+
+.doctor-signup-submit:hover {
+    filter: brightness(1.12);
+    box-shadow: 0 14px 26px rgba(2, 5, 68, 0.45);
+}
+
+.doctor-signup-footer a {
+    display: inline-block;
+    padding: 0.2rem 0.45rem;
+    border-radius: 9999px;
+    transition: background 0.2s ease, color 0.2s ease;
+}
+
+.doctor-signup-footer a:hover,
+.doctor-signup-footer a:focus-visible {
+    background:
+        linear-gradient(180deg, rgba(0, 0, 0, 0.15) 57.21%, rgba(102, 102, 102, 0.15) 85%),
+        linear-gradient(0deg, #020544, #020544);
+    color: #ffffff;
+    text-decoration: none;
+}

@@ -1,0 +1,49 @@
+.users-page { padding-top: 24px; }
+.users-heading, .roles-heading, .facilities-heading, .branding-heading { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 28px; }
+.profile-initial { display: grid; width: 27px; height: 27px; place-items: center; border-radius: 50%; background: #a52335; color: #fff; font-size: .65rem; font-weight: 700; }
+.users-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, 300px); align-items: start; gap: 10px; }
+.users-main { min-width: 0; }
+.user-filters { display: flex; overflow-x: auto; gap: 5px; margin: 0 0 13px; }
+.user-filters a { display: flex; flex: 0 0 auto; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid #292930; border-radius: 20px; background: #1a1a20; color: #a9a9b2; font-size: .53rem; text-decoration: none; }
+.user-filters a span { color: #777781; }
+.user-filters a.selected { border-color: #f2f2f3; background: #f2f2f3; color: #222228; }
+.user-filters a.selected span { color: #52525a; }
+.user-search, .barangay-search { display: flex; align-items: center; gap: 8px; }
+.user-search { margin-bottom: 8px; padding: 7px 10px; border: 1px solid #28282f; border-radius: 8px; background: #1a1a20; }
+.user-search > span, .barangay-search > span { width: 11px; height: 11px; border: 1px solid #92929b; border-radius: 50%; position: relative; }
+.user-search > span::after, .barangay-search > span::after { position: absolute; right: -4px; bottom: -2px; width: 5px; height: 1px; background: #92929b; content: ""; transform: rotate(45deg); }
+.user-search input, .barangay-search input { min-width: 0; border: 0; outline: 0; background: transparent; color: #eeeef1; font: inherit; font-size: .62rem; }
+.user-search input::placeholder, .barangay-search input::placeholder { color: #85858e; }
+.users-table-card { overflow: hidden; border: 1px solid #292930; border-radius: 11px; background: #1a1a20; }
+.users-table { min-width: 700px; }
+.users-table th { padding: 10px 8px; font-size: .52rem; }
+.users-table td { padding: 9px 8px; font-size: .52rem; }
+.user-row-link { display: flex; min-width: 150px; align-items: center; gap: 7px; color: inherit; text-decoration: none; }
+.account-avatar { display: grid; width: 18px; height: 18px; flex: 0 0 18px; place-items: center; border-radius: 50%; background: #31313b; color: #fff; font-size: .48rem; }
+.user-row-link strong, .user-row-link small { display: block; }
+.user-row-link strong { max-width: 130px; overflow: hidden; color: #e4e4e8; font-size: .53rem; text-overflow: ellipsis; white-space: nowrap; }
+.user-row-link small { max-width: 130px; overflow: hidden; color: #8e8e98; font-size: .45rem; text-overflow: ellipsis; white-space: nowrap; }
+.user-row-link.selected .account-avatar { background: #a52335; }
+.role-pill { border: 0; background: #aeb4bd; color: #24242a; font-size: .49rem; }
+.role-super_admin { background: #74272f; color: #ffd5d5; }
+.role-hospital_admin { background: #c9575a; color: #fff; }
+.role-doctor { background: #8593cb; }
+.role-nurse { background: #668b70; color: #fff; }
+.role-responder { background: #bb7042; color: #fff; }
+.role-volunteer { background: #7e8d99; }
+.login-status { display: inline-flex; padding: 3px 6px; border-radius: 10px; background: #24452f; color: #b8edc5; font-size: .46rem; white-space: nowrap; }
+.login-status-disabled { background: #51272d; color: #ffc6cb; }
+.row-more { color: #ccc; font-weight: 700; text-decoration: none; }
+.users-no-results { padding: 15px; color: #a5a5ae; text-align: center; font-size: .65rem; }
+.user-profile-card { display: flex; min-height: 238px; flex-direction: column; align-items: center; padding: 45px 10px 15px; border: 1px solid #202027; border-radius: 11px; background: #1a1a20; text-align: center; }
+.profile-avatar { display: grid; width: 36px; height: 36px; place-items: center; border-radius: 50%; background: #283243; color: #eff1f4; font-weight: 700; }
+.user-profile-card h2 { margin: 9px 0 3px; color: #eeeef1; font-size: .64rem; }
+.profile-role, .profile-email { margin: 0; color: #a5a5ae; font-size: .5rem; }
+.profile-email { margin-top: 4px; color: #d58a8e; overflow-wrap: anywhere; text-decoration: none; }
+.profile-details { width: 100%; margin: 16px 0 0; text-align: left; }
+.profile-details div { padding: 8px 2px; border-top: 1px solid #38383f; }
+.profile-details dt { color: #888891; font-size: .48rem; }
+.profile-details dd { margin: 3px 0 0; color: #dedee2; font-size: .5rem; overflow-wrap: anywhere; }
+.profile-empty { color: #aaaab2; font-size: .6rem; }
+.user-profile-card > .admin-form { width: 100%; align-self: stretch; text-align: left; }
+@media (max-width: 900px) { .users-layout { grid-template-columns: 1fr; } .user-profile-card { min-height: auto; padding: 18px; } .profile-details { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0 12px; } }

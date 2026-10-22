@@ -1,0 +1,642 @@
+:root {
+    --nurse-settings-bg: #efebe9;
+    --nurse-settings-text: #101010;
+    --nurse-settings-muted: #746b68;
+    --nurse-settings-line: #d7d0cd;
+    --nurse-settings-gray: #394646;
+    --nurse-settings-gray-dark: #303b3b;
+}
+
+* { box-sizing: border-box; }
+
+html, body { margin: 0; min-height: 100%; }
+
+body.nurse-settings-page {
+    background: var(--nurse-settings-bg);
+    color: var(--nurse-settings-text);
+    font-family: Inter, Arial, sans-serif;
+    font-size: 14px;
+}
+
+button, input { font: inherit; }
+
+.nurse-settings-app-shell {
+    display: flex;
+    min-height: 100vh;
+}
+
+.nurse-settings-content {
+    flex: 1;
+    min-width: 0;
+    padding: 55px 38px 70px;
+}
+
+.nurse-settings-heading span {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.nurse-settings-heading h1 {
+    margin: 0;
+    font-size: 25px;
+    line-height: 1;
+    font-weight: 800;
+}
+
+.nurse-settings-card {
+    --nurse-settings-primary: var(--nurse-settings-gray);
+    --nurse-settings-primary-dark: var(--nurse-settings-gray-dark);
+    width: min(700px, 100%);
+    margin: 24px auto;
+    padding: 30px 66px;
+    border-radius: 13px;
+    background: #fff;
+}
+
+.nurse-settings-profile-row {
+    display: flex;
+    align-items: center;
+    gap: 17px;
+}
+
+.nurse-settings-avatar {
+    position: relative;
+    width: 58px;
+    height: 58px;
+    flex: 0 0 58px;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: var(--nurse-settings-primary);
+    color: #fff;
+    font-size: 17px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.nurse-settings-avatar img {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.nurse-settings-avatar-camera {
+    position: absolute;
+    right: -2px;
+    bottom: -1px;
+    display: grid;
+    width: 21px;
+    height: 21px;
+    place-items: center;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    background: var(--nurse-settings-primary);
+    color: #fff;
+    font-size: 15px;
+    line-height: 1;
+}
+
+.nurse-settings-profile-row h2 {
+    margin: 0;
+    font-size: 15px;
+}
+
+.nurse-settings-profile-row > div > span {
+    color: #777;
+    font-size: 11px;
+}
+
+.nurse-settings-card hr {
+    margin: 28px 0 35px;
+    border: 0;
+    border-top: 1px solid #aaa;
+}
+
+.nurse-settings-card h3 {
+    margin: 18px 0 12px;
+    font-size: 13px;
+}
+
+.nurse-settings-card label {
+    display: block;
+    margin: 11px 0 5px;
+    font-size: 10px;
+    font-weight: 700;
+}
+
+.nurse-settings-input {
+    display: flex;
+    overflow: hidden;
+    border-radius: 5px;
+    background: #d9d9d9;
+}
+
+.nurse-settings-input input {
+    width: 100%;
+    min-width: 0;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    padding: 8px 13px;
+    color: #777;
+    font-size: 11px;
+}
+
+.nurse-settings-input input:not([readonly]) {
+    background: #fff;
+    box-shadow: inset 0 0 0 1px var(--nurse-settings-gray);
+    color: #222;
+}
+
+.nurse-settings-input button {
+    width: 40px;
+    flex: 0 0 40px;
+    border: 0;
+    background: transparent;
+    color: var(--nurse-settings-primary);
+    cursor: pointer;
+}
+
+.nurse-settings-save-row {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 18px;
+}
+
+.nurse-settings-save-button,
+.nurse-settings-primary-button {
+    border: 0;
+    border-radius: 7px;
+    padding: 11px 18px;
+    background: var(--nurse-settings-primary, var(--nurse-settings-gray));
+    color: #fff;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.nurse-settings-save-button:hover,
+.nurse-settings-primary-button:hover { background: var(--nurse-settings-primary-dark, var(--nurse-settings-gray-dark)); }
+
+.nurse-settings-save-button:disabled,
+.nurse-settings-primary-button:disabled,
+.nurse-settings-secondary-button:disabled { cursor: wait; opacity: .65; }
+
+.nurse-settings-security-row {
+    position: relative;
+    width: 100%;
+    padding: 10px 25px 10px 0;
+    border: 0;
+    border-bottom: 1px solid #ddd;
+    background: transparent;
+    text-align: left;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.nurse-settings-security-row:hover { color: var(--nurse-settings-gray); }
+
+.nurse-settings-security-row > span {
+    position: absolute;
+    top: 5px;
+    right: 3px;
+    color: #888;
+    font-size: 27px;
+}
+
+.nurse-settings-security-row small {
+    display: block;
+    margin-top: 4px;
+    color: #777;
+    font-weight: 400;
+}
+
+.nurse-settings-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 25px;
+}
+
+.nurse-settings-logout {
+    border: 0;
+    background: transparent;
+    color: var(--nurse-settings-gray);
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.nurse-settings-toast {
+    position: fixed;
+    z-index: 1200;
+    right: 24px;
+    bottom: 24px;
+    max-width: min(420px, calc(100vw - 32px));
+    padding: 13px 18px;
+    border-radius: 9px;
+    background: #332c39;
+    color: #fff;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(12px);
+    transition: opacity .2s ease, transform .2s ease;
+}
+
+.nurse-settings-toast.is-visible { opacity: 1; transform: translateY(0); }
+.nurse-settings-toast.is-success { background: #286848; }
+.nurse-settings-toast.is-error { background: #a12e42; }
+
+.nurse-settings-drawer-overlay,
+.nurse-settings-logout-overlay {
+    position: fixed;
+    z-index: 1100;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 20px;
+    background: rgb(31 23 39 / 42%);
+    backdrop-filter: blur(5px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .2s ease;
+}
+
+.nurse-settings-drawer-overlay--open,
+.nurse-settings-logout-overlay--open {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.nurse-settings-drawer {
+    position: relative;
+    width: min(100%, 460px);
+    max-height: min(90vh, 760px);
+    overflow-y: auto;
+    padding: 34px;
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 18px 48px rgb(0 0 0 / 20%);
+}
+
+.nurse-settings-drawer h2 {
+    margin: 0 35px 20px 0;
+    font-size: 20px;
+}
+
+.nurse-settings-drawer-close {
+    position: absolute;
+    top: 14px;
+    right: 18px;
+    border: 0;
+    background: transparent;
+    color: #625a5e;
+    font-size: 27px;
+    cursor: pointer;
+}
+
+.nurse-settings-drawer label {
+    display: block;
+    margin: 13px 0 6px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.nurse-settings-drawer input:not([type="hidden"]):not([type="file"]) {
+    width: 100%;
+    padding: 11px 12px;
+    border: 1px solid #d7d0cd;
+    border-radius: 7px;
+}
+
+.nurse-settings-drawer form .nurse-settings-primary-button { margin-top: 20px; }
+
+.nurse-settings-photo-preview {
+    width: 116px;
+    height: 116px;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    margin: 5px auto 22px;
+    border-radius: 50%;
+    background: #e9e5e3;
+    color: var(--nurse-settings-gray);
+    font-size: 30px;
+    font-weight: 700;
+}
+
+.nurse-settings-photo-preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.nurse-settings-photo-preview [hidden] { display: none; }
+.nurse-settings-secondary-button { margin-right: 8px; }
+
+.nurse-settings-secondary-button,
+.nurse-settings-drawer > .nurse-settings-primary-button {
+    min-height: 42px;
+    padding: 10px 15px;
+    border: 1px solid var(--nurse-settings-gray);
+    border-radius: 7px;
+    background: #fff;
+    color: var(--nurse-settings-gray);
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.nurse-settings-drawer > .nurse-settings-primary-button {
+    border-color: var(--nurse-settings-gray);
+    background: var(--nurse-settings-gray);
+    color: #fff;
+}
+
+.nurse-settings-logout-dialog {
+    width: min(100%, 480px);
+    padding: 40px;
+    border-radius: 12px;
+    background: var(--nurse-settings-gray);
+    color: #fff;
+    box-shadow: 0 18px 48px rgb(35 0 2 / 28%);
+}
+
+.nurse-settings-logout-dialog h2 { margin: 0 0 8px; font-size: 19px; }
+.nurse-settings-logout-dialog p { margin: 0; font-size: 13px; }
+
+.nurse-settings-logout-dialog > div {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 24px;
+}
+
+.nurse-settings-logout-dialog button,
+.nurse-settings-logout-dialog a {
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 7px;
+    background: rgb(255 255 255 / 16%);
+    color: #fff;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.nurse-settings-logout-dialog button:hover,
+.nurse-settings-logout-dialog a:hover { background: rgb(255 255 255 / 25%); }
+
+@media (max-width: 900px) {
+    .nurse-settings-content { padding: 35px 20px; }
+    .nurse-settings-card { padding: 25px 35px; }
+}
+
+@media (max-width: 700px) {
+    .nurse-settings-app-shell { display: block; }
+    .nurse-settings-content { padding: 30px 18px; }
+    .nurse-settings-card { margin-top: 20px; padding: 25px 22px; }
+    .nurse-settings-drawer { padding: 28px 22px; }
+}
+
+@media (max-width: 420px) {
+    .nurse-settings-logout-dialog { padding: 30px 24px; }
+}
+
+.nurse-sidebar.sidebar {
+    width: 255px;
+    flex: 0 0 255px;
+    min-height: 100vh;
+    padding: 9px 14px 14px;
+    background: #fff;
+    border-right: 1px solid #e7dfdc;
+    display: flex;
+    flex-direction: column;
+}
+
+.nurse-sidebar .brand {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 19px;
+    padding: 0 12px 42px;
+    color: #a00000;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: .08em;
+}
+
+.nurse-sidebar .main-nav { display: grid; gap: 5px; }
+
+.nurse-sidebar .main-nav a {
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 0 15px;
+    border-radius: 10px;
+    color: #6c6260;
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 1.2;
+    text-align: left;
+    text-decoration: none;
+}
+
+.nurse-sidebar .main-nav a.active {
+    background: #394646;
+    color: #fff;
+    font-weight: 700;
+}
+
+.nurse-sidebar .nurse-sidebar-profile {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 11px;
+    margin-top: auto;
+    padding: 14px 8px 0;
+    border-top: 1px solid #d7d0cd;
+    text-align: left;
+}
+
+.nurse-sidebar-avatar {
+    width: 42px;
+    height: 42px;
+    flex: 0 0 42px;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    border-radius: 50%;
+    background: #394646;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.nurse-sidebar-avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+.nurse-sidebar-copy {
+    min-width: 0;
+    display: grid;
+    gap: 3px;
+    text-align: left;
+}
+
+.nurse-sidebar-copy strong,
+.nurse-sidebar-copy > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.nurse-sidebar-copy strong { color: #292526; font-size: 12px; }
+.nurse-sidebar-copy > span { color: #766e6d; font-size: 10px; }
+
+@media (max-width: 700px) {
+    .nurse-sidebar.sidebar {
+        width: 100%;
+        min-height: auto;
+        padding: 12px 14px;
+        border-right: 0;
+        border-bottom: 1px solid #e7dfdc;
+    }
+
+    .nurse-sidebar .brand {
+        min-height: auto;
+        justify-content: center;
+        padding: 3px 4px 10px;
+    }
+
+    .nurse-sidebar .main-nav {
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 5px;
+    }
+
+    .nurse-sidebar .main-nav a {
+        min-width: 0;
+        min-height: 48px;
+        justify-content: center;
+        padding: 5px 2px;
+        font-size: 12px;
+        text-align: center;
+    }
+
+    .nurse-sidebar .nurse-sidebar-profile {
+        margin-top: 10px;
+        padding: 9px 4px 0;
+    }
+
+    .nurse-sidebar-copy { max-width: min(70vw, 280px); }
+}
+
+@media (max-width: 700px) {
+    .nurse-sidebar .main-nav a {
+        min-height: 52px;
+        gap: 4px;
+        font-size: clamp(9px, 2.7vw, 12px);
+        line-height: 1.2;
+        overflow-wrap: anywhere;
+    }
+
+    .nurse-settings-content {
+        min-width: 0;
+    }
+
+    .nurse-settings-heading h1 {
+        font-size: 23px;
+    }
+
+    .nurse-settings-card {
+        width: 100%;
+        min-width: 0;
+        padding: 24px 20px;
+    }
+
+    .nurse-settings-profile-row,
+    .nurse-settings-profile-row > div {
+        min-width: 0;
+    }
+
+    .nurse-settings-profile-row h2 {
+        overflow-wrap: anywhere;
+    }
+
+    .nurse-settings-input input {
+        min-width: 0;
+        font-size: 16px;
+    }
+
+    .nurse-settings-save-button,
+    .nurse-settings-primary-button,
+    .nurse-settings-secondary-button {
+        min-height: 44px;
+    }
+
+    .nurse-settings-drawer-overlay,
+    .nurse-settings-logout-overlay {
+        align-items: center;
+        overflow-y: auto;
+        padding: 12px;
+    }
+
+    .nurse-settings-drawer {
+        width: 100%;
+        max-height: calc(100dvh - 24px);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        padding: 26px 20px;
+    }
+
+    .nurse-settings-logout-dialog {
+        width: 100%;
+        max-height: calc(100dvh - 24px);
+        overflow-y: auto;
+        padding: 28px 22px;
+    }
+
+    .nurse-settings-toast {
+        right: 12px;
+        bottom: max(12px, env(safe-area-inset-bottom));
+        left: 12px;
+        max-width: none;
+    }
+}
+
+@media (max-width: 380px) {
+    .nurse-sidebar.sidebar {
+        padding-right: 8px;
+        padding-left: 8px;
+    }
+
+    .nurse-sidebar .main-nav {
+        gap: 3px;
+    }
+
+    .nurse-settings-content {
+        padding-right: 12px;
+        padding-left: 12px;
+    }
+
+    .nurse-settings-card {
+        padding: 20px 15px;
+    }
+
+    .nurse-settings-save-row,
+    .nurse-settings-actions {
+        justify-content: stretch;
+    }
+
+    .nurse-settings-save-button,
+    .nurse-settings-logout {
+        width: 100%;
+    }
+}

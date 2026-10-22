@@ -1,0 +1,6 @@
+.vscode/sftp.json
+.env
+.env.*
+*.log
+/config/database.local.php
+/vendor/

@@ -1,0 +1,6 @@
+.settings-page .content-card { max-width: 780px; }
+.settings-page .settings-list div { min-height: 44px; align-items: center; }
+.settings-page .settings-list dd { display: flex; align-items: center; gap: 10px; }
+.settings-page .settings-note { max-width: 65ch; line-height: 1.6; }
+.settings-copy-button { padding: 5px 9px; border: 1px solid #3a3a42; border-radius: 6px; background: #24242b; color: #dddde2; font: inherit; font-size: .55rem; cursor: pointer; }
+.settings-copy-button:hover { background: #303038; }

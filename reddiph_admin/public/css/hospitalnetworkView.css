@@ -1,0 +1,643 @@
+.hospitalnetwork-main {
+    max-width: none;
+    padding: 38px 48px;
+}
+
+.hospitalnetwork-header {
+    margin-bottom: 28px;
+}
+
+.hospitalnetwork-header .incomingdispatch-search-input {
+    transition: width 0.2s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.hospitalnetwork-header .incomingdispatch-search-input:focus {
+    width: 340px;
+}
+
+.hospitalnetwork-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+    max-width: 1080px;
+}
+
+.hospitalnetwork-card {
+    display: flex;
+    flex-direction: column;
+    min-height: 220px;
+    padding: 16px;
+    border: 1px solid #e8d8d5;
+    border-radius: 10px;
+    background: #fffaf9;
+    box-shadow: var(--incomingdispatch-shadow);
+}
+
+.hospitalnetwork-card-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.hospitalnetwork-card h2 {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.35;
+}
+
+.hospitalnetwork-card-head span {
+    flex: 0 0 auto;
+    padding: 3px 6px;
+    border-radius: 4px;
+    background: #fbeaea;
+    color: var(--incomingdispatch-maroon);
+    font-size: 10px;
+    font-weight: 700;
+}
+
+.hospitalnetwork-notification-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 3px;
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #eee8e4;
+    border-radius: 5px;
+    background: #fff;
+    color: #211c1a;
+    text-align: left;
+    cursor: pointer;
+}
+
+.hospitalnetwork-notification-item:hover {
+    border-color: #d9cbc6;
+    background: #faf7f5;
+}
+
+.hospitalnetwork-notification-item strong {
+    overflow: hidden;
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.hospitalnetwork-notification-item small {
+    color: var(--emergency_alert_text_muted);
+    font-size: 11px;
+}
+
+.hospitalnetwork-specialties {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.hospitalnetwork-specialties b {
+    padding: 4px 6px;
+    background: #fbeaea;
+    color: var(--incomingdispatch-maroon);
+    font-size: 9px;
+}
+
+.hospitalnetwork-refer-btn,
+.hospitalnetwork-confirm-btn {
+    margin-top: auto;
+    border: 0;
+    border-radius: 6px;
+    min-height: 32px;
+    background: #920000;
+    color: #fff;
+    cursor: pointer;
+    font: 700 11px inherit;
+    transition: transform .15s ease, background-color .15s ease;
+}
+
+.hospitalnetwork-refer-btn:hover,
+.hospitalnetwork-confirm-btn:hover {
+    background: #721315;
+    transform: translateY(-1px);
+}
+
+.hospitalnetwork-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(38, 10, 10, .58);
+}
+
+.hospitalnetwork-modal.is-open {
+    display: flex;
+}
+
+.hospitalnetwork-modal-card {
+    position: relative;
+    width: min(100%, 640px);
+    overflow: hidden;
+    border-radius: 10px;
+    background: #7d0000;
+    color: #fff;
+}
+
+.hospitalnetwork-modal-header {
+    padding: 28px 40px 18px;
+    border-bottom: 1px solid rgba(255, 255, 255, .25);
+}
+
+.hospitalnetwork-modal-header p {
+    margin: 0;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.hospitalnetwork-modal-header h2 {
+    margin: 9px 0 3px;
+    font-size: 18px;
+}
+
+.hospitalnetwork-modal-header span {
+    color: #d8a4a4;
+    font-size: 12px;
+}
+
+.hospitalnetwork-modal-card form {
+    padding: 22px 40px 28px;
+}
+
+.hospitalnetwork-modal-card [hidden] {
+    display: none !important;
+}
+
+.hospitalnetwork-referral-success {
+    padding: 28px 40px 32px;
+}
+
+.hospitalnetwork-success-mark {
+    display: grid;
+    width: 42px;
+    height: 42px;
+    place-items: center;
+    border: 1px solid rgba(255, 255, 255, .45);
+    border-radius: 50%;
+    color: #fff;
+    font-size: 22px;
+}
+
+.hospitalnetwork-referral-success h2 {
+    margin: 14px 0 6px;
+    font-size: 22px;
+}
+
+.hospitalnetwork-referral-success>p {
+    margin: 0 0 20px;
+    color: #f0dada;
+    font-size: 13px;
+}
+
+.hospitalnetwork-referral-success dl {
+    display: grid;
+    gap: 12px;
+    margin: 0 0 22px;
+}
+
+.hospitalnetwork-referral-success dl div {
+    display: grid;
+    gap: 3px;
+}
+
+.hospitalnetwork-referral-success dt {
+    color: #e4bcbc;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.hospitalnetwork-referral-success dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+    font-size: 13px;
+}
+
+.hospitalnetwork-map-link,
+.hospitalnetwork-success-close {
+    display: flex;
+    width: 100%;
+    min-height: 42px;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 6px;
+    background: #fff;
+    color: #870000;
+    font: 700 12px Inter, sans-serif;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.hospitalnetwork-map-link:hover,
+.hospitalnetwork-success-close:hover {
+    background: #f5e9e9;
+}
+
+.hospitalnetwork-success-close {
+    min-height: 34px;
+    margin-top: 8px;
+    background: transparent;
+    color: #fff;
+}
+
+.hospitalnetwork-success-close:hover {
+    background: rgba(255, 255, 255, .1);
+}
+
+.hospitalnetwork-toast {
+    position: fixed;
+    right: 24px;
+    bottom: 24px;
+    z-index: 1200;
+    max-width: min(360px, calc(100vw - 32px));
+    padding: 13px 16px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: #fff;
+    box-shadow: 0 8px 28px rgba(28, 14, 14, .2);
+    color: #211c1a;
+    font-size: 13px;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(8px);
+    transition: opacity .18s ease, transform .18s ease;
+}
+
+.hospitalnetwork-toast.is-visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.hospitalnetwork-toast.is-success {
+    border-color: #92c9a0;
+}
+
+.hospitalnetwork-toast.is-error {
+    border-color: #d58a8a;
+}
+
+.hospitalnetwork-modal-label {
+    display: grid;
+    gap: 6px;
+    margin: 0 0 18px;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.hospitalnetwork-modal-card textarea {
+    box-sizing: border-box;
+    width: 100%;
+    padding: 10px;
+    border: 0;
+    border-radius: 9px;
+    background: #912727;
+    color: #fff;
+    font: 13px Inter, sans-serif;
+}
+
+.hospitalnetwork-modal-card textarea {
+    min-height: 86px;
+    resize: vertical;
+}
+
+.hospitalnetwork-incident-search {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 96px;
+    gap: 8px;
+    width: 100%;
+    margin: -10px 0 18px;
+}
+
+.hospitalnetwork-incident-search input,
+.hospitalnetwork-incident-select {
+    box-sizing: border-box;
+    display: block;
+    width: 100%;
+    min-width: 0;
+    min-height: 42px;
+    padding: 0 12px;
+    border: 1px solid rgba(255, 255, 255, .28);
+    border-radius: 6px;
+    background: #fff;
+    color: #211c1a;
+    font: 13px Inter, sans-serif;
+}
+
+.hospitalnetwork-incident-search input {
+    height: 42px;
+    appearance: none;
+}
+
+.hospitalnetwork-incident-search input::placeholder {
+    color: #817876;
+}
+
+.hospitalnetwork-incident-search button {
+    min-height: 42px;
+    padding: 0 12px;
+    border: 1px solid rgba(255, 255, 255, .35);
+    border-radius: 6px;
+    background: #a33131;
+    color: #fff;
+    font: 700 12px Inter, sans-serif;
+    cursor: pointer;
+    transition: background-color .15s ease, border-color .15s ease;
+}
+
+.hospitalnetwork-incident-search button:hover {
+    border-color: #fff;
+    background: #b53a3a;
+}
+
+.hospitalnetwork-incident-search input:focus-visible,
+.hospitalnetwork-incident-select:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+}
+
+.hospitalnetwork-incident-select {
+    margin: -10px 0 4px;
+}
+
+.hospitalnetwork-incident-search-result {
+    margin: 0 0 18px;
+    color: #e7caca;
+    font-size: 11px;
+    text-transform: none;
+}
+
+.hospitalnetwork-confirm-btn {
+    width: 100%;
+    margin-top: 18px;
+    background: #ececec;
+    color: #870000;
+}
+
+.hospitalnetwork-modal-close {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    border: 0;
+    background: none;
+    color: #fff;
+    cursor: pointer;
+    font-size: 21px;
+}
+
+@media (max-width: 960px) {
+    .hospitalnetwork-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .hospitalnetwork-main {
+        padding: 28px 24px;
+    }
+}
+
+@media (max-width: 620px) {
+    .hospitalnetwork-shell {
+        display: block;
+    }
+
+    .hospitalnetwork-shell .incomingdispatch-sidebar {
+        display: none;
+    }
+
+    .hospitalnetwork-main {
+        padding: 22px 14px;
+    }
+
+    .hospitalnetwork-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .hospitalnetwork-header .incomingdispatch-user {
+        display: none;
+    }
+
+    .hospitalnetwork-header-controls {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .hospitalnetwork-header .incomingdispatch-search-input {
+        width: min(68vw, 300px);
+    }
+
+    .hospitalnetwork-modal {
+        padding: 12px;
+    }
+
+    .hospitalnetwork-modal-header {
+        padding: 24px 20px 16px;
+    }
+
+    .hospitalnetwork-modal-card form {
+        padding: 18px 20px 22px;
+    }
+
+    .hospitalnetwork-referral-success {
+        padding: 22px 20px 24px;
+    }
+
+    .hospitalnetwork-toast {
+        right: 16px;
+        bottom: 16px;
+    }
+
+    .hospitalnetwork-incident-search {
+        grid-template-columns: minmax(0, 1fr) 82px;
+    }
+}
+
+.hospitalnetwork-status-body {
+    min-height: 100vh;
+    margin: 0;
+    background: #f3efed;
+    color: #151313;
+    font-family: Inter, sans-serif;
+}
+
+.hospitalnetwork-status-main {
+    position: relative;
+    max-width: 700px;
+    margin: 0 auto;
+    padding: 110px 32px;
+}
+
+.hospitalnetwork-status-main h1 {
+    margin: 0;
+    font-size: 25px;
+}
+
+.hospitalnetwork-status-main>p {
+    margin: 6px 0 72px;
+    color: #6d6563;
+    font-size: 12px;
+}
+
+.hospitalnetwork-status-back {
+    position: absolute;
+    top: 44px;
+    left: 32px;
+    color: #151313;
+    font-size: 31px;
+    text-decoration: none;
+}
+
+.hospitalnetwork-status-toast {
+    position: absolute;
+    top: 38px;
+    right: 32px;
+    padding: 12px 20px 12px 40px;
+    border-radius: 10px;
+    background: #202020;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.hospitalnetwork-status-toast::before {
+    content: '✓';
+    position: absolute;
+    left: 14px;
+    top: 13px;
+    display: grid;
+    place-items: center;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #43a853;
+}
+
+.hospitalnetwork-status-toast small {
+    color: #d6d6d6;
+    font-size: 9px;
+    font-weight: 500;
+}
+
+.hospitalnetwork-status-card {
+    padding: 38px 42px;
+    border: 1px solid #4e4745;
+    border-radius: 22px;
+    background: #fff0f1;
+}
+
+.hospitalnetwork-status-card>span {
+    text-transform: uppercase;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.hospitalnetwork-status-card h2 {
+    margin: 6px 0 4px;
+    font-size: 20px;
+}
+
+.hospitalnetwork-status-card>small {
+    color: #8b817e;
+    font-size: 11px;
+}
+
+.hospitalnetwork-status-steps {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 22px;
+    margin: 30px 0 38px;
+}
+
+.hospitalnetwork-status-steps b {
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    border: 1px solid #1d1d1d;
+    border-radius: 50%;
+    background: #8c8c8c;
+    color: #fff;
+    font-size: 13px;
+}
+
+.hospitalnetwork-status-steps b:first-child {
+    background: #45a856;
+}
+
+.hospitalnetwork-status-steps .hospitalnetwork-status-steps-active {
+    background: #e9a336;
+    color: #111;
+}
+
+.hospitalnetwork-status-steps i {
+    width: 70px;
+    height: 3px;
+    border-radius: 3px;
+    background: #888;
+}
+
+.hospitalnetwork-status-steps i:first-of-type {
+    background: #e9a336;
+}
+
+.hospitalnetwork-status-note {
+    display: flex;
+    justify-content: space-between;
+    gap: 18px;
+    padding: 12px 16px;
+    border-radius: 7px;
+    background: #fff;
+    font-size: 10px;
+}
+
+.hospitalnetwork-status-note strong {
+    color: #850000;
+    white-space: nowrap;
+}
+
+@media (max-width: 560px) {
+    .hospitalnetwork-status-main {
+        padding: 100px 18px;
+    }
+
+    .hospitalnetwork-status-back {
+        left: 18px;
+    }
+
+    .hospitalnetwork-status-toast {
+        right: 18px;
+    }
+
+    .hospitalnetwork-status-card {
+        padding: 28px 20px;
+    }
+
+    .hospitalnetwork-status-steps {
+        gap: 10px;
+    }
+
+    .hospitalnetwork-status-steps i {
+        width: 32px;
+    }
+
+    .hospitalnetwork-status-note {
+        display: block;
+    }
+
+    .hospitalnetwork-status-note strong {
+        display: block;
+        margin-top: 8px;
+    }
+}

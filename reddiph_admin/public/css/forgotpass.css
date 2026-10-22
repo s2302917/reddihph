@@ -1,0 +1,656 @@
+/* =========================================================
+   Pulse Alert / Reddi PH — Forgot Password Modal Styles
+   Single consolidated stylesheet for all 3 forgot password modules:
+   1. Admin Forgot Password Module (.adminforgotpass-*)
+   2. Doctor Forgot Password Module (.doctorforgotpass-*) [Ready for expansion]
+   3. Nurse Forgot Password Module (.nurseforgotpass-*) [Ready for expansion]
+   ========================================================= */
+
+/* =========================================================
+   1. ADMIN FORGOT PASSWORD MODULE (Glassmorphism Modal)
+   ========================================================= */
+
+.adminforgotpass-logo img,
+.doctorforgotpass-logo img,
+.nurseforgotpass-logo img {
+  display: block;
+  width: 104px !important;
+  height: 78px !important;
+  max-width: 104px !important;
+  max-height: 78px !important;
+  object-fit: contain;
+  background: transparent;
+}
+
+.adminforgotpass-logo,
+.doctorforgotpass-logo,
+.nurseforgotpass-logo {
+  width: 104px;
+  height: 78px;
+  overflow: hidden;
+}
+
+/* Backdrop overlay — unblurred login page behind, smooth dimming */
+.adminforgotpass-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  background: rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+    visibility 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity, visibility;
+}
+
+.adminforgotpass-overlay.is-open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+/* Glass Card — Compact, GPU accelerated, see-through frosted glass */
+.adminforgotpass-card {
+  position: relative;
+  width: 100%;
+  max-width: 380px;
+  background: rgba(74, 36, 41, 0.72);
+  /* Translucent maroon glass */
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1.5px solid rgba(255, 255, 255, 0.2);
+  border-radius: 24px;
+  padding: 1.8rem 2.1rem 2.2rem;
+  color: #ffffff;
+  box-shadow:
+    0 20px 50px -10px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(255, 255, 255, 0.08) inset;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  transform: scale(0.94) translate3d(0, 8px, 0);
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform;
+}
+
+.adminforgotpass-overlay.is-open .adminforgotpass-card {
+  transform: scale(1) translate3d(0, 0, 0);
+}
+
+/* Row 1: Back Button (stands alone at the top) */
+.adminforgotpass-back-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: flex-start;
+  background: transparent;
+  border: none;
+  color: #ffffff;
+  cursor: pointer;
+  padding: 0.35rem;
+  margin-left: -0.35rem;
+  margin-bottom: 1.35rem;
+  border-radius: 50%;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.adminforgotpass-back-btn:hover {
+  opacity: 0.75;
+  transform: translateX(-3px);
+}
+
+.adminforgotpass-back-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* Row 2: Logo Box Badge (stands alone below the back button) */
+.adminforgotpass-logo {
+  display: block;
+  align-self: flex-start;
+  margin-bottom: 1.15rem;
+}
+
+.adminforgotpass-logo__text {
+  display: inline-block;
+  padding: 0.3rem 0.45rem;
+  border: 1.5px solid #8d1018;
+  color: #8d1018;
+  font-size: 0.62rem;
+  font-weight: 900;
+  line-height: 1.2;
+  letter-spacing: 0.04em;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* Row 3: Eyebrow, Title & Subtitle */
+.adminforgotpass-eyebrow {
+  display: block;
+  width: 100%;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #ffffff;
+  margin-bottom: 0.35rem;
+  opacity: 0.95;
+}
+
+.adminforgotpass-title {
+  font-size: 1.45rem;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  color: #ffffff;
+  line-height: 1.2;
+  margin-bottom: 0.5rem;
+}
+
+.adminforgotpass-subtitle {
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.75);
+  font-weight: 400;
+  margin-bottom: 1.35rem;
+}
+
+/* Row 4: Form & Input */
+.adminforgotpass-form {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.adminforgotpass-form-group {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 1.1rem;
+}
+
+.adminforgotpass-form-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #ffffff;
+  margin-bottom: 0.4rem;
+}
+
+.adminforgotpass-form-input {
+  width: 100%;
+  padding: 0.65rem 0.85rem;
+  background-color: #cecece;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 0.78rem;
+  color: #111111;
+  outline: none;
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.adminforgotpass-form-input::placeholder {
+  color: #7c7c7c;
+  font-size: 0.74rem;
+}
+
+.adminforgotpass-form-input:focus {
+  background-color: #dcdcdc;
+  border-color: rgba(111, 14, 19, 0.5);
+  box-shadow: 0 0 0 2px rgba(111, 14, 19, 0.25);
+}
+
+/* Submit Button */
+.adminforgotpass-submit-btn {
+  width: 100%;
+  padding: 0.68rem 1.15rem;
+  background-color: #6f0e13;
+  color: #ffffff;
+  border: none;
+  border-radius: 9999px;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  margin-top: 0.35rem;
+  transition: background-color 0.2s ease, transform 0.1s ease, box-shadow 0.2s ease;
+}
+
+.adminforgotpass-submit-btn:hover {
+  background-color: #59090d;
+  box-shadow: 0 4px 14px rgba(111, 14, 19, 0.35);
+}
+
+.adminforgotpass-submit-btn:active {
+  transform: scale(0.985);
+}
+
+/* Admin Responsive */
+@media (max-width: 480px) {
+  .adminforgotpass-card {
+    padding: 1.6rem 1.4rem 1.8rem;
+    border-radius: 18px;
+    max-width: 100%;
+  }
+
+  .adminforgotpass-title {
+    font-size: 1.3rem;
+  }
+
+  .adminforgotpass-subtitle {
+    font-size: 0.74rem;
+  }
+}
+
+/* =========================================================
+   2. DOCTOR FORGOT PASSWORD MODULE (Glassmorphism Modal)
+   ========================================================= */
+
+.forgotpass-status {
+  width: 100%;
+  margin: -0.35rem 0 1rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+/* Backdrop overlay — unblurred login page behind, smooth dimming */
+.doctorforgotpass-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  background: rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+    visibility 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity, visibility;
+}
+
+.doctorforgotpass-overlay.is-open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+/* Glass Card — Compact, GPU accelerated, translucent doctor purple/slate glass */
+.doctorforgotpass-card {
+  position: relative;
+  width: 100%;
+  max-width: 380px;
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.15) 57.21%, rgba(102, 102, 102, 0.15) 85%),
+    rgba(2, 5, 68, 0.76);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1.5px solid rgba(255, 255, 255, 0.2);
+  border-radius: 24px;
+  padding: 1.8rem 2.1rem 2.2rem;
+  color: #ffffff;
+  box-shadow:
+    0 20px 50px -10px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(255, 255, 255, 0.08) inset;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  transform: scale(0.94) translate3d(0, 8px, 0);
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform;
+}
+
+.doctorforgotpass-overlay.is-open .doctorforgotpass-card {
+  transform: scale(1) translate3d(0, 0, 0);
+}
+
+/* Row 1: Back Button (stands alone at the top) */
+.doctorforgotpass-back-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: flex-start;
+  background: transparent;
+  border: none;
+  color: #ffffff;
+  cursor: pointer;
+  padding: 0.35rem;
+  margin-left: -0.35rem;
+  margin-bottom: 1.35rem;
+  border-radius: 50%;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.doctorforgotpass-back-btn:hover {
+  opacity: 0.75;
+  transform: translateX(-3px);
+}
+
+.doctorforgotpass-back-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* Row 2: Logo Box Badge (stands alone below the back button) */
+.doctorforgotpass-logo {
+  display: block;
+  align-self: flex-start;
+  margin-bottom: 1.15rem;
+}
+
+.doctorforgotpass-logo__text {
+  display: inline-block;
+  padding: 0.3rem 0.45rem;
+  border: 1.5px solid #8d1018;
+  color: #8d1018;
+  font-size: 0.62rem;
+  font-weight: 900;
+  line-height: 1.2;
+  letter-spacing: 0.04em;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* Row 3: Eyebrow, Title & Subtitle */
+.doctorforgotpass-eyebrow {
+  display: block;
+  width: 100%;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #ffffff;
+  margin-bottom: 0.35rem;
+  opacity: 0.95;
+}
+
+.doctorforgotpass-title {
+  font-size: 1.45rem;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  color: #ffffff;
+  line-height: 1.2;
+  margin-bottom: 0.5rem;
+}
+
+.doctorforgotpass-subtitle {
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.75);
+  font-weight: 400;
+  margin-bottom: 1.35rem;
+}
+
+/* Row 4: Form & Input */
+.doctorforgotpass-form {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.doctorforgotpass-form-group {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 1.1rem;
+}
+
+.doctorforgotpass-form-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #ffffff;
+  margin-bottom: 0.4rem;
+}
+
+.doctorforgotpass-form-input {
+  width: 100%;
+  padding: 0.65rem 0.85rem;
+  background-color: #cecece;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 0.78rem;
+  color: #111111;
+  outline: none;
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.doctorforgotpass-form-input::placeholder {
+  color: #7c7c7c;
+  font-size: 0.74rem;
+}
+
+.doctorforgotpass-form-input:focus {
+  background-color: #dcdcdc;
+  border-color: rgba(111, 14, 19, 0.5);
+  box-shadow: 0 0 0 2px rgba(111, 14, 19, 0.25);
+}
+
+/* Submit Button */
+.doctorforgotpass-submit-btn {
+  width: 100%;
+  padding: 0.68rem 1.15rem;
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.15) 57.21%, rgba(102, 102, 102, 0.15) 85%),
+    linear-gradient(0deg, #020544, #020544);
+  color: #ffffff;
+  border: none;
+  border-radius: 9999px;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  margin-top: 0.35rem;
+  transition: background-color 0.2s ease, transform 0.1s ease, box-shadow 0.2s ease;
+}
+
+.doctorforgotpass-submit-btn:hover {
+  filter: brightness(1.12);
+  box-shadow: 0 4px 14px rgba(2, 5, 68, 0.35);
+}
+
+.doctorforgotpass-submit-btn:active {
+  transform: scale(0.985);
+}
+
+/* Doctor Responsive */
+@media (max-width: 480px) {
+  .doctorforgotpass-card {
+    padding: 1.6rem 1.4rem 1.8rem;
+    border-radius: 18px;
+    max-width: 100%;
+  }
+
+  .doctorforgotpass-title {
+    font-size: 1.3rem;
+  }
+
+  .doctorforgotpass-subtitle {
+    font-size: 0.74rem;
+  }
+}
+
+/* =========================================================
+   3. NURSE FORGOT PASSWORD MODULE (Placeholder / Prepared)
+   ========================================================= */
+.nurseforgotpass-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  background: rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.25s ease, visibility 0.25s ease;
+}
+
+.nurseforgotpass-overlay.is-open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.nurseforgotpass-card {
+  width: 100%;
+  max-width: 380px;
+  padding: 1.8rem 2.1rem 2.2rem;
+  border: 1.5px solid rgba(255, 255, 255, 0.2);
+  border-radius: 24px;
+  background: rgba(54, 64, 68, 0.82);
+  color: #fff;
+  box-shadow: 0 20px 50px -10px rgba(0, 0, 0, 0.55);
+  transform: scale(0.94) translateY(8px);
+  transition: transform 0.28s ease;
+}
+
+.nurseforgotpass-overlay.is-open .nurseforgotpass-card {
+  transform: scale(1) translateY(0);
+}
+
+.nurseforgotpass-back-btn {
+  display: inline-flex;
+  padding: 0.35rem;
+  margin: 0 0 1.35rem -0.35rem;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #fff;
+}
+
+.nurseforgotpass-back-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.nurseforgotpass-logo {
+  margin-bottom: 1.15rem;
+}
+
+.nurseforgotpass-logo__text {
+  display: inline-block;
+  padding: 0.3rem 0.45rem;
+  border: 1.5px solid #8d1018;
+  color: #8d1018;
+  font-size: 0.62rem;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.nurseforgotpass-eyebrow,
+.nurseforgotpass-form-label {
+  display: block;
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.nurseforgotpass-eyebrow {
+  margin-bottom: 0.35rem;
+  letter-spacing: 0.05em;
+}
+
+.nurseforgotpass-title {
+  margin: 0 0 0.5rem;
+  color: #fff;
+  font-size: 1.45rem;
+}
+
+.nurseforgotpass-subtitle {
+  margin: 0 0 1.35rem;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.nurseforgotpass-form-group {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 1.1rem;
+}
+
+.nurseforgotpass-form-label {
+  margin-bottom: 0.4rem;
+}
+
+.nurseforgotpass-form-input {
+  width: 100%;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: #cecece;
+  color: #111;
+  font: inherit;
+}
+
+.nurseforgotpass-submit-btn {
+  width: 100%;
+  padding: 0.68rem 1.15rem;
+  border: 0;
+  border-radius: 9999px;
+  background: #6f0e13;
+  color: #fff;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+
+/* Shared mobile sizing for every forgot-password drawer. */
+@media (max-width: 480px) {
+
+  .adminforgotpass-card,
+  .doctorforgotpass-card,
+  .nurseforgotpass-card {
+    width: 100%;
+    max-width: 100%;
+    max-height: calc(100svh - 2rem);
+    overflow-y: auto;
+    padding: 1.35rem 1.25rem 1.5rem;
+    border-radius: 18px;
+  }
+
+  .adminforgotpass-logo,
+  .doctorforgotpass-logo,
+  .nurseforgotpass-logo {
+    width: 78px;
+    height: 58px;
+  }
+
+  .adminforgotpass-logo img,
+  .doctorforgotpass-logo img,
+  .nurseforgotpass-logo img {
+    width: 78px !important;
+    height: 58px !important;
+    max-width: 78px !important;
+    max-height: 58px !important;
+  }
+
+  .adminforgotpass-title,
+  .doctorforgotpass-title,
+  .nurseforgotpass-title {
+    font-size: 1.3rem;
+  }
+
+  .adminforgotpass-subtitle,
+  .doctorforgotpass-subtitle,
+  .nurseforgotpass-subtitle {
+    font-size: 0.74rem;
+  }
+}

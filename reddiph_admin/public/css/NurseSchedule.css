@@ -1,0 +1,692 @@
+:root {
+    --nurse-schedule-bg: #f1edeb;
+    --nurse-schedule-text: #171516;
+    --nurse-schedule-muted: #766e6d;
+    --nurse-schedule-line: #e3d6d2;
+    --nurse-schedule-sidebar: #394646;
+    --nurse-schedule-red: #a00000;
+    --nurse-schedule-green: #13843d;
+}
+
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--nurse-schedule-bg);
+    color: var(--nurse-schedule-text);
+    font-family: Inter, Arial, sans-serif;
+    font-size: 14px;
+}
+
+button, input, select { font: inherit; }
+a { color: inherit; text-decoration: none; }
+
+.app-shell { display: flex; min-height: 100vh; }
+
+.sidebar {
+    width: 255px;
+    flex: 0 0 255px;
+    min-height: 100vh;
+    background: #fff;
+    border-right: 1px solid var(--nurse-schedule-line);
+    padding: 34px 15px 20px;
+    display: flex;
+    flex-direction: column;
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 15px 45px;
+    color: var(--nurse-schedule-red);
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: .08em;
+}
+
+.main-nav { display: grid; gap: 7px; }
+
+.main-nav a {
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    gap: 17px;
+    padding: 0 15px;
+    border-radius: 10px;
+    color: #6c6260;
+    font-weight: 500;
+}
+
+.main-nav a.active {
+    background: var(--nurse-schedule-sidebar);
+    color: #fff;
+    font-weight: 700;
+}
+
+.nurse-sidebar-profile {
+    margin-top: auto;
+}
+
+.content {
+    flex: 1;
+    min-width: 0;
+    padding: 55px 38px 70px;
+}
+
+.nurse-schedule-page {
+    width: 100%;
+}
+
+.nurse-schedule-page-header {
+    margin-bottom: 38px;
+    padding-bottom: 19px;
+    border-bottom: 1px solid var(--nurse-schedule-line);
+}
+
+.nurse-schedule-page-heading p {
+    margin: 0 0 10px;
+    color: var(--nurse-schedule-text);
+    font-size: 24px;
+    font-weight: 800;
+    line-height: 1.25;
+}
+
+.nurse-schedule-page-heading h1 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.nurse-schedule-heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: end;
+    gap: 20px;
+    margin-bottom: 23px;
+}
+
+.nurse-schedule-title h2 {
+    margin: 0;
+    font-size: 24px;
+    line-height: 1.15;
+}
+
+.nurse-schedule-title p {
+    margin: 7px 0 0;
+    color: var(--nurse-schedule-muted);
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.nurse-schedule-controls {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+}
+
+.nurse-calendar-nav {
+    color: #716967;
+    font-size: 28px;
+    line-height: 1;
+}
+
+.nurse-add-schedule-btn {
+    border: 0;
+    border-radius: 20px;
+    background: #82c27f;
+    color: #123817;
+    padding: 10px 16px;
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.nurse-add-schedule-btn.is-selecting-date {
+    background: var(--nurse-schedule-sidebar);
+    color: #fff;
+}
+
+.nurse-schedule-message {
+    margin: 0 0 18px;
+    padding: 12px 15px;
+    border-radius: 8px;
+    background: #e5f5e5;
+    color: #1f7437;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.nurse-schedule-message.is-error {
+    background: #fff0ef;
+    color: #a00000;
+}
+
+.nurse-schedule-legend {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 28px;
+    margin: 0 0 20px;
+    color: #6e6663;
+    font-weight: 700;
+}
+
+.nurse-schedule-legend span {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+}
+
+.nurse-schedule-legend i {
+    width: 14px;
+    height: 14px;
+    display: inline-block;
+}
+
+.nurse-schedule-legend .morning,
+.nurse-tomorrow-shift i.morning { background: var(--nurse-schedule-sidebar); }
+.nurse-schedule-legend .evening,
+.nurse-tomorrow-shift i.evening { background: #bd8181; }
+.nurse-schedule-legend .oncall,
+.nurse-tomorrow-shift i.oncall { background: #e8a42a; }
+.nurse-schedule-legend .leave,
+.nurse-tomorrow-shift i.leave { background: #858585; }
+
+.nurse-calendar-hint {
+    margin-left: auto;
+    color: #80747c;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.nurse-calendar {
+    overflow: hidden;
+    border-radius: 38px;
+    background: #fff;
+}
+
+.nurse-weekdays,
+.nurse-days {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.nurse-weekdays {
+    padding: 20px 0 10px;
+    text-align: center;
+    color: #716967;
+}
+
+.nurse-weekdays b { font-size: 13px; }
+
+.nurse-days { border-top: 1px solid #bbb; }
+
+.nurse-day {
+    min-width: 0;
+    min-height: 74px;
+    padding: 8px 12px;
+    border-right: 1px solid #aaa;
+    border-bottom: 1px solid #aaa;
+    text-align: right;
+}
+
+.nurse-day:nth-child(7n) { border-right: 0; }
+.nurse-day.today { background: #fbf8fa; }
+
+.nurse-day-select {
+    min-width: 30px;
+    min-height: 30px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: default;
+}
+
+.nurse-day-select:enabled {
+    background: #e8eeee;
+    color: var(--nurse-schedule-sidebar);
+    cursor: pointer;
+}
+
+.nurse-day-select[data-has-shift="true"] { cursor: default; }
+.nurse-day.empty { background: #fff; }
+
+.nurse-shift-wrap {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 4px;
+    margin-top: 8px;
+}
+
+.nurse-shift {
+    display: block;
+    width: max-content;
+    max-width: 100%;
+    overflow: hidden;
+    padding: 6px 10px;
+    border: 0;
+    border-radius: 20px;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.nurse-shift.morning { background: var(--nurse-schedule-sidebar); }
+.nurse-shift.evening { background: #bd8181; }
+.nurse-shift.oncall { background: #e8a42a; }
+.nurse-shift.leave { background: #858585; }
+
+.nurse-delete-schedule-form { display: none; }
+.nurse-day:hover .nurse-delete-schedule-form { display: block; }
+
+.nurse-delete-schedule-form button {
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: #9b0000;
+    color: #fff;
+    cursor: pointer;
+}
+
+.nurse-schedule-bottom {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 24px;
+    margin: 28px 4px;
+}
+
+.nurse-tomorrow-heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.nurse-tomorrow-heading h3 {
+    margin: 0;
+    font-size: 12px;
+    letter-spacing: .04em;
+}
+
+.nurse-tomorrow-heading p {
+    margin: 5px 0 0;
+    color: var(--nurse-schedule-muted);
+    font-size: 12px;
+}
+
+.nurse-tomorrow-heading > span {
+    color: #716967;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.nurse-tomorrow-shift {
+    display: flex;
+    align-items: center;
+    gap: 13px;
+    margin-bottom: 9px;
+    padding: 12px 15px;
+    border: 1px solid #ddd4d1;
+    border-radius: 9px;
+    background: #fff;
+}
+
+.nurse-tomorrow-shift i {
+    width: 14px;
+    height: 14px;
+    flex: 0 0 14px;
+    border-radius: 50%;
+}
+
+.nurse-tomorrow-shift strong,
+.nurse-tomorrow-shift span {
+    display: block;
+    font-size: 12px;
+}
+
+.nurse-tomorrow-shift span {
+    margin-top: 4px;
+    color: #777;
+}
+
+.nurse-no-tomorrow-shifts {
+    margin: 0;
+    padding: 18px;
+    border: 1px solid #ddd4d1;
+    border-radius: 9px;
+    background: #fff;
+    color: #777;
+    font-size: 13px;
+}
+
+.nurse-schedule-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+}
+
+.nurse-schedule-modal.open { display: block; }
+
+.nurse-schedule-modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(30, 25, 27, .45);
+}
+
+.nurse-schedule-modal-card {
+    position: relative;
+    width: min(480px, calc(100% - 30px));
+    margin: 8vh auto 0;
+    padding: 30px;
+    border-radius: 18px;
+    background: #fff;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, .2);
+}
+
+.nurse-schedule-modal-card h2 { margin: 0 0 5px; font-size: 22px; }
+.nurse-schedule-modal-card p { margin: 0 0 22px; color: #777; font-size: 12px; }
+
+.nurse-schedule-modal-close {
+    position: absolute;
+    top: 15px;
+    right: 18px;
+    border: 0;
+    background: transparent;
+    color: #665d5b;
+    font-size: 26px;
+    cursor: pointer;
+}
+
+.nurse-schedule-modal-card label {
+    display: block;
+    margin-bottom: 15px;
+    color: #4f4745;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.nurse-schedule-modal-card input,
+.nurse-schedule-modal-card select {
+    width: 100%;
+    margin-top: 7px;
+    padding: 11px 12px;
+    border: 1px solid #d7cbc7;
+    border-radius: 7px;
+    background: #fff;
+}
+
+.nurse-schedule-time-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.nurse-schedule-time-fields[hidden] { display: none; }
+.nurse-schedule-modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 25px; }
+
+.nurse-primary-btn,
+.nurse-secondary-btn,
+.nurse-delete-confirm-btn {
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.nurse-primary-btn { border: 0; background: var(--nurse-schedule-sidebar); color: #fff; }
+.nurse-secondary-btn { border: 1px solid #cfc2be; background: #fff; color: var(--nurse-schedule-sidebar); }
+.nurse-delete-confirm-btn { border: 0; background: #a00000; color: #fff; }
+.nurse-delete-card { width: min(420px, calc(100% - 30px)); margin-top: 18vh; }
+
+@media (max-width: 900px) {
+    .sidebar { width: 210px; flex-basis: 210px; }
+    .content { padding: 35px 20px; }
+}
+
+@media (max-width: 700px) {
+    .app-shell { display: block; }
+    .sidebar { width: 100%; min-height: auto; padding: 15px; }
+    .brand { padding-bottom: 15px; }
+    .main-nav { grid-template-columns: repeat(5, 1fr); }
+    .main-nav a { justify-content: center; padding: 8px; }
+    .main-nav a span:last-child { display: none; }
+    .content { padding: 30px 18px; }
+    .nurse-schedule-heading { align-items: flex-start; flex-direction: column; }
+    .nurse-calendar { overflow-x: auto; }
+    .nurse-weekdays, .nurse-days { min-width: 680px; }
+    .nurse-calendar-hint { margin-left: 0; }
+}
+
+@media (max-width: 500px) {
+    .nurse-schedule-controls { width: 100%; justify-content: space-between; gap: 12px; }
+    .nurse-schedule-time-fields { grid-template-columns: 1fr; gap: 0; }
+    .nurse-schedule-modal-card { padding: 25px 20px; }
+}
+
+.nurse-sidebar.sidebar {
+    width: 255px;
+    flex: 0 0 255px;
+    min-height: 100vh;
+    padding: 9px 14px 14px;
+    background: #fff;
+    border-right: 1px solid #e7dfdc;
+    display: flex;
+    flex-direction: column;
+}
+
+.nurse-sidebar .brand {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 19px;
+    padding: 0 12px 42px;
+    color: #a00000;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: .08em;
+}
+
+.nurse-sidebar .main-nav { display: grid; gap: 5px; }
+
+.nurse-sidebar .main-nav a {
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 0 15px;
+    border-radius: 10px;
+    color: #6c6260;
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 1.2;
+    text-align: left;
+}
+
+.nurse-sidebar .main-nav a.active {
+    background: #394646;
+    color: #fff;
+    font-weight: 700;
+}
+
+.nurse-sidebar .nurse-sidebar-profile {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 11px;
+    margin-top: auto;
+    padding: 14px 8px 0;
+    border-top: 1px solid #d7d0cd;
+    text-align: left;
+}
+
+.nurse-sidebar-avatar {
+    width: 42px;
+    height: 42px;
+    flex: 0 0 42px;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    border-radius: 50%;
+    background: #394646;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.nurse-sidebar-avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+.nurse-sidebar-copy {
+    min-width: 0;
+    display: grid;
+    gap: 3px;
+    text-align: left;
+}
+
+.nurse-sidebar-copy strong,
+.nurse-sidebar-copy > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.nurse-sidebar-copy strong { color: #292526; font-size: 12px; }
+.nurse-sidebar-copy > span { color: #766e6d; font-size: 10px; }
+
+@media (max-width: 700px) {
+    .nurse-sidebar.sidebar {
+        width: 100%;
+        min-height: auto;
+        padding: 12px 14px;
+        border-right: 0;
+        border-bottom: 1px solid #e7dfdc;
+    }
+
+    .nurse-sidebar .brand {
+        min-height: auto;
+        justify-content: center;
+        padding: 3px 4px 10px;
+    }
+
+    .nurse-sidebar .main-nav {
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 5px;
+    }
+
+    .nurse-sidebar .main-nav a {
+        min-width: 0;
+        min-height: 48px;
+        justify-content: center;
+        padding: 5px 2px;
+        font-size: 12px;
+        text-align: center;
+    }
+
+    .nurse-sidebar .nurse-sidebar-profile {
+        margin-top: 10px;
+        padding: 9px 4px 0;
+    }
+
+    .nurse-sidebar-copy { max-width: min(70vw, 280px); }
+}
+
+@media (max-width: 700px) {
+    .nurse-sidebar .main-nav a span:last-child {
+        display: block;
+        min-width: 0;
+        overflow-wrap: anywhere;
+    }
+
+    .nurse-sidebar .main-nav a {
+        min-height: 52px;
+        gap: 4px;
+        font-size: clamp(9px, 2.7vw, 12px);
+        line-height: 1.2;
+    }
+
+    .nurse-schedule-page,
+    .nurse-schedule-heading,
+    .nurse-schedule-title {
+        min-width: 0;
+    }
+
+    .nurse-schedule-page-heading p {
+        overflow-wrap: anywhere;
+    }
+
+    .nurse-schedule-controls {
+        flex-wrap: wrap;
+    }
+
+    .nurse-calendar {
+        width: 100%;
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .nurse-weekdays,
+    .nurse-days {
+        min-width: 680px;
+    }
+
+    .nurse-day-select,
+    .nurse-shift,
+    .nurse-delete-schedule-form button {
+        touch-action: manipulation;
+    }
+
+    .nurse-schedule-modal {
+        padding: 12px;
+    }
+
+    .nurse-schedule-modal-card {
+        width: 100%;
+        max-height: calc(100dvh - 24px);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+    }
+}
+
+@media (max-width: 380px) {
+    .nurse-sidebar.sidebar {
+        padding-right: 8px;
+        padding-left: 8px;
+    }
+
+    .nurse-sidebar .main-nav {
+        gap: 3px;
+    }
+
+    .nurse-sidebar .main-nav a {
+        padding-right: 1px;
+        padding-left: 1px;
+        font-size: 9px;
+    }
+
+    .nurse-schedule-page {
+        padding-right: 12px;
+        padding-left: 12px;
+    }
+
+    .nurse-schedule-controls .nurse-add-schedule-btn {
+        flex: 1 1 100%;
+    }
+
+    .nurse-schedule-modal-actions {
+        flex-direction: column-reverse;
+    }
+
+    .nurse-schedule-modal-actions button {
+        width: 100%;
+        min-height: 44px;
+    }
+}

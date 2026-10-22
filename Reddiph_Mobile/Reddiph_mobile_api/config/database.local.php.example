@@ -1,0 +1,8 @@
+<?php
+
+// Copy to database.local.php on the server and fill in the password.
+// Never commit database.local.php.
+return [
+    // 'host' => 'localhost',
+    'password' => '',
+];

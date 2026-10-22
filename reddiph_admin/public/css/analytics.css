@@ -1,0 +1,260 @@
+.analytics-body {
+    background: #eeebe7;
+    margin: 0;
+    font-family: 'Inter', sans-serif;
+    color: #1a1a1a;
+}
+
+.analytics-shell {
+    max-width: none;
+    margin: 0;
+    padding: 0;
+}
+
+.analytics-main {
+    max-width: 1180px;
+    padding: 28px 36px 48px;
+}
+
+.analytics-range-form {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.analytics-download-form {
+    display: flex;
+    align-items: center;
+    flex: 0 0 auto;
+}
+
+.analytics-download-form .incomingdispatch-download {
+    flex: 0 0 auto;
+}
+
+.analytics-range-form select,
+.analytics-custom-dates input,
+.analytics-custom-dates button {
+    height: 38px;
+    border: 1px solid #d9d1ca;
+    border-radius: 8px;
+    background: #fff;
+    color: #1a1a1a;
+    font: 12px Inter, sans-serif;
+}
+
+.analytics-range-form select {
+    min-width: 136px;
+    padding: 0 12px;
+}
+
+.analytics-custom-dates {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.analytics-custom-dates[hidden] {
+    display: none;
+}
+
+.analytics-custom-dates input {
+    padding: 0 8px;
+    min-width: 0;
+    width: 128px;
+}
+
+.analytics-custom-dates button {
+    padding: 0 12px;
+    cursor: pointer;
+    font-weight: 700;
+}
+
+.analytics-custom-dates button:hover {
+    border-color: #7a1f2b;
+    color: #7a1f2b;
+}
+
+.analytics-metrics {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 18px;
+    margin-bottom: 18px;
+}
+
+.analytics-metrics article,
+.analytics-panel {
+    background: rgba(255, 255, 255, 0.78);
+    border: 1px solid #e2ddd8;
+    border-radius: 12px;
+    box-shadow: 0 1px 2px rgba(20, 18, 14, 0.03);
+}
+
+.analytics-metrics article {
+    min-height: 112px;
+    padding: 18px 18px 14px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.analytics-metrics span {
+    color: #7d7773;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.analytics-metrics strong {
+    display: block;
+    margin-top: 10px;
+    font-size: 28px;
+    line-height: 1.1;
+    font-weight: 800;
+    letter-spacing: -0.06em;
+    color: #1b1a1d;
+}
+
+.analytics-grid {
+    display: grid;
+    grid-template-columns: 1.2fr 1.5fr 1fr;
+    gap: 18px;
+    align-items: stretch;
+}
+
+.analytics-panel {
+    min-height: 180px;
+    padding: 16px 18px 10px;
+}
+
+.analytics-types {
+    grid-column: 1;
+    grid-row: 1;
+}
+
+.analytics-response {
+    grid-column: 2 / span 2;
+    grid-row: 1;
+    min-height: 258px;
+}
+
+.analytics-locations {
+    grid-column: 1 / span 2;
+    grid-row: 2;
+}
+
+.analytics-fleet {
+    grid-column: 3;
+    grid-row: 2;
+}
+
+.analytics-panel h2 {
+    margin: 0 0 12px;
+    font-size: 15px;
+    font-weight: 800;
+    color: #1b1a1d;
+}
+
+.analytics-list-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 0;
+    border-bottom: 1px solid #f0ece9;
+    color: #5f5a57;
+    font-size: 12px;
+}
+
+.analytics-list-row:last-child {
+    border-bottom: 0;
+}
+
+.analytics-list-row span {
+    font-weight: 500;
+    color: #1e1e1f;
+}
+
+.analytics-list-row b {
+    color: #7a1f2b;
+    font-size: 12px;
+    font-weight: 700;
+    min-width: 50px;
+    text-align: right;
+}
+
+.analytics-response canvas {
+    width: 100%;
+    height: 196px;
+    display: block;
+    background: transparent;
+}
+
+@media (max-width: 1100px) {
+    .analytics-range-form {
+        flex: 1 1 100%;
+        flex-wrap: wrap;
+    }
+
+    .analytics-metrics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .analytics-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .analytics-types,
+    .analytics-locations,
+    .analytics-fleet,
+    .analytics-response {
+        grid-column: auto;
+        grid-row: auto;
+    }
+
+    .analytics-response {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (max-width: 620px) {
+    .analytics-main {
+        padding: 22px 14px 28px;
+    }
+
+    .analytics-main .incomingdispatch-header {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .analytics-main .incomingdispatch-header-controls {
+        width: 100%;
+        min-width: 0;
+        justify-content: flex-start;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .analytics-metrics,
+    .analytics-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .analytics-range-form {
+        width: 100%;
+        flex-wrap: wrap;
+    }
+
+    .analytics-range-form select {
+        flex: 1 1 100%;
+    }
+
+    .analytics-custom-dates {
+        width: 100%;
+        flex-wrap: wrap;
+    }
+
+    .analytics-custom-dates input,
+    .analytics-custom-dates button {
+        flex: 1 1 110px;
+    }
+}
