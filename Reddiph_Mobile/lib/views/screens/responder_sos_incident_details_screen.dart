@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../controllers/auth_controller.dart';
-import '../../core/theme.dart';
 import '../../models/incident_patient.dart';
 import '../../models/responder_dashboard.dart';
+import '../../models/triage_category.dart';
 import '../../models/volunteer.dart';
 import '../../services/mobile_api_client.dart';
 import '../widgets/incident_type_selector.dart';
@@ -15,21 +15,23 @@ class ResponderSosIncidentDetailsScreen extends StatefulWidget {
     super.key,
     required this.incidentId,
     required this.incidentType,
-    required this.status,
+    required this.triageCategory,
     required this.location,
     required this.point,
     required this.incident,
     required this.apiClient,
+    this.alreadySentToHospital = false,
     this.selectedVolunteer,
   });
 
   final int incidentId;
   final String incidentType;
-  final String status;
+  final String? triageCategory;
   final String location;
   final LatLng point;
   final ResponderIncident? incident;
   final MobileApiClient apiClient;
+  final bool alreadySentToHospital;
   final VolunteerProfile? selectedVolunteer;
 
   @override
@@ -39,20 +41,18 @@ class ResponderSosIncidentDetailsScreen extends StatefulWidget {
 
 class _ResponderSosIncidentDetailsScreenState
     extends State<ResponderSosIncidentDetailsScreen> {
-  static const _conditions = ['critical', 'urgent', 'stable'];
+  static const _categories = EmergencyCategory.values;
 
   final _otherType = TextEditingController();
   String? _selectedType;
-  late String _selectedCondition;
+  String? _selectedCategory;
   bool _saving = false;
   String? _error;
 
   @override
   void initState() {
     super.initState();
-    _selectedCondition = _conditions.contains(widget.status.toLowerCase())
-        ? widget.status.toLowerCase()
-        : 'critical';
+    _selectedCategory = widget.triageCategory;
     final current = widget.incidentType.trim();
     for (final type in incidentTypeOptions.where((type) => type != 'Other')) {
       if (type.toLowerCase() == current.toLowerCase()) {
@@ -86,6 +86,11 @@ class _ResponderSosIncidentDetailsScreenState
       setState(() => _error = 'Select or enter the real incident type.');
       return;
     }
+    final triageCategory = _selectedCategory;
+    if (triageCategory == null) {
+      setState(() => _error = 'Select an emergency category for this patient.');
+      return;
+    }
     final token = AuthController.I.user?['token'] as String? ?? '';
     if (token.isEmpty) {
       setState(
@@ -98,12 +103,14 @@ class _ResponderSosIncidentDetailsScreenState
       _error = null;
     });
     try {
-      await widget.apiClient.responderIncidentAction(
-        token: token,
-        incidentId: widget.incidentId,
-        action: 'update_incident_type',
-        incidentType: incidentType,
-      );
+      if (!widget.alreadySentToHospital) {
+        await widget.apiClient.responderIncidentAction(
+          token: token,
+          incidentId: widget.incidentId,
+          action: 'update_incident_type',
+          incidentType: incidentType,
+        );
+      }
       if (!mounted) return;
       final saved = await Navigator.of(context).push<bool>(
         MaterialPageRoute<bool>(
@@ -111,7 +118,7 @@ class _ResponderSosIncidentDetailsScreenState
             existingIncidentId: widget.incidentId,
             draft: ResponderIncidentDraft(
               incidentType: incidentType,
-              status: _selectedCondition,
+              triageCategory: triageCategory,
               reportedBy: widget.incident?.reportedBy ?? 'resident_sos',
               location: widget.location,
               latitude: widget.point.latitude,
@@ -122,6 +129,7 @@ class _ResponderSosIncidentDetailsScreenState
             ),
             apiClient: widget.apiClient,
             selectedVolunteer: widget.selectedVolunteer,
+            alreadySentToHospital: widget.alreadySentToHospital,
           ),
         ),
       );
@@ -135,7 +143,13 @@ class _ResponderSosIncidentDetailsScreenState
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(title: const Text('Incident details')),
+        appBar: AppBar(
+          title: Text(
+            widget.alreadySentToHospital
+                ? 'Update incident details'
+                : 'Incident details',
+          ),
+        ),
         body: ListView(
           padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
           children: [
@@ -147,14 +161,18 @@ class _ResponderSosIncidentDetailsScreenState
                   fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 6),
-            const Text(
-              'What is the real emergency?',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+            Text(
+              widget.alreadySentToHospital
+                  ? 'What has changed at the scene?'
+                  : 'What is the real emergency?',
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 5),
-            const Text(
-              'Replace the SOS label with the incident type observed at the scene.',
-              style: TextStyle(fontSize: 12, color: Colors.black54),
+            Text(
+              widget.alreadySentToHospital
+                  ? 'Review the incident type and emergency category, then add patient details for the hospital.'
+                  : 'Replace the SOS label with the incident type observed at the scene.',
+              style: const TextStyle(fontSize: 12, color: Colors.black54),
             ),
             const SizedBox(height: 20),
             IncidentTypeSelector(
@@ -168,7 +186,7 @@ class _ResponderSosIncidentDetailsScreenState
             ),
             const SizedBox(height: 14),
             const Text(
-              'Condition',
+              'Emergency category',
               style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 8),
@@ -176,25 +194,23 @@ class _ResponderSosIncidentDetailsScreenState
               spacing: 8,
               runSpacing: 4,
               children: [
-                for (final condition in _conditions)
+                for (final category in _categories)
                   ChoiceChip(
-                    label: Text(
-                      '${condition[0].toUpperCase()}${condition.substring(1)}',
-                    ),
-                    selected: _selectedCondition == condition,
+                    label: Text(category.label),
+                    selected: _selectedCategory == category.value,
                     onSelected: _saving
                         ? null
                         : (selected) {
                             if (selected) {
-                              setState(() => _selectedCondition = condition);
+                              setState(
+                                () => _selectedCategory = category.value,
+                              );
                             }
                           },
-                    selectedColor: condition == 'critical'
-                        ? const Color(0xFFBA696B)
-                        : kResponderBrand,
+                    selectedColor: category.color,
                     labelStyle: TextStyle(
-                      color: _selectedCondition == condition
-                          ? Colors.white
+                      color: _selectedCategory == category.value
+                          ? category.textColor
                           : Colors.black87,
                       fontSize: 12,
                       fontWeight: FontWeight.w600,

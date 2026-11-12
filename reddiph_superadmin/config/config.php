@@ -1,11 +1,14 @@
 <?php
 return [
-    'app' => ['name' => 'Reddiph', 'env' => 'Production'],
+    'app' => [
+        'name' => 'Reddiph',
+        'env' => 'Production',
+    ],
     'db'  => [
-        'host' => '127.0.0.1',
+        'host' => 'localhost',
         'port' => '3306',
-        'name' => 'u672637579_reddi_ph',
-        'user' => 'root',
+        'name' => 'u672637579_Reddiph_backup',
+        'user' => 'u672637579_Reddiph_backup',
         'pass' => '',
     ],
 ];

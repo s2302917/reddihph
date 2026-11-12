@@ -17,6 +17,7 @@ class IncidentDetails {
   final String? volunteerName, volunteerAssistanceStatus;
   final String? barangay, hospital, responderBarangay, responderAlertStatus;
   final String status;
+  final String? triageCategory;
   final int incidentId;
   final bool sentToHospital;
   final DateTime? reportedAt,
@@ -41,7 +42,8 @@ class IncidentDetails {
     required this.type,
     required this.location,
     this.incidentId = 0,
-    this.status = 'critical',
+    this.status = 'open',
+    this.triageCategory,
     this.sentToHospital = false,
     this.reportedAt,
     this.responderAssignedAt,
@@ -77,7 +79,8 @@ class IncidentDetails {
         type: json['incident_type'] as String? ?? 'SOS emergency alert',
         location: json['location'] as String? ?? 'Location unavailable',
         incidentId: json['incident_id'] as int? ?? 0,
-        status: json['status'] as String? ?? 'critical',
+        status: json['status'] as String? ?? 'open',
+        triageCategory: json['triage_category'] as String?,
         sentToHospital:
             json['sent_to_hospital'] == true || json['sent_to_hospital'] == 1,
         reportedAt: DateTime.tryParse(json['reported_at'] as String? ?? ''),
@@ -192,7 +195,7 @@ class QueueItem {
   final int? incidentId;
   final bool canFlagFalseReport;
   const QueueItem(this.title, this.location, this.distance, this.ago,
-      {this.severity = 'Stable',
+      {this.severity = 'Unclassified',
       this.patient = 'Unknown',
       this.patientAge,
       this.patientGender,
@@ -201,7 +204,7 @@ class QueueItem {
       this.responderName,
       this.incidentId,
       this.canFlagFalseReport = false});
-  bool get critical => severity == 'Critical';
+  bool get critical => severity == 'Emergent';
 
   /// "Brgy. San Isidro · Fidel R." -> "Brgy. San Isidro"
   String get area => location.split(' · ').first;
@@ -212,7 +215,7 @@ class PatientCase {
   final String? pulse, spo2, bp;
   const PatientCase(this.title, this.location, this.eta, this.severity,
       {this.pulse, this.spo2, this.bp});
-  bool get critical => severity == 'Critical';
+  bool get critical => severity == 'Emergent';
 }
 
 class ReviewCase {

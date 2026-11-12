@@ -78,7 +78,8 @@ class _VolunteerMapTabState extends State<VolunteerMapTab>
     });
     try {
       final requests = await MobileApiClient.I.volunteerRequests(token: token);
-      final accepted = requests.where((request) => request.status == 'accepted');
+      final accepted =
+          requests.where((request) => request.status == 'accepted');
       final request = accepted.firstOrNull;
       if (!mounted) return;
       if (request == null) {
@@ -325,7 +326,9 @@ class _AssistanceDetails extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  request.needsVehicle ? 'Vehicle needed' : request.incidentType,
+                  request.needsVehicle
+                      ? 'Vehicle needed'
+                      : request.incidentType,
                   style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w900,
@@ -399,7 +402,8 @@ class _AssistanceDetails extends StatelessWidget {
                 ],
                 if (incident?['responder_name'] is String) ...[
                   const Divider(height: 14),
-                  _DetailRow('Responder', incident!['responder_name'] as String),
+                  _DetailRow(
+                      'Responder', incident!['responder_name'] as String),
                 ],
                 if (request.notes.isNotEmpty) ...[
                   const Divider(height: 14),

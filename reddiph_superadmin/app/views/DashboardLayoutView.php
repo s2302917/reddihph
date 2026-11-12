@@ -7,14 +7,18 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="<?= htmlspecialchars(APP_BASE_URL) ?>/public/assets/css/auth.css?v=<?= filemtime(BASE_PATH . '/public/assets/css/auth.css') ?>">
-  <link rel="stylesheet" href="<?= htmlspecialchars(APP_BASE_URL) ?>/public/assets/css/dashboard.css?v=<?= filemtime(BASE_PATH . '/public/assets/css/dashboard.css') ?>">
-  <link rel="stylesheet" href="<?= htmlspecialchars(APP_BASE_URL) ?>/public/assets/css/<?= htmlspecialchars($activePage) ?>.css?v=<?= filemtime(BASE_PATH . '/public/assets/css/' . $activePage . '.css') ?>">
+  <link rel="stylesheet" href="<?= htmlspecialchars(APP_BASE_URL) ?>/assets/css/auth.css?v=<?= filemtime(BASE_PATH . '/public/assets/css/auth.css') ?>">
+  <link rel="stylesheet" href="<?= htmlspecialchars(APP_BASE_URL) ?>/assets/css/dashboard.css?v=<?= filemtime(BASE_PATH . '/public/assets/css/dashboard.css') ?>&amp;layout=2">
+  <link rel="stylesheet" href="<?= htmlspecialchars(APP_BASE_URL) ?>/assets/css/<?= htmlspecialchars($activePage) ?>.css?v=<?= filemtime(BASE_PATH . '/public/assets/css/' . $activePage . '.css') ?>">
 </head>
-<body class="dashboard">
+<body class="dashboard"
+      data-session-idle-timeout="<?= \App\Controllers\DashboardController::sessionIdleTimeoutSeconds() ?>"
+      data-session-activity-url="<?= htmlspecialchars(\App\Controllers\DashboardController::url('/session-activity')) ?>"
+      data-session-logout-url="<?= htmlspecialchars(\App\Controllers\DashboardController::url('/logout')) ?>"
+      data-session-login-url="<?= htmlspecialchars(\App\Controllers\DashboardController::url('/login')) ?>">
   <div class="admin-shell">
     <aside class="sidebar">
-      <a class="brand" href="<?= htmlspecialchars($navigation[0]['url']) ?>">
+      <a class="brand" href="<?= htmlspecialchars(\App\Controllers\DashboardController::url('/overview')) ?>">
         <span class="brand-mark" aria-hidden="true">R</span>
         <span class="brand-copy"><strong>REDDIPH</strong><small>SUPER ADMIN</small></span>
       </a>
@@ -55,6 +59,6 @@
       <?= $content ?>
     </main>
   </div>
-  <script src="<?= htmlspecialchars(APP_BASE_URL) ?>/public/assets/js/script.js?v=<?= filemtime(BASE_PATH . '/public/assets/js/script.js') ?>" defer></script>
+  <script src="<?= htmlspecialchars(APP_BASE_URL) ?>/assets/js/script.js?v=<?= filemtime(BASE_PATH . '/public/assets/js/script.js') ?>" defer></script>
 </body>
 </html>

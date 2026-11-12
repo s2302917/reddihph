@@ -60,15 +60,15 @@ class _VolunteerHistoryTabState extends State<VolunteerHistoryTab> {
   @override
   Widget build(BuildContext context) {
     final profile = AuthController.I.user ?? const <String, dynamic>{};
-    final assisted = (profile['volunteer_assisted_incidents'] as num? ?? 0)
-        .toInt();
+    final assisted =
+        (profile['volunteer_assisted_incidents'] as num? ?? 0).toInt();
     final rating = profile['volunteer_rating'] as num?;
     final groups = <String, List<VolunteerHistoryItem>>{};
     for (final item in _items) {
       final day = DateUtils.isSameDay(item.completedAt, PhilippineTime.now())
           ? 'Today'
-          : DateUtils.isSameDay(
-                  item.completedAt, PhilippineTime.now().subtract(const Duration(days: 1)))
+          : DateUtils.isSameDay(item.completedAt,
+                  PhilippineTime.now().subtract(const Duration(days: 1)))
               ? 'Yesterday'
               : '${item.completedAt.day}/${item.completedAt.month}/${item.completedAt.year}';
       groups.putIfAbsent(day, () => []).add(item);

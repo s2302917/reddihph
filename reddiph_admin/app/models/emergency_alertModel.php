@@ -2,6 +2,9 @@
 
 require_once __DIR__ . '/../../config/config.php';
 
+require_once __DIR__ . '/AuditLogModel.php';
+require_once __DIR__ . '/../services/IncidentTriageCategory.php';
+
 class EmergencyAlertModel
 {
     private const SUBMITTED_TO_HOSPITAL = 'EXISTS (
@@ -25,9 +28,10 @@ class EmergencyAlertModel
         if (!$this->db) {
             return [
                 'all' => 0,
-                'critical' => 0,
+                'emergent' => 0,
                 'urgent' => 0,
-                'stable' => 0,
+                'non_urgent' => 0,
+                'expectant' => 0,
             ];
         }
 
@@ -35,10 +39,11 @@ class EmergencyAlertModel
             $row = $this->db->query(
                 "
                 SELECT
-                    COALESCE(SUM(i.status IN ('critical', 'urgent', 'dispatched', 'stable')), 0) AS all_count,
-                    COALESCE(SUM(i.status = 'critical'), 0) AS critical,
-                    COALESCE(SUM(i.status IN ('urgent', 'dispatched')), 0) AS urgent,
-                    COALESCE(SUM(i.status = 'stable'), 0) AS stable
+                    COALESCE(SUM(i.status IN ('open', 'dispatched', 'referred')), 0) AS all_count,
+                    COALESCE(SUM(i.triage_category = 'emergent'), 0) AS emergent,
+                    COALESCE(SUM(i.triage_category = 'urgent'), 0) AS urgent,
+                    COALESCE(SUM(i.triage_category = 'non_urgent'), 0) AS non_urgent,
+                    COALESCE(SUM(i.triage_category = 'expectant'), 0) AS expectant
                 FROM incidents i
                 WHERE " . str_replace(
                     'incidents.incident_id',
@@ -49,17 +54,19 @@ class EmergencyAlertModel
 
             return [
                 'all' => (int) ($row['all_count'] ?? 0),
-                'critical' => (int) ($row['critical'] ?? 0),
+                'emergent' => (int) ($row['emergent'] ?? 0),
                 'urgent' => (int) ($row['urgent'] ?? 0),
-                'stable' => (int) ($row['stable'] ?? 0),
+                'non_urgent' => (int) ($row['non_urgent'] ?? 0),
+                'expectant' => (int) ($row['expectant'] ?? 0),
             ];
         } catch (Throwable $e) {
             error_log('[EmergencyAlertModel] getSummary: ' . $e->getMessage());
             return [
                 'all' => 0,
-                'critical' => 0,
+                'emergent' => 0,
                 'urgent' => 0,
-                'stable' => 0,
+                'non_urgent' => 0,
+                'expectant' => 0,
             ];
         }
     }
@@ -119,6 +126,7 @@ class EmergencyAlertModel
             i.incident_type,
             i.reported_by,
             i.status,
+            i.triage_category,
             i.hospital_id,
             i.location,
             COALESCE(
@@ -146,8 +154,6 @@ class EmergencyAlertModel
             i.nurse_spo2,
             i.nurse_gcs,
             i.nurse_notes,
-            i.nurse_prep_completed,
-            i.nurse_prep_completed_at,
             COALESCE(
                 (
                     SELECT responder_user.full_name
@@ -188,7 +194,7 @@ class EmergencyAlertModel
      * Get active incidents.
      */
     public function getAlerts(
-        string $status = 'all',
+        string $category = 'all',
         string $search = ''
     ): array {
         if (!$this->db) {
@@ -197,19 +203,15 @@ class EmergencyAlertModel
 
         try {
             $where = [
-                "i.status IN ('critical', 'urgent', 'dispatched', 'stable')",
+                "i.status IN ('open', 'dispatched', 'referred')",
                 str_replace('incidents.incident_id', 'i.incident_id', self::SUBMITTED_TO_HOSPITAL),
             ];
 
             $params = [];
 
-            if ($status !== 'all') {
-                $where[] = $status === 'urgent'
-                    ? "i.status IN ('urgent', 'dispatched')"
-                    : 'i.status = :status';
-                if ($status !== 'urgent') {
-                    $params['status'] = $status;
-                }
+            if ($category !== 'all') {
+                $where[] = 'i.triage_category = :triage_category';
+                $params['triage_category'] = $category;
             }
 
             if ($search !== '') {
@@ -241,7 +243,13 @@ class EmergencyAlertModel
             $sql = "
                 " . self::ALERT_SELECT . "
                 WHERE " . implode(' AND ', $where) . "
-                ORDER BY COALESCE(i.reported_at, i.created_at) DESC, i.incident_id DESC
+                ORDER BY CASE i.triage_category
+                    WHEN 'emergent' THEN 1
+                    WHEN 'urgent' THEN 2
+                    WHEN 'non_urgent' THEN 3
+                    WHEN 'expectant' THEN 4
+                    ELSE 5
+                END, COALESCE(i.reported_at, i.created_at) DESC, i.incident_id DESC
             ";
 
             $statement = $this->db->prepare($sql);
@@ -327,25 +335,31 @@ class EmergencyAlertModel
         }
     }
 
-    public function updateStatus(int $id, string $status): bool
+    public function updateEmergencyCategory(int $id, string $category, ?int $actorId = null): bool
     {
-        if (!$this->db || !in_array($status, ['critical', 'urgent', 'stable'], true)) {
+        if (!$this->db || !IncidentTriageCategory::isValid($category)) {
             return false;
         }
 
         try {
             $statement = $this->db->prepare(
                 "UPDATE incidents
-                 SET status = :status
+                 SET triage_category = :category
                  WHERE incident_id = :id
-                   AND status IN ('critical', 'urgent', 'dispatched', 'stable')
+                   AND status IN ('open', 'dispatched', 'referred')
                    AND " . self::SUBMITTED_TO_HOSPITAL . "
                  LIMIT 1"
             );
-            $statement->execute(['status' => $status, 'id' => $id]);
-            return $statement->rowCount() > 0;
+            $statement->execute(['category' => $category, 'id' => $id]);
+            $updated = $statement->rowCount() > 0;
+            if ($updated && $actorId !== null) {
+                AuditLogModel::record($this->db, $actorId, 'incident.triage_category_updated', 'incident', (string) $id, [
+                    'fields' => ['triage_category'],
+                ]);
+            }
+            return $updated;
         } catch (Throwable $e) {
-            error_log('[EmergencyAlertModel] updateStatus: ' . $e->getMessage());
+            error_log('[EmergencyAlertModel] updateCategory: ' . $e->getMessage());
             return false;
         }
     }

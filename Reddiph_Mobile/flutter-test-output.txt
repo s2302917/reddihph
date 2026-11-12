@@ -1,0 +1,112 @@
+00:00 +0: loading E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/barangay_admin_home_test.dart
+00:00 +0: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/barangay_admin_home_test.dart: admin can choose a first-warning ban duration
+00:01 +1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/barangay_admin_home_test.dart: admin can choose a first-warning ban duration
+00:01 +2: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/barangay_admin_home_test.dart: admin can choose a first-warning ban duration
+00:01 +3: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/barangay_admin_home_test.dart: admin can choose a first-warning ban duration
+00:02 +4: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/barangay_admin_portal_test.dart: barangay admin can approve a pending responder signup
+00:03 +5: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/barangay_admin_signup_test.dart: Barangay Admin login keeps account creation restricted
+00:03 +6: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/barangay_admin_signup_test.dart: Barangay Admin login keeps account creation restricted
+00:03 +7: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/barangay_admin_signup_test.dart: Barangay Admin login keeps account creation restricted
+00:03 +8: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/barangay_admin_signup_test.dart: Barangay Admin login keeps account creation restricted
+00:04 +9: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/barangay_admin_portal_test.dart: admin reviews approved and rejected signups
+00:04 +10: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/false_report_screen_test.dart: false-report screen submits a reason and notes
+00:04 +11: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/false_report_screen_test.dart: false-report screen submits a reason and notes
+00:04 +12: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/false_report_screen_test.dart: false-report screen submits a reason and notes
+00:05 +13: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/false_report_screen_test.dart: false-report screen submits a reason and notes
+00:05 +14: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/false_report_screen_test.dart: false-report screen submits a reason and notes
+00:05 +14 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/false_report_screen_test.dart: false-report screen submits a reason and notes
+00:05 +14 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/mobile_api_client_test.dart: MobileApiClient.login posts email, role and password and returns the authenticated user [E]
+  type 'Null' is not a subtype of type 'Map<String, dynamic>' in type cast
+  package:reddiph/models/responder_dashboard.dart 185:50   new ResponderDashboard.fromJson
+  package:reddiph/services/mobile_api_client.dart 1552:31  MobileApiClient.responderDashboard
+  
+00:05 +15 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/false_report_screen_test.dart: false-report screen submits a reason and notes
+00:05 +16 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/false_report_screen_test.dart: false-report screen submits a reason and notes
+00:05 +17 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/false_report_screen_test.dart: false-report screen submits a reason and notes
+00:05 +18 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/false_report_screen_test.dart: false-report screen submits a reason and notes
+00:05 +19 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/false_report_screen_test.dart: false-report screen submits a reason and notes
+00:05 +20 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/false_report_screen_test.dart: false-report screen submits a reason and notes
+00:05 +21 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/false_report_screen_test.dart: false-report screen submits a reason and notes
+00:05 +22 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/false_report_screen_test.dart: false-report screen submits a reason and notes
+00:05 +23 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/false_report_screen_test.dart: false-report screen submits a reason and notes
+00:05 +24 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/false_report_screen_test.dart: false-report screen submits a reason and notes
+00:05 +25 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/false_report_screen_test.dart: false-report screen submits a reason and notes
+00:05 +26 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/false_report_screen_test.dart: false-report screen submits a reason and notes
+00:05 +27 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/false_report_screen_test.dart: false-report screen submits a reason and notes
+00:05 +28 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/false_report_screen_test.dart: false-report screen submits a reason and notes
+00:05 +29 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/false_report_screen_test.dart: false-report screen submits a reason and notes
+00:05 +30 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/false_report_screen_test.dart: false-report screen submits a reason and notes
+00:05 +31 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/false_report_screen_test.dart: false-report screen submits a reason and notes
+00:05 +32 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/false_report_screen_test.dart: false-report screen submits a reason and notes
+00:05 +33 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/false_report_screen_test.dart: false-report screen submits a reason and notes
+00:05 +34 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/false_report_screen_test.dart: false-report screen submits a reason and notes
+00:05 +35 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/false_report_screen_test.dart: false-report screen submits a reason and notes
+00:05 +36 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/false_report_screen_test.dart: false-report screen submits a reason and notes
+00:05 +37 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/false_report_screen_test.dart: false-report screen submits a reason and notes
+00:05 +38 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/false_report_screen_test.dart: false-report screen submits a reason and notes
+00:05 +39 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/false_report_screen_test.dart: false-report screen submits a reason and notes
+00:05 +40 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/false_report_screen_test.dart: false-report screen submits a reason and notes
+00:05 +41 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/false_report_screen_test.dart: false-report screen submits a reason and notes
+00:05 +42 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/false_report_screen_test.dart: false-report screen submits a reason and notes
+00:05 +43 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/false_report_screen_test.dart: false-report screen submits a reason and notes
+00:06 +44 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/false_report_screen_test.dart: false-report screen submits a reason and notes
+00:06 +45 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/false_report_screen_test.dart: false-report screen submits a reason and notes
+00:06 +46 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/false_report_screen_test.dart: false-report screen submits a reason and notes
+00:06 +46 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/barangay_admin_portal_test.dart: admin exports selected barangay log records
+Helvetica-Bold has no Unicode support see https://github.com/DavBfr/dart_pdf/wiki/Fonts-Management
+Helvetica has no Unicode support see https://github.com/DavBfr/dart_pdf/wiki/Fonts-Management
+00:06 +47 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/false_report_screen_test.dart: false-report screen submits a reason and notes
+00:07 +48 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/nurse_portal_model_test.dart: Nurse portal models parses dashboard profile and case records from API JSON
+00:07 +49 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/nurse_portal_model_test.dart: Nurse portal models parses notified historical cases with incident timestamps
+00:07 +50 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/nurse_portal_model_test.dart: Nurse portal models rejects incomplete API case payloads
+00:07 +51 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/nurse_portal_model_test.dart: Nurse portal cache updates one case without dropping the other cached cases
+00:07 +52 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/report_next_screen_test.dart: sent incidents send reviewed details without redispatching
+00:09 +53 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/report_next_screen_test.dart: sent incidents send reviewed details without redispatching
+00:09 +54 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/report_next_screen_test.dart: sent incidents send reviewed details without redispatching
+00:09 +55 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/report_next_screen_test.dart: sent incidents send reviewed details without redispatching
+00:09 +56 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/report_next_screen_test.dart: sent incidents send reviewed details without redispatching
+00:09 +57 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/resident_incident_report_screen_test.dart: patient name and Age/Sex layout match responder proportions
+00:10 +58 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/resident_incident_report_screen_test.dart: patient name and Age/Sex layout match responder proportions
+00:11 +59 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/resident_report_history_test.dart: shows resident report history filters and both closed outcomes
+00:11 +60 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/resident_report_history_test.dart: shows resident report history filters and both closed outcomes
+00:12 +61 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/resident_report_history_test.dart: shows resident report history filters and both closed outcomes
+00:12 +62 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/resident_report_history_test.dart: shows resident report history filters and both closed outcomes
+00:12 +63 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/responder_dashboard_test.dart: PhilippineTime.greeting follows the three Philippine time bands
+00:13 +64 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/responder_dashboard_test.dart: formats the date, day and 12-hour clock
+00:13 +65 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/responder_dashboard_test.dart: upcoming responder cases shows upcoming cases only within five minutes of hospital arrival
+00:13 +66 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/responder_dashboard_test.dart: ResponderDashboard shows only "Responder" without a vehicle
+00:13 +67 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/responder_dashboard_test.dart: ResponderDashboard adds the vehicle and plate for a driver
+00:13 +68 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/responder_dashboard_test.dart: ResponderDashboard reads the incoming page and its labels
+00:13 +69 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/responder_dashboard_test.dart: ResponderDashboard reads the monthly responder statistics from the dashboard payload
+00:13 +70 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/responder_dashboard_test.dart: ResponderDashboard reads whether the active incident was sent to hospital
+00:13 +71 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/responder_dashboard_test.dart: ResponderDashboard only account-backed resident SOS cases can be flagged
+00:13 +72 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/responder_dashboard_test.dart: ResponderQueue reads the page, counts and initials
+00:13 +73 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/responder_hospital_arrival_screen_test.dart: formats hospital arrival timeline and response time
+00:13 +74 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/responder_hospital_arrival_screen_test.dart: uses arrival time when pickup time was not recorded
+00:13 +75 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/responder_hospital_arrival_screen_test.dart: rejects malformed arrival timestamps
+00:13 +76 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/responder_hospital_arrival_screen_test.dart: parses a completed volunteer assignment and rating state
+00:13 +77 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/responder_hospital_arrival_screen_test.dart: shows the hospital arrival completion page
+00:14 +78 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/responder_signup_widget_test.dart: signup form fills hospital, barangay and gender from server data
+00:15 +79 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/responder_signup_widget_test.dart: signup form fills hospital, barangay and gender from server data
+00:17 +80 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/responder_signup_widget_test.dart: signup form fills hospital, barangay and gender from server data
+00:17 +81 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/responder_sos_incident_details_test.dart: sent incident details flow prefills patient for review
+00:17 +82 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/schedule_editor_dialog_test.dart: previews and returns every date in a date range
+00:17 +83 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/schedule_editor_dialog_test.dart: previews and returns every date in a date range
+00:17 +84 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/schedule_editor_dialog_test.dart: previews and returns every date in a date range
+00:18 +85 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/responder_signup_widget_test.dart: every role posts role, age, gender, hospital and barangay
+00:18 +86 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/responder_signup_widget_test.dart: every role posts role, age, gender, hospital and barangay
+00:19 +87 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/responder_signup_widget_test.dart: every role posts role, age, gender, hospital and barangay
+00:19 +88 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/responder_signup_widget_test.dart: every role posts role, age, gender, hospital and barangay
+00:19 +89 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/responder_signup_widget_test.dart: every role posts role, age, gender, hospital and barangay
+00:19 +90 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/responder_signup_widget_test.dart: every role posts role, age, gender, hospital and barangay
+00:19 +91 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/responder_signup_widget_test.dart: every role posts role, age, gender, hospital and barangay
+00:19 +92 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/responder_signup_widget_test.dart: every role posts role, age, gender, hospital and barangay
+00:19 +93 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/responder_signup_widget_test.dart: every role posts role, age, gender, hospital and barangay
+00:20 +94 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/responder_signup_widget_test.dart: every role posts role, age, gender, hospital and barangay
+00:20 +95 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/responder_signup_widget_test.dart: every role posts role, age, gender, hospital and barangay
+00:21 +96 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/responder_signup_widget_test.dart: every role posts role, age, gender, hospital and barangay
+00:21 +97 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/responder_signup_widget_test.dart: every role posts role, age, gender, hospital and barangay
+00:21 +98 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/widget_test.dart: Every role uses the same clean email and password login form
+00:22 +99 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/widget_test.dart: Every role uses the same clean email and password login form
+00:22 +100 -1: E:/xampp/htdocs/reddiph/Reddiph_Mobile/test/widget_test.dart: SOS sending screen auto-confirms after the 3 second countdown
+00:22 +101 -1: Some tests failed.

@@ -254,6 +254,11 @@ class dispatchController
                 'barangayId' => $dispatch['barangay_id'] !== null ? (int) $dispatch['barangay_id'] : null,
                 'barangaySlug' => $dispatch['barangay_slug'] ?: $this->slugFromName($barangay),
                 'status' => ucwords($dispatch['status']),
+                'triageCategoryLabel' => IncidentTriageCategory::label(
+                    $dispatch['triage_category'] !== null
+                        ? (string) $dispatch['triage_category']
+                        : null
+                ),
                 'eta' => $dispatch['eta_minutes'] !== null ? (int) $dispatch['eta_minutes'] : null,
                 'vehicleName' => $dispatch['vehicle_name'] ?: 'Vehicle not assigned',
                 'transportName' => $dispatch['vehicle_name'] ?: 'Vehicle not assigned',

@@ -77,16 +77,17 @@
         <section class="case-summary" aria-label="Notified case summary">
             <?php foreach ([
                 'all' => 'All active',
-                'critical' => 'Critical',
+                'emergent' => 'Emergent',
                 'urgent' => 'Urgent',
-                'stable' => 'Stable',
-            ] as $status => $label): ?>
+                'non_urgent' => 'Non-Urgent',
+                'expectant' => 'Expectant',
+            ] as $category => $label): ?>
                 <button type="button"
-                    class="case-summary-card<?= $status === 'all' ? ' is-active' : '' ?>"
-                    data-case-filter="<?= htmlspecialchars($status) ?>"
-                    aria-pressed="<?= $status === 'all' ? 'true' : 'false' ?>">
+                    class="case-summary-card<?= $category === 'all' ? ' is-active' : '' ?>"
+                    data-category-filter="<?= htmlspecialchars($category) ?>"
+                    aria-pressed="<?= $category === 'all' ? 'true' : 'false' ?>">
                     <span class="case-summary-label"><?= htmlspecialchars($label) ?></span>
-                    <strong class="case-summary-value"><?= (int) ($summary[$status] ?? 0) ?></strong>
+                    <strong class="case-summary-value"><?= (int) ($summary[$category] ?? 0) ?></strong>
                 </button>
             <?php endforeach; ?>
         </section>
@@ -94,13 +95,13 @@
         <section class="case-grid" id="doctor-case-list" aria-label="Cases notified to you">
             <?php foreach ($cases as $caseIndex => $case): ?>
                 <?php
-                $status = $case['status'] === 'dispatched' ? 'urgent' : $case['status'];
+                $category = $case['triageCategory'] ?? 'unclassified';
                 ?>
-                <article class="case-card" data-case-status="<?= htmlspecialchars($status) ?>" <?= $caseIndex >= 6 ? 'hidden' : '' ?>>
+                <article class="case-card" data-case-category="<?= htmlspecialchars($category) ?>" <?= $caseIndex >= 6 ? 'hidden' : '' ?>>
                     <div class="case-card-top">
                         <h2><?= htmlspecialchars($case['title']) ?></h2>
-                        <span class="severity <?= htmlspecialchars($status) ?>">
-                            <?= htmlspecialchars($case['statusLabel']) ?>
+                        <span class="severity <?= htmlspecialchars($category) ?>">
+                            <?= htmlspecialchars($case['triageCategoryLabel']) ?>
                         </span>
                     </div>
                     <p>
@@ -112,6 +113,7 @@
                     <small class="case-reported">
                         Reported <?= htmlspecialchars((new DateTimeImmutable($case['reportedAt'], new DateTimeZone('Asia/Manila')))->format('M j, Y g:i A')) ?>
                     </small>
+                    <small class="case-lifecycle">Lifecycle: <?= htmlspecialchars(ucfirst($case['incidentStatus'])) ?></small>
                     <div class="case-card-bottom">
                         <span>
                             <?= $case['eta'] === null ? 'ETA unavailable' : 'ETA ' . (int) $case['eta'] . ' min' ?>
@@ -144,7 +146,8 @@
         <p class="incoming-alert-type" id="incoming-alert-type"><?= htmlspecialchars($initialAlert['title'] ?? '') ?></p>
         <dl class="incoming-alert-details">
             <div><dt>Location</dt><dd id="incoming-alert-location"><?= htmlspecialchars($initialAlert['location'] ?? '') ?></dd></div>
-            <div><dt>Status</dt><dd id="incoming-alert-status"><?= htmlspecialchars($initialAlert['statusLabel'] ?? '') ?></dd></div>
+            <div><dt>Emergency category</dt><dd id="incoming-alert-category"><?= htmlspecialchars($initialAlert['triageCategoryLabel'] ?? '') ?></dd></div>
+            <div><dt>Lifecycle</dt><dd id="incoming-alert-lifecycle"><?= htmlspecialchars(ucfirst($initialAlert['incidentStatus'] ?? '')) ?></dd></div>
             <div><dt>Patient</dt><dd id="incoming-alert-patient"><?= htmlspecialchars($initialAlert['patient'] ?? '') ?></dd></div>
             <div><dt>Hospital</dt><dd id="incoming-alert-hospital"><?= htmlspecialchars($initialAlert['hospital'] ?? '') ?></dd></div>
         </dl>
@@ -164,12 +167,13 @@
             <p id="drawerCaseLocation"></p>
         </div>
         <div class="arrival">
-            <span>Incident status</span>
-            <strong id="drawerCaseStatus"></strong>
+            <span>Emergency category</span>
+            <strong id="drawerCaseCategory"></strong>
         </div>
     </div>
     <dl class="incident-detail-list">
         <div><dt>Patient</dt><dd id="drawerCasePatient"></dd></div>
+        <div><dt>Incident lifecycle</dt><dd id="drawerCaseLifecycle"></dd></div>
         <div><dt>Hospital</dt><dd id="drawerCaseHospital"></dd></div>
         <div><dt>Responder</dt><dd id="drawerCaseResponder"></dd></div>
         <div><dt>Estimated arrival</dt><dd id="drawerCaseEta"></dd></div>

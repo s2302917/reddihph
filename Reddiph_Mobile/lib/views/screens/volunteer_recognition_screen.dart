@@ -130,7 +130,8 @@ class _VolunteerRecognitionScreenState
             else if (details != null) ...[
               Row(
                 children: [
-                  _stat(details.rating?.toStringAsFixed(1) ?? '—', 'Avg. rating'),
+                  _stat(
+                      details.rating?.toStringAsFixed(1) ?? '—', 'Avg. rating'),
                   const SizedBox(width: 8),
                   _stat('${details.assistedIncidents}', 'Assists'),
                   const SizedBox(width: 8),

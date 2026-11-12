@@ -47,20 +47,19 @@
                 <label for="nurse-settings-email">Email</label>
                 <div class="nurse-settings-input">
                     <input id="nurse-settings-email" name="email" type="email" maxlength="150"
-                        value="<?= htmlspecialchars($nurse['work_email']) ?>" readonly required>
-                    <button type="button" data-nurse-settings-edit="nurse-settings-email" aria-label="Edit email">⌕</button>
+                        value="<?= htmlspecialchars($nurse['work_email']) ?>" required>
                 </div>
                 <label for="nurse-settings-phone">Phone</label>
                 <div class="nurse-settings-input">
                     <input id="nurse-settings-phone" name="phone_number" type="tel" maxlength="32"
-                        value="<?= htmlspecialchars($nurse['phone_number'] ?? '') ?>" readonly>
-                    <button type="button" data-nurse-settings-edit="nurse-settings-phone" aria-label="Edit phone number">⌕</button>
+                        value="<?= htmlspecialchars($nurse['phone_number'] ?? '') ?>">
                 </div>
-                <label for="nurse-settings-license">PRC License</label>
+                <label for="nurse-settings-license">PRC License (read-only)</label>
                 <div class="nurse-settings-input">
                     <input id="nurse-settings-license" value="<?= htmlspecialchars($nurse['license_number'] ?? '') ?>" readonly>
                 </div>
                 <div class="nurse-settings-save-row">
+                    <button type="button" class="nurse-settings-cancel-button" id="nurse-settings-cancel-button">Cancel</button>
                     <button type="submit" class="nurse-settings-save-button" id="nurse-settings-save-button">Save changes</button>
                 </div>
             </form>

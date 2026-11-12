@@ -1,2 +1,94 @@
 .audit-logs-page .content-card { min-height: 300px; }
 .audit-logs-page .empty-state { min-height: 230px; }
+.audit-logs-page .audit-details { max-width: 360px; white-space: normal; overflow-wrap: anywhere; }
+.audit-pagination { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 12px; border-top: 1px solid #292930; }
+.audit-pagination > p { margin: 0; color: #91919c; font-size: .55rem; }
+.audit-pagination > p strong { color: #dedee2; font-weight: 600; }
+.audit-pagination nav { display: flex; align-items: center; gap: 7px; }
+.audit-pagination nav a, .audit-pagination nav span { padding: 6px 9px; border: 1px solid #393941; border-radius: 6px; background: #222229; color: #e0e0e5; font-size: .53rem; text-decoration: none; white-space: nowrap; }
+.audit-pagination nav a:hover { border-color: #78464d; background: #302329; }
+.audit-pagination nav span[aria-disabled="true"] { color: #666670; cursor: not-allowed; }
+@media (max-width: 560px) {
+  .audit-pagination { align-items: flex-start; flex-direction: column; }
+  .audit-pagination nav { width: 100%; justify-content: space-between; }
+}
+
+.audit-logs-page,
+.audit-logs-page .content-card {
+  min-width: 0;
+}
+
+.audit-logs-page .table-scroll {
+  max-width: 100%;
+  overscroll-behavior-inline: contain;
+}
+
+@media (max-width: 900px) {
+  .audit-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 901px) {
+  .audit-logs-page .table-toolbar h2 {
+    font-size: 1rem;
+  }
+
+  .audit-logs-page .table-toolbar p {
+    font-size: .75rem;
+  }
+
+  .audit-filters > label {
+    font-size: .72rem;
+  }
+
+  .audit-filters input,
+  .audit-filters select {
+    min-height: 38px;
+    font-size: .75rem;
+  }
+
+  .audit-table th,
+  .audit-table td {
+    padding: clamp(10px, .8vw, 15px);
+    font-size: .72rem;
+  }
+
+  .audit-pagination > p,
+  .audit-pagination nav a,
+  .audit-pagination nav span {
+    font-size: .68rem;
+  }
+}
+
+@media (max-width: 560px) {
+  .audit-filters {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .audit-filters > button {
+    width: 100%;
+    min-height: 38px;
+  }
+
+  .audit-pagination nav a,
+  .audit-pagination nav span {
+    min-height: 36px;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .audit-logs-page .table-toolbar {
+    align-items: center;
+  }
+
+  .audit-table th,
+  .audit-table td,
+  .audit-pagination > p,
+  .audit-pagination nav a,
+  .audit-pagination nav span {
+    font-size: .68rem;
+  }
+}

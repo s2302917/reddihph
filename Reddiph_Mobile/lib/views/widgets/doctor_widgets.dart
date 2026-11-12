@@ -5,9 +5,11 @@ const kNavy = kDoctorBrand;
 const kNavy2 = Color(0xFF02043A);
 const kSlate = Color(0xFF6E7EA6);
 const kSlateLight = Color(0xFFAEB7D3);
-const kCritBg = Color(0xFFC9918B);
-const kStableBg = Color(0xFF9AA39C);
-const kReviewBg = Color(0xFFF2E3A6);
+const kEmergentBg = Color(0xFFDC2626);
+const kUrgentBg = Color(0xFFEAB308);
+const kNonUrgentBg = Color(0xFF16A34A);
+const kExpectantBg = Color(0xFF000000);
+const kUnclassifiedBg = Color(0xFF6B7280);
 
 const kNavyGradient = LinearGradient(
   colors: [kNavy, kNavy2],
@@ -15,11 +17,13 @@ const kNavyGradient = LinearGradient(
   end: Alignment.bottomCenter,
 );
 
-/// Pill colours for a doctor case severity ('Critical' / 'Review' / 'Stable').
+/// Pill colours for the four emergency categories.
 ({Color bg, Color fg}) doctorSeverity(String s) => switch (s) {
-      'Critical' => (bg: kCritBg, fg: kSos),
-      'Review' => (bg: kReviewBg, fg: const Color(0xFF7A5C00)),
-      _ => (bg: kStableBg, fg: Colors.white),
+      'Emergent' => (bg: kEmergentBg, fg: Colors.white),
+      'Urgent' => (bg: kUrgentBg, fg: Colors.black),
+      'Non-Urgent' => (bg: kNonUrgentBg, fg: Colors.white),
+      'Expectant' => (bg: kExpectantBg, fg: Colors.white),
+      _ => (bg: kUnclassifiedBg, fg: Colors.white),
     };
 
 /// Navy gradient button used on the doctor screens.

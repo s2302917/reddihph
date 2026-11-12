@@ -6,9 +6,11 @@ import 'package:latlong2/latlong.dart';
 import '../../controllers/auth_controller.dart';
 import '../../core/theme.dart';
 import '../../models/responder_dashboard.dart';
+import '../../models/responder_report_preview.dart';
+import '../../models/triage_category.dart';
 import '../../models/volunteer.dart';
 import '../../services/mobile_api_client.dart';
-import 'responder_sos_incident_details_screen.dart';
+import 'hospital_route_screen.dart';
 
 class IncidentArrivalScreen extends StatefulWidget {
   const IncidentArrivalScreen({
@@ -37,6 +39,14 @@ class IncidentArrivalScreen extends StatefulWidget {
 class _IncidentArrivalScreenState extends State<IncidentArrivalScreen> {
   late final MobileApiClient _api = widget.apiClient ?? MobileApiClient.I;
   bool _falseReported = false;
+  bool _dispatching = false;
+  String? _triageCategory;
+
+  @override
+  void initState() {
+    super.initState();
+    _triageCategory = widget.incident?.triageCategory;
+  }
 
   Future<void> _recordFalseReport() async {
     final submitted = await showGeneralDialog<bool>(
@@ -102,25 +112,69 @@ class _IncidentArrivalScreenState extends State<IncidentArrivalScreen> {
       );
       return;
     }
-    final saved = await Navigator.of(context).push<bool>(
-      MaterialPageRoute<bool>(
-        builder: (_) => ResponderSosIncidentDetailsScreen(
-          incidentId: widget.incidentId,
-          incidentType: widget.incidentType,
-          status: widget.incident?.status ?? 'stable',
-          location: widget.location,
-          point: point,
-          incident: widget.incident,
-          selectedVolunteer: widget.selectedVolunteer,
-          apiClient: _api,
-        ),
-      ),
-    );
-    if (mounted && saved == true) {
+    final token = AuthController.I.user?['token'] as String? ?? '';
+    if (token.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please sign in again to continue.')),
+      );
+      return;
+    }
+
+    final triageCategory = _triageCategory;
+    if (triageCategory == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-            content: Text('Patient details saved to this incident.')),
+          content: Text('Choose an emergency category before continuing.'),
+        ),
       );
+      return;
+    }
+    setState(() => _dispatching = true);
+    try {
+      final response = await _api.responderIncidentAction(
+        token: token,
+        incidentId: widget.incidentId,
+        action: 'send_to_hospital',
+        triageCategory: triageCategory,
+        volunteerUserId: widget.selectedVolunteer?.id,
+      );
+      final preview = ResponderReportPreview.fromJson({
+        'success': true,
+        'hospital': response['hospital'],
+        'estimated_road_distance_km': response['estimated_road_distance_km'],
+        'eta_minutes': response['eta_minutes'],
+      });
+      if (!mounted) return;
+      await Navigator.of(context).pushReplacement<void, void>(
+        MaterialPageRoute<void>(
+          builder: (_) => HospitalRouteScreen(
+            incidentId: widget.incidentId,
+            incidentType: widget.incidentType,
+            location: widget.location,
+            preview: preview,
+            volunteerName: widget.selectedVolunteer?.name,
+            incident: widget.incident,
+            incidentPoint: point,
+            apiClient: _api,
+          ),
+        ),
+      );
+    } on MobileApiException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error.message)),
+        );
+      }
+    } on FormatException {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('The hospital assignment returned invalid details.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _dispatching = false);
     }
   }
 
@@ -202,6 +256,34 @@ class _IncidentArrivalScreenState extends State<IncidentArrivalScreen> {
                 ),
                 const Spacer(),
                 const Text(
+                  'Emergency category',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final category in EmergencyCategory.values)
+                      ChoiceChip(
+                        label: Text(category.label),
+                        selected: _triageCategory == category.value,
+                        selectedColor: category.color,
+                        labelStyle: TextStyle(
+                          color: _triageCategory == category.value
+                              ? category.textColor
+                              : Colors.black87,
+                        ),
+                        onSelected: _dispatching
+                            ? null
+                            : (_) => setState(
+                                  () => _triageCategory = category.value,
+                                ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                const Text(
                   'What did you find at the scene?',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                 ),
@@ -209,7 +291,9 @@ class _IncidentArrivalScreenState extends State<IncidentArrivalScreen> {
                 SizedBox(
                   height: 54,
                   child: FilledButton.icon(
-                    onPressed: _falseReported ? null : _recordRealEmergency,
+                    onPressed: _falseReported || _dispatching
+                        ? null
+                        : _recordRealEmergency,
                     style: FilledButton.styleFrom(
                       backgroundColor: const Color(0xFF005B45),
                       shape: RoundedRectangleBorder(
@@ -217,7 +301,9 @@ class _IncidentArrivalScreenState extends State<IncidentArrivalScreen> {
                       ),
                     ),
                     icon: const Icon(Icons.medical_services_outlined),
-                    label: const Text('REAL EMERGENCY'),
+                    label: Text(
+                      _dispatching ? 'SENDING TO HOSPITAL…' : 'REAL EMERGENCY',
+                    ),
                   ),
                 ),
                 const SizedBox(height: 10),

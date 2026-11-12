@@ -7,6 +7,7 @@ require_once __DIR__ . '/../models/DispatchModel.php';
 require_once __DIR__ . '/../models/IncidentModel.php';
 require_once __DIR__ . '/../models/ResponderIncidentWorkflowModel.php';
 require_once __DIR__ . '/../models/UserModel.php';
+require_once __DIR__ . '/../services/IncidentTriageCategory.php';
 require_once __DIR__ . '/../services/TokenService.php';
 
 /**
@@ -95,8 +96,10 @@ final class SosController extends ApiController
                     self::respond(401, ['success' => false, 'message' => 'Your session expired. Please sign in again.']);
                 }
                 $reporter = UserModel::findReporter($userId);
-                if ($reporter !== null && $reporter['banned_until'] !== null
-                    && strtotime($reporter['banned_until']) > time()) {
+                if (
+                    $reporter !== null && $reporter['banned_until'] !== null
+                    && strtotime($reporter['banned_until']) > time()
+                ) {
                     self::respond(403, [
                         'success' => false,
                         'message' => 'Your account is temporarily suspended until '
@@ -110,20 +113,24 @@ final class SosController extends ApiController
                 if ($reporter === null || $reporter['role'] !== 'resident') {
                     self::respond(403, ['success' => false, 'message' => 'Only residents can submit a patient report.']);
                 }
-                foreach (['incident_type', 'status'] as $field) {
+                foreach (['incident_type', 'triage_category'] as $field) {
                     if (!is_string($data[$field] ?? null)) {
                         self::respond(422, ['success' => false, 'message' => 'Enter valid patient and incident details.']);
                     }
                 }
                 $reportedBy = $data['reported_by'] ?? 'resident_sos';
-                if (!is_string($reportedBy)
-                    || !in_array($reportedBy, ['on_scene', 'resident_sos'], true)) {
+                if (
+                    !is_string($reportedBy)
+                    || !in_array($reportedBy, ['on_scene', 'resident_sos'], true)
+                ) {
                     self::respond(422, ['success' => false, 'message' => 'Choose who reported the incident.']);
                 }
                 $incidentType = trim($data['incident_type']);
-                $status = $data['status'];
-                if ($incidentType === '' || strlen($incidentType) > 120
-                    || !in_array($status, ['critical', 'urgent', 'stable'], true)) {
+                $triageCategory = $data['triage_category'];
+                if (
+                    $incidentType === '' || strlen($incidentType) > 120
+                    || !IncidentTriageCategory::isValid($triageCategory)
+                ) {
                     self::respond(422, ['success' => false, 'message' => 'Enter valid patient and incident details.']);
                 }
                 $patients = $data['patients'] ?? null;
@@ -131,20 +138,24 @@ final class SosController extends ApiController
                     $patients = json_decode($patients, true);
                 }
                 if ($patients === null && isset($data['patient_name'])) {
-                    $patients = [[
-                        'patient_name' => $data['patient_name'],
-                        'patient_age' => $data['patient_age'] ?? null,
-                        'patient_gender' => $data['patient_gender'] ?? null,
-                        'heart_rate' => $data['heart_rate'] ?? null,
-                        'spo2' => $data['spo2'] ?? null,
-                        'blood_pressure' => $data['blood_pressure'] ?? null,
-                        'notes' => $data['notes'] ?? null,
-                        'scene_conditions' => $data['scene_conditions'] ?? [],
-                    ]];
+                    $patients = [
+                        [
+                            'patient_name' => $data['patient_name'],
+                            'patient_age' => $data['patient_age'] ?? null,
+                            'patient_gender' => $data['patient_gender'] ?? null,
+                            'heart_rate' => $data['heart_rate'] ?? null,
+                            'spo2' => $data['spo2'] ?? null,
+                            'blood_pressure' => $data['blood_pressure'] ?? null,
+                            'notes' => $data['notes'] ?? null,
+                            'scene_conditions' => $data['scene_conditions'] ?? [],
+                        ]
+                    ];
                 }
-                if (!is_array($patients) || $patients === []
+                if (
+                    !is_array($patients) || $patients === []
                     || count($patients) > 20
-                    || array_values($patients) !== $patients) {
+                    || array_values($patients) !== $patients
+                ) {
                     self::respond(422, ['success' => false, 'message' => 'Add between one and 20 patients to this report.']);
                 }
                 $patientRecords = [];
@@ -152,9 +163,11 @@ final class SosController extends ApiController
                     if (!is_array($patient)) {
                         self::respond(422, ['success' => false, 'message' => 'Patient details are invalid.']);
                     }
-                    if (!is_string($patient['patient_name'] ?? null)
-                        || !is_string($patient['notes'] ?? '') 
-                        || !is_string($patient['blood_pressure'] ?? '')) {
+                    if (
+                        !is_string($patient['patient_name'] ?? null)
+                        || !is_string($patient['notes'] ?? '')
+                        || !is_string($patient['blood_pressure'] ?? '')
+                    ) {
                         self::respond(422, ['success' => false, 'message' => 'Enter valid details for every patient.']);
                     }
                     $patientName = trim($patient['patient_name']);
@@ -168,11 +181,13 @@ final class SosController extends ApiController
                     $patientGender = $patient['patient_gender'] ?? null;
                     $notes = trim($patient['notes'] ?? '');
                     $bloodPressure = trim($patient['blood_pressure'] ?? '');
-                    if ($patientName === '' || strlen($patientName) > 160
+                    if (
+                        $patientName === '' || strlen($patientName) > 160
                         || $patientAge === false
                         || !is_string($patientGender)
                         || !in_array($patientGender, ['male', 'female', 'other', 'unknown'], true)
-                        || strlen($notes) > 10000 || strlen($bloodPressure) > 15) {
+                        || strlen($notes) > 10000 || strlen($bloodPressure) > 15
+                    ) {
                         self::respond(422, ['success' => false, 'message' => 'Enter valid details for every patient.']);
                     }
                     try {
@@ -200,7 +215,7 @@ final class SosController extends ApiController
                 }
                 $patientReport = [
                     'incident_type' => $incidentType,
-                    'status' => $status,
+                    'triage_category' => $triageCategory,
                     'reported_by' => $reportedBy,
                     'request_another_vehicle' => (bool) $requestAnotherVehicle,
                     'patient_records' => $patientRecords,
@@ -209,8 +224,10 @@ final class SosController extends ApiController
                     'patient_gender' => $patientRecords[0]['gender'],
                     'notes' => 'Resident report sent from the Reddiph mobile app.',
                 ];
-                if (array_key_exists('volunteer_user_id', $data)
-                    && $data['volunteer_user_id'] !== null) {
+                if (
+                    array_key_exists('volunteer_user_id', $data)
+                    && $data['volunteer_user_id'] !== null
+                ) {
                     $volunteerId = filter_var($data['volunteer_user_id'], FILTER_VALIDATE_INT, [
                         'options' => ['min_range' => 1],
                     ]);
@@ -268,30 +285,38 @@ final class SosController extends ApiController
                     ]);
                 }
             }
-            $responder = DispatchModel::availableResponder(
+            $pair = DispatchModel::availableResponderPair(
                 $barangay['id'] ?? null,
                 $userId,
                 $latitude,
                 $longitude
             );
+            $responder = $pair['responder'] ?? null;
+            $driverResponder = $pair['driver'] ?? null;
             $responderName = $responder['full_name'] ?? null;
             if ($responder !== null && $responder['hospital_id'] !== null) {
                 $transport = DispatchModel::availableTransport($responder['hospital_id']);
+            } elseif ($driverResponder !== null && $driverResponder['hospital_id'] !== null) {
+                $transport = DispatchModel::availableTransport($driverResponder['hospital_id']);
             } elseif ($hospital !== null) {
                 $transport = DispatchModel::availableTransport((int) $hospital['id']);
             }
-            if ($responder !== null
+            if (
+                $responder !== null
                 && $responder['latitude'] !== null
-                && $responder['longitude'] !== null) {
+                && $responder['longitude'] !== null
+            ) {
                 $eta = DispatchModel::etaMinutes(
                     $responder['latitude'],
                     $responder['longitude'],
                     $latitude,
                     $longitude
                 );
-            } elseif ($hospital !== null
+            } elseif (
+                $hospital !== null
                 && $hospital['latitude'] !== null
-                && $hospital['longitude'] !== null) {
+                && $hospital['longitude'] !== null
+            ) {
                 $eta = DispatchModel::etaMinutes(
                     $hospital['latitude'],
                     $hospital['longitude'],
@@ -309,9 +334,21 @@ final class SosController extends ApiController
                 'barangay' => $barangay,
                 'transport' => $transport,
                 'responder' => $responder,
+                'driver_responder' => $driverResponder,
                 'responder_name' => $responderName,
                 'eta_minutes' => $eta,
             ] + $patientReport);
+            if ($responder === null) {
+                DispatchModel::notifyVolunteerOverflow(
+                    $pdo,
+                    $incidentId,
+                    $userId,
+                    $barangay['id'] ?? null,
+                    $hospital['id'] ?? null,
+                    $latitude,
+                    $longitude
+                );
+            }
             $pdo->commit();
 
             self::respond(201, ['success' => true, 'incident_id' => $incidentId]);
@@ -357,10 +394,12 @@ final class SosController extends ApiController
         if ($photo === null || ($photo['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
             return null;
         }
-        if (($photo['error'] ?? UPLOAD_ERR_OK) !== UPLOAD_ERR_OK
+        if (
+            ($photo['error'] ?? UPLOAD_ERR_OK) !== UPLOAD_ERR_OK
             || !isset($photo['tmp_name'], $photo['size'])
             || (int) $photo['size'] > 5242880
-            || !is_uploaded_file($photo['tmp_name'])) {
+            || !is_uploaded_file($photo['tmp_name'])
+        ) {
             throw new InvalidArgumentException('Patient photo failed to upload or exceeded 5 MB.');
         }
         $extensions = [
@@ -420,8 +459,10 @@ final class SosController extends ApiController
                 self::respond(404, ['success' => false, 'message' => 'Incident not found.']);
             }
 
-            if ($details['reporter_user_id'] === null
-                || (int) $details['reporter_user_id'] !== $userId) {
+            if (
+                $details['reporter_user_id'] === null
+                || (int) $details['reporter_user_id'] !== $userId
+            ) {
                 self::respond(403, ['success' => false, 'message' => 'This incident belongs to another user.']);
             }
             unset($details['reporter_user_id']);

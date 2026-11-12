@@ -10,7 +10,8 @@
     <link
         href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900&display=swap"
         rel="stylesheet">
-    <link rel="stylesheet" href="<?php echo htmlspecialchars(assetUrl('public/css/signup.css')); ?>">
+    <link rel="stylesheet"
+        href="<?php echo htmlspecialchars(assetUrl('public/css/signup.css')); ?>?v=<?php echo filemtime(__DIR__ . '/../../public/css/signup.css'); ?>">
 </head>
 
 <body class="hospitaladmin-signup-page">

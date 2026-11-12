@@ -230,8 +230,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
                     padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
                     child: _MapHeader(
                       onBack: () => Navigator.maybePop(context),
-                      onRecenter: () =>
-                          setState(() => _mapRecenterSignal++),
+                      onRecenter: () => setState(() => _mapRecenterSignal++),
                       subtitle: incident == null
                           ? 'Loading emergency details…'
                           : '${incident.barangay ?? incident.location}'

@@ -33,6 +33,8 @@ class LivemappingController
 
         $barangaySlug = trim((string) ($_GET['barangay'] ?? ''));
         $mapData = $this->model->getMapData($barangaySlug !== '' ? $barangaySlug : null, $hospitalId);
+        $_SESSION['staff_alert_csrf'] ??= bin2hex(random_bytes(32));
+        $staffAlertCsrf = (string) $_SESSION['staff_alert_csrf'];
         $hospitalName = $_SESSION['hospital_name'] ?? 'Hospital #' . $hospitalId;
         $coordinatorName = $_SESSION['full_name'] ?? 'Hospital Administrator';
         $coordinatorRole = $_SESSION['role'] ?? 'hospital_admin';
@@ -51,11 +53,28 @@ class LivemappingController
         $incidentId = filter_input(INPUT_GET, 'incident_id', FILTER_VALIDATE_INT)
             ?: (int) ($_GET['incident_id'] ?? 0);
 
-        $result = $this->model->getAlertStaffOptions($incidentId, $hospitalId);
+        try {
+            $result = $this->model->getAlertStaffOptions(
+                $incidentId,
+                $hospitalId,
+                trim(substr((string) ($_GET['search'] ?? ''), 0, 100)),
+                max(1, (int) ($_GET['page'] ?? 1)),
+                trim(substr((string) ($_GET['specialization'] ?? ''), 0, 120)),
+                trim((string) ($_GET['online_status'] ?? 'all')),
+                trim((string) ($_GET['account_status'] ?? 'all')),
+                trim((string) ($_GET['duty_status'] ?? 'all'))
+            );
+            $status = $result['success'] ? 200 : 404;
+        } catch (Throwable $e) {
+            error_log('[LivemappingController] alertStaffOptions: ' . $e->getMessage());
+            $result = ['success' => false, 'message' => 'Eligible staff could not be loaded. Please try again.'];
+            $status = 500;
+        }
 
         header('Content-Type: application/json; charset=utf-8');
-        http_response_code($result['success'] ? 200 : 404);
-        echo json_encode($result);
+        header('Cache-Control: no-store');
+        http_response_code($status);
+        echo json_encode($result, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         exit;
     }
 
@@ -65,12 +84,36 @@ class LivemappingController
             session_start();
         }
 
-        $payload = json_decode(file_get_contents('php://input'), true) ?: $_POST;
-        $result = $this->model->sendStaffAlert($payload, (int) ($_SESSION['hospital_id'] ?? 0));
+        if (!hash_equals(
+            (string) ($_SESSION['staff_alert_csrf'] ?? ''),
+            (string) ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? '')
+        )) {
+            $result = ['success' => false, 'message' => 'Your session verification expired. Refresh the page and try again.'];
+            $status = 403;
+        } else {
+            $payload = json_decode((string) file_get_contents('php://input'), true);
+            if (!is_array($payload)) {
+                $result = ['success' => false, 'message' => 'Invalid alert request.'];
+                $status = 400;
+            } else {
+                try {
+                    $result = $this->model->sendStaffAlert(
+                        $payload,
+                        (int) ($_SESSION['hospital_id'] ?? 0)
+                    );
+                    $status = $result['success'] ? 200 : 422;
+                } catch (Throwable $e) {
+                    error_log('[LivemappingController] sendAlert: ' . $e->getMessage());
+                    $result = ['success' => false, 'message' => 'The staff alert could not be queued. Please try again.'];
+                    $status = 500;
+                }
+            }
+        }
 
         header('Content-Type: application/json; charset=utf-8');
-        http_response_code($result['success'] ? 200 : 422);
-        echo json_encode($result);
+        header('Cache-Control: no-store');
+        http_response_code($status);
+        echo json_encode($result, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         exit;
     }
 
@@ -111,7 +154,8 @@ class LivemappingController
         $success = $this->model->markTransportArrived(
             (int) ($payload['incident_id'] ?? 0),
             trim((string) ($payload['transport_name'] ?? '')),
-            (int) ($_SESSION['hospital_id'] ?? 0)
+            (int) ($_SESSION['hospital_id'] ?? 0),
+            (int) ($_SESSION['user_id'] ?? 0)
         );
 
         header('Content-Type: application/json; charset=utf-8');

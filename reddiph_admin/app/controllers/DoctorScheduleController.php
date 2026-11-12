@@ -62,11 +62,19 @@ class DoctorScheduleController
                 $this->redirectWithMessage($this->requestedMonth(), 'Schedule removed.', 'success');
             }
 
-            if (!in_array($action, ['add', 'update'], true)) {
+            if (!in_array($action, ['add', 'add_many', 'update'], true)) {
                 $this->redirectWithMessage($this->requestedMonth(), 'Choose a valid schedule action.', 'error');
             }
 
             $data = $this->scheduleData();
+            if ($action === 'add_many') {
+                $dates = $this->scheduleDates();
+                $created = DoctorScheduleModel::createMany($doctorId, $dates, $data);
+                $message = $created > 0
+                    ? sprintf('%d schedule%s added. Existing dates were left unchanged.', $created, $created === 1 ? '' : 's')
+                    : 'No schedules added; all selected dates already have schedules.';
+                $this->redirectWithMessage(substr($dates[0], 0, 7), $message, 'success');
+            }
             if ($action === 'add') {
                 DoctorScheduleModel::create($doctorId, $data);
                 $this->redirectWithMessage(substr($data['date'], 0, 7), 'Schedule added.', 'success');
@@ -129,6 +137,31 @@ class DoctorScheduleController
         }
 
         return ['date' => $date, 'type' => $type, 'start' => $start, 'end' => $end];
+    }
+
+    private function scheduleDates(): array
+    {
+        $encoded = (string) ($_POST['schedule_dates'] ?? '');
+        $dates = json_decode($encoded, true);
+        if (!is_array($dates) || $dates === [] || count($dates) > 366) {
+            throw new InvalidArgumentException('Choose between 1 and 366 schedule dates.');
+        }
+        foreach ($dates as $date) {
+            if (!is_string($date) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+                throw new InvalidArgumentException('Choose valid schedule dates.');
+            }
+            $parsed = DateTimeImmutable::createFromFormat('!Y-m-d', $date);
+            if (!$parsed || $parsed->format('Y-m-d') !== $date) {
+                throw new InvalidArgumentException('Choose valid schedule dates.');
+            }
+        }
+        $dates = array_values(array_unique($dates));
+        if (count($dates) > 366) {
+            throw new InvalidArgumentException('A schedule can include no more than 366 dates.');
+        }
+        sort($dates);
+
+        return $dates;
     }
 
     private function requestedMonth(): string

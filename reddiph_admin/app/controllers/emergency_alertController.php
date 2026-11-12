@@ -23,8 +23,6 @@
 
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../models/emergency_alertModel.php';
-require_once __DIR__ . '/../models/livemappingModel.php';
-
 requireAuthenticated('hospital_admin');
 
 
@@ -46,6 +44,8 @@ class EmergencyAlertController
         $summary = $this->model->getSummary();
         $rawAlerts = $this->model->getAlerts('all', '');
         $profile = $this->model->getUserProfile((int) ($_SESSION['user_id'] ?? 0)) ?: [];
+        $_SESSION['staff_alert_csrf'] ??= bin2hex(random_bytes(32));
+        $staffAlertCsrf = (string) $_SESSION['staff_alert_csrf'];
         $hospitalName = $profile['hospital_name'] ?? ($_SESSION['hospital_name'] ?? $this->model->getHospitalName());
         $pageTitle = $hospitalName . ' : Admitting & Coordination';
 
@@ -53,7 +53,7 @@ class EmergencyAlertController
         $coordinatorRole = $this->formatRole($profile['role'] ?? ($_SESSION['role'] ?? 'hospital_admin'));
         $coordinatorInitials = $this->initialsFromName($coordinatorName);
         $coordinatorImage = userProfileImageUrl($_SESSION['profile_image'] ?? null);
-        $alertCount = (int) ($summary['critical'] ?? 0);
+        $alertCount = (int) ($summary['emergent'] ?? 0);
 
         $alerts = array_map([$this, 'prepareAlert'], $rawAlerts);
 
@@ -77,11 +77,11 @@ class EmergencyAlertController
             session_start();
         }
 
-        $status = $this->getRequestedStatus();
+        $category = $this->getRequestedCategory();
         $search = trim((string) ($_GET['search'] ?? ''));
 
         $summary = $this->model->getSummary();
-        $rawAlerts = $this->model->getAlerts($status, $search);
+        $rawAlerts = $this->model->getAlerts($category, $search);
         $profile = $this->model->getUserProfile((int) ($_SESSION['user_id'] ?? 0)) ?: [];
         $hospitalName = $profile['hospital_name'] ?? ($_SESSION['hospital_name'] ?? $this->model->getHospitalName());
         $coordinatorName = $profile['full_name'] ?? ($_SESSION['full_name'] ?? 'Hospital Administrator');
@@ -97,9 +97,10 @@ class EmergencyAlertController
             'coordinatorImage' => $coordinatorImage,
             'summary' => [
                 'all' => (int) ($summary['all'] ?? 0),
-                'critical' => (int) ($summary['critical'] ?? 0),
+                'emergent' => (int) ($summary['emergent'] ?? 0),
                 'urgent' => (int) ($summary['urgent'] ?? 0),
-                'stable' => (int) ($summary['stable'] ?? 0),
+                'non_urgent' => (int) ($summary['non_urgent'] ?? 0),
+                'expectant' => (int) ($summary['expectant'] ?? 0),
             ],
             'alerts' => array_map(
                 [$this, 'prepareAlert'],
@@ -127,21 +128,10 @@ class EmergencyAlertController
                 $this->jsonResponse(['success' => false, 'message' => 'Incident not found for this hospital.'], 404);
             }
 
-            $preparedAlert = $this->prepareAlert($incident);
-            $result = (new LivemappingModel())->sendStaffAlert([
-                'incident_id' => (int) $id,
-                'transport_name' => $preparedAlert['transport'],
-                'message' => $this->buildStaffNotificationMessage($preparedAlert),
-            ], $hospitalId);
-
             $this->jsonResponse([
-                'success' => (bool) ($result['success'] ?? false),
-                'message' => !empty($result['success'])
-                    ? 'Incident details queued for ' . (int) ($result['count'] ?? 0) . ' on-duty staff member(s).'
-                    : (string) ($result['message'] ?? 'Unable to queue the incident notification.'),
-                'count' => (int) ($result['count'] ?? 0),
-                'sent_to' => $result['sent_to'] ?? [],
-            ], !empty($result['success']) ? 200 : 422);
+                'success' => false,
+                'message' => 'Select staff members in the notification drawer before sending an alert.',
+            ], 409);
         } catch (Throwable $e) {
             error_log('[EmergencyAlertController] notifyStaff: ' . $e->getMessage());
             $this->jsonResponse([
@@ -149,32 +139,6 @@ class EmergencyAlertController
                 'message' => 'Unable to send the staff notification.',
             ], 500);
         }
-    }
-
-    private function buildStaffNotificationMessage(array $alert): string
-    {
-        $coordinates = $alert['latitude'] !== null && $alert['longitude'] !== null
-            ? $alert['latitude'] . ', ' . $alert['longitude']
-            : '—';
-
-        return implode("\n", [
-            'Emergency incident notification',
-            'Status: ' . ($alert['status'] ?: '—'),
-            'Incident: ' . ($alert['incidentType'] ?: '—'),
-            'Patient: ' . ($alert['patientName'] ?: $alert['patientInfo'] ?: '—'),
-            'Location: ' . ($alert['location'] ?: '—'),
-            'Barangay: ' . ($alert['barangay'] ?: '—'),
-            'Gender / Age: ' . trim(($alert['gender'] ?: '—') . ' / ' . ($alert['age'] !== null ? $alert['age'] : '—')),
-            'Assigned responder: ' . ($alert['responder'] ?: '—'),
-            'Transport: ' . ($alert['transport'] ?: '—'),
-            'Driver: ' . ($alert['driver'] ?: '—'),
-            'Hospital: ' . ($alert['hospital'] ?: '—'),
-            'ETA: ' . ($alert['eta'] ?: '—'),
-            'Reported: ' . ($alert['reportedAt'] ?: '—'),
-            'Resolved: ' . ($alert['resolvedAt'] ?: '—'),
-            'Coordinates: ' . $coordinates,
-            'Notes: ' . ($alert['notes'] ?: '—'),
-        ]);
     }
 
     public function details(): void
@@ -197,23 +161,23 @@ class EmergencyAlertController
         ]);
     }
 
-    public function updateStatus(): void
+    public function updateCategory(): void
     {
         if (session_status() === PHP_SESSION_NONE) {
             session_start();
         }
 
         $id = filter_input(INPUT_POST, 'id', FILTER_VALIDATE_INT);
-        $status = strtolower(trim((string) ($_POST['status'] ?? '')));
+        $category = strtolower(trim((string) ($_POST['triage_category'] ?? '')));
 
-        if (!$id || !in_array($status, ['critical', 'urgent', 'stable'], true)) {
-            $this->jsonResponse(['success' => false, 'message' => 'Invalid incident or status.'], 422);
+        if (!$id || !IncidentTriageCategory::isValid($category)) {
+            $this->jsonResponse(['success' => false, 'message' => 'Invalid incident or category.'], 422);
         }
 
-        $updated = $this->model->updateStatus((int) $id, $status);
+        $updated = $this->model->updateEmergencyCategory((int) $id, $category, (int) ($_SESSION['user_id'] ?? 0));
         $this->jsonResponse([
             'success' => $updated,
-            'message' => $updated ? 'Incident status updated.' : 'Unable to update the incident status.',
+            'message' => $updated ? 'Emergency category updated.' : 'Unable to update the emergency category.',
         ], $updated ? 200 : 404);
     }
 
@@ -238,21 +202,21 @@ class EmergencyAlertController
         return $initials;
     }
 
-    private function getRequestedStatus(): string
+    private function getRequestedCategory(): string
     {
-        $status = strtolower(trim((string) ($_GET['status'] ?? 'all')));
+        $category = strtolower(trim((string) ($_GET['triage_category'] ?? 'all')));
 
-        return in_array($status, ['all', 'critical', 'urgent', 'stable'], true)
-            ? $status
+        return in_array($category, ['all', ...IncidentTriageCategory::VALUES], true)
+            ? $category
             : 'all';
     }
 
     private function prepareAlert(array $alert): array
     {
-        $status = strtolower((string) ($alert['status'] ?? 'stable'));
-        if ($status === 'dispatched') {
-            $status = 'urgent';
-        }
+        $incidentStatus = strtolower((string) ($alert['status'] ?? 'open'));
+        $triageCategory = $alert['triage_category'] !== null
+            ? strtolower((string) $alert['triage_category'])
+            : null;
 
         $gender = strtolower((string) ($alert['patient_gender'] ?? ''));
 
@@ -287,15 +251,21 @@ class EmergencyAlertController
 
             if ($eta !== null) {
                 $patientInfo .= ' · ETA ' . $eta . ' MINS';
-            } elseif ($status === 'stable') {
-                $patientInfo .= ' · VITALS STABLE';
+            } elseif ($triageCategory === 'non_urgent') {
+                $patientInfo .= ' · NON-URGENT';
             }
         }
 
         return [
             'id' => (int) ($alert['incident_id'] ?? 0),
 
-            'status' => ucfirst($status),
+            'status' => $incidentStatus,
+
+            'incidentStatus' => $incidentStatus,
+
+            'triageCategory' => $triageCategory,
+
+            'triageCategoryLabel' => IncidentTriageCategory::label($triageCategory),
 
             'incidentType' => (string) (
                 $alert['incident_type'] ?? 'Unknown Incident'
@@ -359,11 +329,7 @@ class EmergencyAlertController
 
             'nurseNotes' => (string) ($alert['nurse_notes'] ?? ''),
 
-            'nursePrep' => !empty($alert['nurse_prep_completed'])
-                ? 'Completed' . ($alert['nurse_prep_completed_at'] ? ' ' . $alert['nurse_prep_completed_at'] : '')
-                : 'Not completed',
-
-            'action' => $status === 'critical'
+            'action' => $triageCategory === 'emergent'
                 ? 'Notify Staff'
                 : 'View Details',
         ];
@@ -460,13 +426,13 @@ switch ($action) {
         $controller->details();
         break;
 
-    case 'status':
+    case 'category':
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             http_response_code(405);
             header('Allow: POST');
             exit('Method Not Allowed');
         }
-        $controller->updateStatus();
+        $controller->updateCategory();
         break;
 
     default:

@@ -154,22 +154,16 @@ button, input { font: inherit; }
     color: #222;
 }
 
-.nurse-settings-input button {
-    width: 40px;
-    flex: 0 0 40px;
-    border: 0;
-    background: transparent;
-    color: var(--nurse-settings-primary);
-    cursor: pointer;
-}
-
 .nurse-settings-save-row {
     display: flex;
     justify-content: flex-end;
+    align-items: center;
+    gap: 10px;
     margin-top: 18px;
 }
 
 .nurse-settings-save-button,
+.nurse-settings-cancel-button,
 .nurse-settings-primary-button {
     border: 0;
     border-radius: 7px;
@@ -181,11 +175,18 @@ button, input { font: inherit; }
 }
 
 .nurse-settings-save-button:hover,
+.nurse-settings-cancel-button:hover,
 .nurse-settings-primary-button:hover { background: var(--nurse-settings-primary-dark, var(--nurse-settings-gray-dark)); }
 
 .nurse-settings-save-button:disabled,
+.nurse-settings-cancel-button:disabled,
 .nurse-settings-primary-button:disabled,
 .nurse-settings-secondary-button:disabled { cursor: wait; opacity: .65; }
+
+.nurse-settings-cancel-button {
+    background: transparent;
+    color: var(--nurse-settings-primary, var(--nurse-settings-gray));
+}
 
 .nurse-settings-security-row {
     position: relative;
@@ -440,6 +441,7 @@ button, input { font: inherit; }
     display: flex;
     align-items: center;
     justify-content: flex-start;
+    gap: 17px;
     padding: 0 15px;
     border-radius: 10px;
     color: #6c6260;
@@ -466,6 +468,15 @@ button, input { font: inherit; }
     padding: 14px 8px 0;
     border-top: 1px solid #d7d0cd;
     text-align: left;
+}
+
+.nurse-sidebar .nav-icon {
+    width: 20px;
+    flex: 0 0 20px;
+    display: inline-grid;
+    place-items: center;
+    font-size: 18px;
+    line-height: 1;
 }
 
 .nurse-sidebar-avatar {
@@ -517,14 +528,16 @@ button, input { font: inherit; }
     }
 
     .nurse-sidebar .main-nav {
-        grid-template-columns: repeat(5, minmax(0, 1fr));
+        grid-template-columns: repeat(4, minmax(0, 1fr));
         gap: 5px;
     }
 
     .nurse-sidebar .main-nav a {
         min-width: 0;
         min-height: 48px;
+        flex-direction: column;
         justify-content: center;
+        gap: 3px;
         padding: 5px 2px;
         font-size: 12px;
         text-align: center;
@@ -635,7 +648,13 @@ button, input { font: inherit; }
         justify-content: stretch;
     }
 
+    .nurse-settings-save-row {
+        flex-direction: column-reverse;
+        align-items: stretch;
+    }
+
     .nurse-settings-save-button,
+    .nurse-settings-cancel-button,
     .nurse-settings-logout {
         width: 100%;
     }

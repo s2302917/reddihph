@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../../config/config.php';
+require_once __DIR__ . '/ResponderProfileModel.php';
 
 /**
  * Dispatch lookups for a new SOS incident, read from the shared admin tables:
@@ -19,6 +20,7 @@ final class DispatchModel
     private const ROAD_FACTOR = 1.3;
     private const AVERAGE_SPEED_KMH = 35;
     private const EARTH_RADIUS_KM = 6371;
+    private static array $columnCache = [];
 
     /** Returns the closest barangay of the hospital that has coordinates, as [id, name]. */
     public static function nearestBarangay(int $hospitalId, float $latitude, float $longitude): ?array
@@ -27,6 +29,7 @@ final class DispatchModel
             'SELECT id, name, ' . self::DISTANCE_SQL . ' AS distance_km
              FROM barangays
              WHERE hospital_id = :hospital_id AND latitude IS NOT NULL AND longitude IS NOT NULL
+             ' . self::activeBarangayFilter() . '
              ORDER BY distance_km
              LIMIT 1'
         );
@@ -34,6 +37,37 @@ final class DispatchModel
         $row = $stmt->fetch();
 
         return $row ? ['id' => (int) $row['id'], 'name' => (string) $row['name']] : null;
+    }
+
+    private static function activeBarangayFilter(): string
+    {
+        $pdo = Database::connection();
+        $conditions = [];
+        foreach (['is_active', 'archived_at'] as $column) {
+            if (!self::hasColumn($pdo, 'barangays', $column)) {
+                continue;
+            }
+            $conditions[] = $column === 'is_active'
+                ? 'is_active = 1'
+                : 'archived_at IS NULL';
+        }
+
+        return $conditions ? ' AND ' . implode(' AND ', $conditions) : '';
+    }
+
+    private static function hasColumn(PDO $pdo, string $table, string $column): bool
+    {
+        $cacheKey = $table . '.' . $column;
+        if (!array_key_exists($cacheKey, self::$columnCache)) {
+            $statement = $pdo->prepare(
+                'SELECT COUNT(*) FROM information_schema.columns
+                 WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?'
+            );
+            $statement->execute([$table, $column]);
+            self::$columnCache[$cacheKey] = (int) $statement->fetchColumn() > 0;
+        }
+
+        return self::$columnCache[$cacheKey];
     }
 
     /** Returns the user's registered barangay, independent of hospital assignment. */
@@ -64,7 +98,7 @@ final class DispatchModel
                           OR (i.assigned_ambulance_id IS NULL
                               AND i.hospital_id = a.hospital_id
                               AND i.transport_name = a.call_sign))
-                     AND i.status IN ('critical', 'urgent', 'stable', 'dispatched'))
+                     AND i.status IN ('open', 'dispatched', 'referred'))
              ORDER BY a.driver_name IS NULL, a.id
              LIMIT 1
              FOR UPDATE"
@@ -88,7 +122,7 @@ final class DispatchModel
                AND NOT EXISTS (
                    SELECT 1 FROM incidents i
                    WHERE i.hospital_id = u.hospital_id AND i.responder_name = u.full_name
-                     AND i.status IN ('critical', 'urgent', 'stable', 'dispatched'))
+                     AND i.status IN ('open', 'dispatched', 'referred'))
              ORDER BY u.last_login_at DESC, u.id
              LIMIT 1"
         );
@@ -96,6 +130,97 @@ final class DispatchModel
         $name = $stmt->fetchColumn();
 
         return $name === false ? null : (string) $name;
+    }
+
+    /** Returns the nearest eligible responder and, when available, a opted-in driver. */
+    public static function availableResponderPair(
+        ?int $barangayId,
+        ?int $reporterId,
+        float $latitude,
+        float $longitude
+    ): ?array {
+        $stmt = Database::connection()->prepare(
+            'SELECT u.id, u.full_name, u.barangay_id, u.hospital_id,
+                    b.name AS barangay_name,
+                    p.latitude, p.longitude,
+                COALESCE(rp.driver_responder_enabled, 0) AS driver_responder_enabled,
+                rp.vehicle_type, rp.call_sign, rp.plate_number,
+                    CASE WHEN p.latitude IS NULL OR p.longitude IS NULL THEN NULL
+                         ELSE 6371 * ACOS(LEAST(1,
+                             COS(RADIANS(:lat1)) * COS(RADIANS(p.latitude))
+                             * COS(RADIANS(p.longitude) - RADIANS(:lng))
+                             + SIN(RADIANS(:lat2)) * SIN(RADIANS(p.latitude))))
+                    END AS distance_km
+             FROM user_type u
+             JOIN responder_presence p ON p.user_id = u.id
+                         LEFT JOIN responder_profiles rp ON rp.user_id = u.id
+             LEFT JOIN barangays b ON b.id = u.barangay_id
+             WHERE u.role = \'responder\'
+                             AND u.approval_status = \'approved\'
+                             AND u.account_archived_at IS NULL
+                             AND (u.banned_until IS NULL OR u.banned_until <= NOW())
+                             AND (u.login_disabled_reason IS NULL OR u.login_disabled_reason = \'\')
+               AND u.id <> :reporter_id
+               AND p.last_seen_at >= NOW() - INTERVAL 90 SECOND
+                             AND ' . ResponderProfileModel::availabilityCondition() . '
+               AND NOT EXISTS (
+                   SELECT 1 FROM incidents i
+                   WHERE i.status IN (\'open\', \'dispatched\', \'referred\')
+                     AND (i.assigned_responder_user_id = u.id
+                          OR i.driver_name = u.full_name
+                          OR (i.assigned_responder_user_id IS NULL
+                              AND i.responder_name = u.full_name))
+               )
+             ORDER BY (u.barangay_id = :barangay_id) DESC,
+                      distance_km IS NULL,
+                      distance_km,
+                      p.last_seen_at DESC,
+                      u.id
+             LIMIT 100
+             FOR UPDATE'
+        );
+        $stmt->execute([
+            'reporter_id' => $reporterId ?? 0,
+            'barangay_id' => $barangayId ?? 0,
+            'lat1' => $latitude,
+            'lat2' => $latitude,
+            'lng' => $longitude,
+        ]);
+        $rows = $stmt->fetchAll();
+        if ($rows === []) {
+            return null;
+        }
+
+        $responder = null;
+        $driver = null;
+        foreach ($rows as $row) {
+            $candidate = [
+                'id' => (int) $row['id'],
+                'full_name' => (string) $row['full_name'],
+                'barangay_id' => $row['barangay_id'] !== null ? (int) $row['barangay_id'] : null,
+                'hospital_id' => $row['hospital_id'] !== null ? (int) $row['hospital_id'] : null,
+                'barangay_name' => $row['barangay_name'],
+                'latitude' => $row['latitude'] !== null ? (float) $row['latitude'] : null,
+                'longitude' => $row['longitude'] !== null ? (float) $row['longitude'] : null,
+                'driver_responder_enabled' => (bool) $row['driver_responder_enabled'],
+                'vehicle_type' => $row['vehicle_type'],
+                'call_sign' => $row['call_sign'],
+                'plate_number' => $row['plate_number'],
+            ];
+            $responder ??= $candidate;
+            if (
+                $candidate['id'] !== $responder['id']
+                && $candidate['driver_responder_enabled']
+                && $candidate['vehicle_type'] !== null
+                && $candidate['call_sign'] !== null
+                && $candidate['plate_number'] !== null
+            ) {
+                $driver = $candidate;
+                break;
+            }
+        }
+
+        return ['responder' => $responder, 'driver' => $driver];
     }
 
     /**
@@ -108,55 +233,78 @@ final class DispatchModel
         float $latitude,
         float $longitude
     ): ?array {
-        $stmt = Database::connection()->prepare(
-            'SELECT u.id, u.full_name, u.barangay_id, u.hospital_id,
-                    b.name AS barangay_name,
-                    p.latitude, p.longitude,
-                    CASE WHEN p.latitude IS NULL OR p.longitude IS NULL THEN NULL
-                         ELSE 6371 * ACOS(LEAST(1,
-                             COS(RADIANS(:lat1)) * COS(RADIANS(p.latitude))
-                             * COS(RADIANS(p.longitude) - RADIANS(:lng))
-                             + SIN(RADIANS(:lat2)) * SIN(RADIANS(p.latitude))))
-                    END AS distance_km
-             FROM user_type u
-             JOIN responder_presence p ON p.user_id = u.id
-             LEFT JOIN barangays b ON b.id = u.barangay_id
-             WHERE u.role = \'responder\'
-               AND u.id <> :reporter_id
-               AND p.last_seen_at >= NOW() - INTERVAL 90 SECOND
-               AND NOT EXISTS (
-                   SELECT 1 FROM incidents i
-                   WHERE i.status IN (\'critical\', \'urgent\', \'stable\', \'dispatched\')
-                     AND (i.assigned_responder_user_id = u.id
-                          OR (i.assigned_responder_user_id IS NULL
-                              AND i.responder_name = u.full_name))
-               )
-             ORDER BY (u.barangay_id = :barangay_id) DESC,
-                      distance_km IS NULL,
-                      distance_km,
-                      p.last_seen_at DESC,
-                      u.id
-             LIMIT 1
-             FOR UPDATE'
+        return self::availableResponderPair($barangayId, $reporterId, $latitude, $longitude)['responder'] ?? null;
+    }
+
+    public static function assignResponderPair(PDO $pdo, int $incidentId, array $primaryResponder, array $driverResponder, ?array $transport): void
+    {
+        $stmt = $pdo->prepare(
+            'UPDATE incidents
+             SET assigned_responder_user_id = ?, responder_name = ?, assigned_ambulance_id = ?,
+                 transport_name = ?, transport_type = ?, driver_name = ?,
+                 eta_minutes = COALESCE(?, eta_minutes), status = CASE WHEN status = \'open\' THEN \'dispatched\' ELSE status END
+             WHERE incident_id = ?'
         );
         $stmt->execute([
-            'reporter_id' => $reporterId ?? 0,
-            'barangay_id' => $barangayId ?? 0,
-            'lat1' => $latitude,
-            'lat2' => $latitude,
-            'lng' => $longitude,
+            $primaryResponder['id'],
+            $primaryResponder['full_name'],
+            $transport['id'] ?? null,
+            $transport['call_sign'] ?? null,
+            $transport['vehicle_type'] ?? null,
+            $driverResponder['full_name'],
+            null,
+            $incidentId,
         ]);
-        $row = $stmt->fetch();
 
-        return $row ? [
-            'id' => (int) $row['id'],
-            'full_name' => (string) $row['full_name'],
-            'barangay_id' => $row['barangay_id'] !== null ? (int) $row['barangay_id'] : null,
-            'hospital_id' => $row['hospital_id'] !== null ? (int) $row['hospital_id'] : null,
-            'barangay_name' => $row['barangay_name'],
-            'latitude' => $row['latitude'] !== null ? (float) $row['latitude'] : null,
-            'longitude' => $row['longitude'] !== null ? (float) $row['longitude'] : null,
-        ] : null;
+        foreach ([
+            ['responder_user_id' => $primaryResponder['id'], 'assignment_role' => 'responder'],
+            ['responder_user_id' => $driverResponder['id'], 'assignment_role' => 'driver'],
+        ] as $assignment) {
+            $insert = $pdo->prepare(
+                'INSERT INTO responder_alerts
+                    (incident_id, responder_user_id, assignment_role, status, created_at)
+                 VALUES (?, ?, ?, \'pending\', NOW())
+                 ON DUPLICATE KEY UPDATE
+                    status = VALUES(status),
+                    created_at = NOW(),
+                    acknowledged_at = NULL'
+            );
+            $insert->execute([
+                $incidentId,
+                $assignment['responder_user_id'],
+                $assignment['assignment_role'],
+            ]);
+        }
+    }
+
+    public static function notifyVolunteerOverflow(
+        PDO $pdo,
+        int $incidentId,
+        int $requesterUserId,
+        ?int $barangayId,
+        ?int $hospitalId,
+        float $latitude,
+        float $longitude
+    ): void {
+        $insert = $pdo->prepare(
+            'INSERT INTO volunteer_assistances (incident_id, volunteer_user_id, requested_by_user_id, status)
+             SELECT ?, p.user_id, ?, \'requested\'
+             FROM volunteer_profiles p
+             JOIN user_type u ON u.id = p.user_id AND u.role = \'volunteer\'
+             WHERE u.approval_status = \'approved\'
+               AND p.is_available = 1
+               AND NOT EXISTS (
+                   SELECT 1 FROM volunteer_assistances va
+                   WHERE va.incident_id = ? AND va.volunteer_user_id = p.user_id
+               )
+               AND NOT EXISTS (
+                   SELECT 1 FROM volunteer_assistances va
+                   WHERE va.volunteer_user_id = p.user_id
+                     AND va.status IN (\'requested\', \'accepted\')
+                     AND va.incident_id <> ?
+               )'
+        );
+        $insert->execute([$incidentId, $requesterUserId, $incidentId, $incidentId]);
     }
 
     /** Straight-line (great-circle) distance in km between two coordinates. */

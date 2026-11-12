@@ -30,6 +30,11 @@ final class NursePortalController extends ApiController
                         'success' => true,
                         'cases' => NursePortalModel::cases($nurseId),
                     ]);
+                case 'case_history':
+                    self::respond(200, [
+                        'success' => true,
+                        'history' => NursePortalModel::caseHistory($nurseId),
+                    ]);
                 case 'case_detail':
                     $case = NursePortalModel::caseDetails(
                         $nurseId,
@@ -37,17 +42,6 @@ final class NursePortalController extends ApiController
                     );
                     if ($case === null) {
                         self::notFound('This case was not sent to your account or is no longer available.');
-                    }
-                    self::respond(200, ['success' => true, 'case' => $case]);
-                case 'toggle_task':
-                    $case = NursePortalModel::toggleTask(
-                        $nurseId,
-                        self::positiveId($data['incident_id'] ?? null),
-                        self::positiveId($data['task_id'] ?? null),
-                        self::boolean($data['done'] ?? null, 'task status')
-                    );
-                    if ($case === null) {
-                        self::notFound('This preparation task is no longer available.');
                     }
                     self::respond(200, ['success' => true, 'case' => $case]);
                 case 'save_note':
@@ -64,55 +58,6 @@ final class NursePortalController extends ApiController
                         self::notFound('This case was not sent to your account.');
                     }
                     self::respond(200, ['success' => true, 'case' => $case]);
-                case 'beds':
-                    self::respond(200, ['success' => true, 'beds' => NursePortalModel::beds($nurseId)]);
-                case 'assign_bed':
-                    $case = NursePortalModel::assignBed(
-                        $nurseId,
-                        self::positiveId($data['incident_id'] ?? null),
-                        self::positiveId($data['bed_id'] ?? null)
-                    );
-                    if ($case === null) {
-                        self::notFound('This case was not sent to your account.');
-                    }
-                    self::respond(200, ['success' => true, 'case' => $case]);
-                case 'bed_action':
-                    $actionName = self::string($data['bed_action'] ?? null, 'bed action');
-                    $incidentId = isset($data['incident_id'])
-                        ? self::positiveId($data['incident_id'])
-                        : null;
-                    self::respond(200, [
-                        'success' => true,
-                        'beds' => NursePortalModel::updateBed(
-                            $nurseId,
-                            self::positiveId($data['bed_id'] ?? null),
-                            $actionName,
-                            $incidentId
-                        ),
-                    ]);
-                case 'confirm_arrival':
-                    $case = NursePortalModel::confirmArrival(
-                        $nurseId,
-                        self::positiveId($data['incident_id'] ?? null)
-                    );
-                    if ($case === null) {
-                        self::notFound('This case was not sent to your account.');
-                    }
-                    self::respond(200, ['success' => true, 'case' => $case]);
-                case 'handoffs':
-                    self::respond(200, [
-                        'success' => true,
-                        'handoffs' => NursePortalModel::handoffs($nurseId),
-                    ]);
-                case 'create_handoff':
-                    $handoff = self::handoffData($data);
-                    $incidentId = self::positiveId($data['incident_id'] ?? null);
-                    NursePortalModel::createHandoff($nurseId, $incidentId, $handoff);
-                    self::respond(200, [
-                        'success' => true,
-                        'message' => 'Patient handoff recorded.',
-                        'handoffs' => NursePortalModel::handoffs($nurseId),
-                    ]);
                 case 'schedule':
                     $month = self::month($data['month'] ?? null);
                     self::respond(200, [
@@ -120,6 +65,36 @@ final class NursePortalController extends ApiController
                         'month' => $month,
                         'shifts' => NursePortalModel::schedule($nurseId, $month),
                     ]);
+                case 'save_schedule':
+                    $schedule = self::scheduleData($data);
+                    $scheduleId = isset($data['schedule_id'])
+                        ? self::positiveId($data['schedule_id'])
+                        : null;
+                    if ($scheduleId === null) {
+                        $dates = self::scheduleDates($data, $schedule['date']);
+                        $created = NursePortalModel::saveSchedules($nurseId, $dates, $schedule);
+                        self::respond(200, [
+                            'success' => true,
+                            'created' => $created,
+                            'message' => $created > 0
+                                ? 'Schedule dates saved. Existing dates were left unchanged.'
+                                : 'No schedules added; all selected dates already have schedules.',
+                        ]);
+                    }
+                    if (!NursePortalModel::saveSchedule($nurseId, $scheduleId, $schedule)) {
+                        self::notFound('This schedule could not be found.');
+                    }
+                    self::respond(200, [
+                        'success' => true,
+                        'schedule_id' => $scheduleId,
+                        'message' => 'Schedule saved.',
+                    ]);
+                case 'delete_schedule':
+                    $scheduleId = self::positiveId($data['schedule_id'] ?? null);
+                    if (!NursePortalModel::deleteSchedule($nurseId, $scheduleId)) {
+                        self::notFound('This schedule could not be found.');
+                    }
+                    self::respond(200, ['success' => true, 'message' => 'Schedule removed.']);
                 case 'request_swap':
                     [$date, $shiftId, $message] = self::swapData($data);
                     NursePortalModel::requestShiftSwap($nurseId, $date, $shiftId, $message);
@@ -210,39 +185,6 @@ final class NursePortalController extends ApiController
         return $value;
     }
 
-    private static function handoffData(array $data): array
-    {
-        $pulse = self::optionalVital($data['pulse'] ?? null, 3, 220, 'pulse');
-        $spo2 = self::optionalVital($data['spo2'] ?? null, 0, 100, 'SpO2');
-        $bloodPressure = $data['blood_pressure'] ?? '';
-        $notes = $data['notes'] ?? '';
-        if (!is_string($bloodPressure) || strlen($bloodPressure) > 15
-            || !is_string($notes) || strlen($notes) > 2000) {
-            throw new InvalidArgumentException('Enter valid handoff details.');
-        }
-        if ($bloodPressure !== '' && !preg_match('/^\d{2,3}\/\d{2,3}$/', $bloodPressure)) {
-            throw new InvalidArgumentException('Enter blood pressure as systolic/diastolic.');
-        }
-        return [
-            'pulse' => $pulse,
-            'spo2' => $spo2,
-            'blood_pressure' => $bloodPressure !== '' ? $bloodPressure : null,
-            'notes' => trim($notes),
-        ];
-    }
-
-    private static function optionalVital(mixed $value, int $min, int $max, string $label): ?string
-    {
-        if ($value === null || $value === '') {
-            return null;
-        }
-        $number = filter_var($value, FILTER_VALIDATE_INT);
-        if ($number === false || $number < $min || $number > $max) {
-            throw new InvalidArgumentException('Enter a valid ' . $label . '.');
-        }
-        return (string) $number;
-    }
-
     private static function swapData(array $data): array
     {
         $date = $data['date'] ?? null;
@@ -267,6 +209,73 @@ final class NursePortalController extends ApiController
             throw new InvalidArgumentException('Keep the shift request message within 500 characters.');
         }
         return [$date, $shiftId, trim($message)];
+    }
+
+    private static function scheduleData(array $data): array
+    {
+        $date = $data['date'] ?? null;
+        $parsed = is_string($date)
+            ? DateTimeImmutable::createFromFormat('!Y-m-d', $date)
+            : false;
+        if (!is_string($date)
+            || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)
+            || $parsed === false
+            || $parsed->format('Y-m-d') !== $date) {
+            throw new InvalidArgumentException('Choose a valid schedule date.');
+        }
+        $type = $data['type'] ?? null;
+        $types = [
+            'day' => 'morning',
+            'night' => 'evening',
+            'on_call' => 'oncall',
+            'off' => 'leave',
+        ];
+        if (!is_string($type) || !isset($types[$type])) {
+            throw new InvalidArgumentException('Choose a valid shift type.');
+        }
+        $start = $data['start'] ?? '';
+        $end = $data['end'] ?? '';
+        if (!is_string($start) || !is_string($end)) {
+            throw new InvalidArgumentException('Choose valid shift times.');
+        }
+        if (in_array($type, ['on_call', 'off'], true)) {
+            $start = '';
+            $end = '';
+        } elseif (!preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $start)
+            || !preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $end)
+            || $start === $end) {
+            throw new InvalidArgumentException('Enter valid start and end times.');
+        }
+
+        return [
+            'date' => $date,
+            'type' => $types[$type],
+            'start' => $start,
+            'end' => $end,
+        ];
+    }
+
+    private static function scheduleDates(array $data, string $singleDate): array
+    {
+        $dates = $data['dates'] ?? [$singleDate];
+        if (!is_array($dates) || $dates === [] || count($dates) > 366) {
+            throw new InvalidArgumentException('Choose between 1 and 366 schedule dates.');
+        }
+        foreach ($dates as $date) {
+            $parsed = is_string($date)
+                ? DateTimeImmutable::createFromFormat('!Y-m-d', $date)
+                : false;
+            if (!is_string($date)
+                || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)
+                || $parsed === false
+                || $parsed->format('Y-m-d') !== $date) {
+                throw new InvalidArgumentException('Choose valid schedule dates.');
+            }
+        }
+        $dates = array_values(array_unique($dates));
+        sort($dates);
+
+        return $dates;
     }
 
     private static function notFound(string $message): never

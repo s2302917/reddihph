@@ -90,7 +90,12 @@ void main() {
         find.text('Don Salvador Benedicto Memorial\nDistrict Hospital'),
         findsNothing,
       );
-      if (role.name != 'Barangay Admin') {
+      if (role.name == 'Barangay Admin' ||
+          role.name == 'Doctor' ||
+          role.name == 'Nurse') {
+        expect(
+            find.textContaining('Create a ${role.name} account'), findsNothing);
+      } else {
         final createAccount = tester.widget<Text>(
           find.textContaining('Create a ${role.name} account'),
         );

@@ -208,12 +208,8 @@ class _DoctorCasesTabState extends State<DoctorCasesTab> {
   }
 
   Widget _caseRow(BuildContext context, DoctorCaseRecord item) {
-    final severity = doctorSeverity(item.statusLabel);
-    final dot = item.status == 'critical'
-        ? const Color(0xFF7A1410)
-        : item.isInEr
-            ? const Color(0xFFD9A93B)
-            : Colors.black87;
+    final severity = doctorSeverity(item.triageCategoryLabel);
+    final dot = severity.bg;
     return GestureDetector(
       onTap: () => Nav.push(
         context,
@@ -240,7 +236,7 @@ class _DoctorCasesTabState extends State<DoctorCasesTab> {
                 ],
               ),
             ),
-            SmallPill(item.statusLabel, severity),
+            SmallPill(item.triageCategoryLabel, severity),
           ],
         ),
         margin: const EdgeInsets.fromLTRB(20, 0, 20, 8),
@@ -252,8 +248,7 @@ class _DoctorCasesTabState extends State<DoctorCasesTab> {
         padding: const EdgeInsets.symmetric(horizontal: 20),
         child: Column(
           children: [
-            Text(message,
-                style: const TextStyle(fontSize: 10, color: kSos)),
+            Text(message, style: const TextStyle(fontSize: 10, color: kSos)),
             TextButton(onPressed: _load, child: const Text('RETRY')),
           ],
         ),

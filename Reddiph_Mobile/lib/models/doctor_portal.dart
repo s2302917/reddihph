@@ -120,7 +120,7 @@ class DoctorCaseRecord {
     required this.id,
     required this.title,
     required this.status,
-    required this.statusLabel,
+    required this.triageCategoryLabel,
     required this.location,
     required this.patient,
     required this.patientCount,
@@ -141,12 +141,15 @@ class DoctorCaseRecord {
     this.bloodPressure,
     this.resolvedAt,
     this.doctorArrivedAt,
+    this.triageCategory,
+    this.hospitalArrivedAt,
   });
 
   final int id;
   final String title;
   final String status;
-  final String statusLabel;
+  final String? triageCategory;
+  final String triageCategoryLabel;
   final String location;
   final String patient;
   final int patientCount;
@@ -162,6 +165,7 @@ class DoctorCaseRecord {
   final int? spo2;
   final String? bloodPressure;
   final DateTime? doctorArrivedAt;
+  final DateTime? hospitalArrivedAt;
   final double? latitude;
   final double? longitude;
   final String clinicalNote;
@@ -169,9 +173,10 @@ class DoctorCaseRecord {
   final List<DoctorTimelineEntry> timeline;
 
   bool get isIncoming =>
-      status == 'critical' || status == 'urgent' || status == 'dispatched';
+      hospitalArrivedAt == null &&
+      (status == 'open' || status == 'dispatched' || status == 'referred');
 
-  bool get isInEr => status == 'stable';
+  bool get isInEr => hospitalArrivedAt != null && status != 'resolved';
 
   String get summary => [
         title,
@@ -187,7 +192,9 @@ class DoctorCaseRecord {
     if (json['id'] is! num ||
         json['title'] is! String ||
         json['status'] is! String ||
-        json['status_label'] is! String ||
+        json['triage_category_label'] is! String ||
+        (json['triage_category'] != null &&
+            json['triage_category'] is! String) ||
         json['location'] is! String ||
         json['patient'] is! String ||
         json['patient_count'] is! num ||
@@ -204,7 +211,8 @@ class DoctorCaseRecord {
       id: (json['id'] as num).toInt(),
       title: json['title'] as String,
       status: json['status'] as String,
-      statusLabel: json['status_label'] as String,
+      triageCategory: json['triage_category'] as String?,
+      triageCategoryLabel: json['triage_category_label'] as String,
       location: json['location'] as String,
       patient: json['patient'] as String,
       patientCount: (json['patient_count'] as num).toInt(),
@@ -215,6 +223,7 @@ class DoctorCaseRecord {
       hospital: json['hospital'] as String,
       reportedAt: reportedAt,
       resolvedAt: _date(json['resolved_at']),
+      hospitalArrivedAt: _date(json['hospital_arrived_at']),
       notes: json['notes'] as String,
       heartRate: (json['heart_rate'] as num?)?.toInt(),
       spo2: (json['spo2'] as num?)?.toInt(),
@@ -248,6 +257,7 @@ class DoctorHistoryRecord {
     required this.id,
     required this.title,
     required this.status,
+    this.triageCategory,
     required this.patient,
     required this.reportedAt,
     required this.reportedLabel,
@@ -258,6 +268,7 @@ class DoctorHistoryRecord {
   final int id;
   final String title;
   final String status;
+  final String? triageCategory;
   final String patient;
   final DateTime reportedAt;
   final String reportedLabel;
@@ -269,6 +280,8 @@ class DoctorHistoryRecord {
     if (json['id'] is! num ||
         json['title'] is! String ||
         json['status'] is! String ||
+        (json['triage_category'] != null &&
+            json['triage_category'] is! String) ||
         json['patient'] is! String ||
         reportedAt == null ||
         json['reported_label'] is! String) {
@@ -278,6 +291,7 @@ class DoctorHistoryRecord {
       id: (json['id'] as num).toInt(),
       title: json['title'] as String,
       status: json['status'] as String,
+      triageCategory: json['triage_category'] as String?,
       patient: json['patient'] as String,
       reportedAt: reportedAt,
       reportedLabel: json['reported_label'] as String,
@@ -291,14 +305,14 @@ class DoctorHistoryData {
   const DoctorHistoryData({
     required this.cases,
     required this.total,
-    required this.critical,
+    required this.emergent,
     required this.averageMinutes,
     required this.weeklyCounts,
   });
 
   final List<DoctorHistoryRecord> cases;
   final int total;
-  final int critical;
+  final int emergent;
   final int? averageMinutes;
   final List<int> weeklyCounts;
 
@@ -308,7 +322,7 @@ class DoctorHistoryData {
     if (casesJson is! List ||
         stats is! Map<String, dynamic> ||
         stats['total'] is! num ||
-        stats['critical'] is! num ||
+        stats['emergent'] is! num ||
         stats['weekly_counts'] is! List) {
       throw const FormatException('Invalid doctor case history.');
     }
@@ -329,7 +343,7 @@ class DoctorHistoryData {
         return DoctorHistoryRecord.fromJson(item);
       }).toList(growable: false),
       total: (stats['total'] as num).toInt(),
-      critical: (stats['critical'] as num).toInt(),
+      emergent: (stats['emergent'] as num).toInt(),
       averageMinutes: (stats['average_minutes'] as num?)?.toInt(),
       weeklyCounts: weekly,
     );

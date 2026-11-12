@@ -115,7 +115,9 @@ class _DoctorProfileTabState extends State<DoctorProfileTab> {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
                     decoration: BoxDecoration(
-                      color: _onDuty ? kStableBg : const Color(0xFFD9D9D9),
+                      color: _onDuty
+                          ? const Color(0xFFDCFCE7)
+                          : const Color(0xFFD9D9D9),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(_onDuty ? 'On' : 'Off',

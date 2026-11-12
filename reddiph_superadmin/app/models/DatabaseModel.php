@@ -7,6 +7,7 @@ class DatabaseModel
 {
     private static ?PDO $pdo = null;
     private static array $tableCache = [];
+    private static array $columnCache = [];
 
     public static function connection(): PDO
     {
@@ -97,12 +98,15 @@ class DatabaseModel
         return self::$tableCache[$table];
     }
 
-    public static function requireTables(array $tables): void
+    public static function requireTables(
+        array $tables,
+        string $remediation = 'Import config/migrations/20261022_portal_pages.sql into the shared database to enable this feature.'
+    ): void
     {
         foreach ($tables as $table) {
             if (!self::hasTable($table)) {
                 throw new \RuntimeException(
-                    "The database is missing the $table table. Apply config/reddiph_schema.sql to the shared database to enable this feature."
+                    "The database is missing the $table table. $remediation"
                 );
             }
         }
@@ -113,21 +117,30 @@ class DatabaseModel
         if (!preg_match('/^[a-z_]+$/', $table) || !preg_match('/^[a-z_]+$/', $column)) {
             throw new \InvalidArgumentException('Invalid database column name.');
         }
+        $cacheKey = $table . '.' . $column;
+        if (array_key_exists($cacheKey, self::$columnCache)) {
+            return self::$columnCache[$cacheKey];
+        }
         $stmt = self::connection()->prepare(
             'SELECT COUNT(*) FROM information_schema.columns
              WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?'
         );
         $stmt->execute([$table, $column]);
-        return (int) $stmt->fetchColumn() > 0;
+        self::$columnCache[$cacheKey] = (int) $stmt->fetchColumn() > 0;
+        return self::$columnCache[$cacheKey];
     }
 
-    public static function requireColumns(string $table, array $columns): void
+    public static function requireColumns(
+        string $table,
+        array $columns,
+        string $remediation = 'Import config/migrations/20261022_portal_pages.sql into the shared database to enable this feature.'
+    ): void
     {
-        self::requireTables([$table]);
+        self::requireTables([$table], $remediation);
         foreach ($columns as $column) {
             if (!self::hasColumn($table, $column)) {
                 throw new \RuntimeException(
-                    "The database is missing the $table.$column column. Apply config/reddiph_schema.sql to the shared database to enable this feature."
+                    "The database is missing the $table.$column column. $remediation"
                 );
             }
         }

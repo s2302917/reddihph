@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:reddiph/models/incident_patient.dart';
+import 'package:reddiph/models/responder_dashboard.dart';
 import 'package:reddiph/services/mobile_api_client.dart';
 
 void main() {
@@ -33,6 +34,315 @@ void main() {
             ),
           ),
         ),
+      );
+    });
+  });
+
+  group('MobileApiClient responder profile', () {
+    test('loads server profile and decodes schedule periods', () async {
+      late http.Request captured;
+      final client = MobileApiClient(
+        baseUrl: 'https://example.test/Reddiph_mobile_api/',
+        client: MockClient((request) async {
+          captured = request;
+          return http.Response(
+            jsonEncode({
+              'success': true,
+              'profile': {
+                'full_name': 'Test Responder',
+                'profile_image': null,
+                'driver_responder_enabled': true,
+                'vehicle': {
+                  'vehicle_type': 'Ambulance',
+                  'call_sign': 'RB-04',
+                  'plate_number': 'ABC 1234',
+                },
+                'schedule_configured': true,
+                'availability_enabled': true,
+                'is_on_duty': false,
+                'schedules': [
+                  {
+                    'day_of_week': 1,
+                    'start_time': '07:00:00',
+                    'end_time': '19:00:00',
+                  },
+                ],
+              },
+              'monthly_dispatch_count': 18,
+              'hospital_arrivals_this_month': 3,
+            }),
+            200,
+          );
+        }),
+      );
+
+      final profile = await client.responderProfile(token: 'signed-token');
+
+      expect(captured.url.path, endsWith('api/responder/profile.php'));
+      expect(captured.method, 'POST');
+      expect(jsonDecode(captured.body), {
+        'token': 'signed-token',
+        'action': 'profile',
+      });
+      expect(profile.fullName, 'Test Responder');
+      expect(profile.driverResponderEnabled, isTrue);
+      expect(profile.callSign, 'RB-04');
+      expect(profile.schedules.single.dayOfWeek, 1);
+      expect(profile.isOnDuty, isFalse);
+      expect(profile.monthlyDispatchCount, 18);
+    });
+
+    test('saves driver vehicle fields through the authenticated endpoint',
+        () async {
+      late http.Request captured;
+      final client = MobileApiClient(
+        baseUrl: 'https://example.test/Reddiph_mobile_api/',
+        client: MockClient((request) async {
+          captured = request;
+          return http.Response(
+            jsonEncode({
+              'success': true,
+              'profile': {
+                'full_name': 'Test Responder',
+                'driver_responder_enabled': true,
+                'schedule_configured': false,
+                'availability_enabled': true,
+                'is_on_duty': true,
+                'schedules': [],
+                'vehicle': {
+                  'vehicle_type': 'Ambulance',
+                  'call_sign': 'RB-04',
+                  'plate_number': 'ABC 1234',
+                },
+              },
+              'monthly_dispatch_count': 0,
+              'hospital_arrivals_this_month': 0,
+            }),
+            200,
+          );
+        }),
+      );
+
+      await client.saveResponderVehicle(
+        token: 'signed-token',
+        enabled: true,
+        vehicleType: 'Ambulance',
+        callSign: 'RB-04',
+        plateNumber: 'ABC 1234',
+      );
+
+      expect(jsonDecode(captured.body), {
+        'token': 'signed-token',
+        'action': 'save_vehicle',
+        'driver_responder_enabled': true,
+        'vehicle_type': 'Ambulance',
+        'call_sign': 'RB-04',
+        'plate_number': 'ABC 1234',
+      });
+    });
+
+    test('edits vehicle details without enabling driver eligibility', () async {
+      late http.Request captured;
+      final client = MobileApiClient(
+        baseUrl: 'https://example.test/Reddiph_mobile_api/',
+        client: MockClient((request) async {
+          captured = request;
+          return http.Response(
+            jsonEncode({
+              'success': true,
+              'profile': {
+                'full_name': 'Test Responder',
+                'driver_responder_enabled': false,
+                'schedule_configured': false,
+                'availability_enabled': false,
+                'is_on_duty': false,
+                'schedules': [],
+                'vehicle': {
+                  'vehicle_type': 'PTV',
+                  'call_sign': 'RB-05',
+                  'plate_number': 'XYZ 5678',
+                },
+              },
+              'monthly_dispatch_count': 0,
+              'hospital_arrivals_this_month': 0,
+            }),
+            200,
+          );
+        }),
+      );
+
+      await client.saveResponderVehicle(
+        token: 'signed-token',
+        enabled: false,
+        vehicleType: 'PTV',
+        callSign: 'RB-05',
+        plateNumber: 'XYZ 5678',
+      );
+
+      expect(jsonDecode(captured.body), {
+        'token': 'signed-token',
+        'action': 'save_vehicle',
+        'driver_responder_enabled': false,
+        'vehicle_type': 'PTV',
+        'call_sign': 'RB-05',
+        'plate_number': 'XYZ 5678',
+      });
+    });
+
+    test('uploads a responder image and resolves its shared website URL',
+        () async {
+      late http.MultipartRequest captured;
+      final client = MobileApiClient(
+        baseUrl: 'https://example.test/Reddiph_mobile_api/',
+        client: _CaptureClient((request) async {
+          captured = request as http.MultipartRequest;
+          return http.StreamedResponse(
+            Stream.value(utf8.encode(jsonEncode({
+              'success': true,
+              'profile_image': 'profile-9-0123456789abcdef0123456789abcdef.png',
+              'profile_image_url':
+                  '/reddiph_admin/assets/images/profiles/profile-9.png',
+            }))),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }),
+      );
+
+      final imageUrl = await client.uploadResponderProfileImage(
+        token: 'signed-token',
+        photo: XFile.fromData(
+          Uint8List.fromList([0x89, 0x50, 0x4e, 0x47]),
+          name: 'avatar.png',
+        ),
+      );
+
+      expect(captured.fields, {
+        'token': 'signed-token',
+        'action': 'upload_profile_image',
+      });
+      expect(
+        imageUrl,
+        'https://example.test/reddiph_admin/assets/images/profiles/profile-9.png',
+      );
+    });
+
+    test('saves duty periods with the configured availability state', () async {
+      late http.Request captured;
+      final client = MobileApiClient(
+        baseUrl: 'https://example.test/Reddiph_mobile_api/',
+        client: MockClient((request) async {
+          captured = request;
+          return http.Response(
+            jsonEncode({
+              'success': true,
+              'profile': {
+                'full_name': 'Test Responder',
+                'driver_responder_enabled': false,
+                'schedule_configured': true,
+                'availability_enabled': true,
+                'is_on_duty': true,
+                'schedules': [
+                  {
+                    'day_of_week': 1,
+                    'start_time': '22:00:00',
+                    'end_time': '06:00:00',
+                  },
+                ],
+              },
+              'monthly_dispatch_count': 0,
+              'hospital_arrivals_this_month': 0,
+            }),
+            200,
+          );
+        }),
+      );
+
+      final profile = await client.saveResponderSchedule(
+        token: 'signed-token',
+        availabilityEnabled: true,
+        schedules: const [
+          ResponderDutyPeriod(
+            dayOfWeek: 1,
+            startTime: '22:00:00',
+            endTime: '06:00:00',
+          ),
+        ],
+      );
+
+      expect(captured.url.path, endsWith('api/responder/profile.php'));
+      expect(jsonDecode(captured.body), {
+        'token': 'signed-token',
+        'action': 'save_schedule',
+        'availability_enabled': true,
+        'schedules': [
+          {
+            'day_of_week': 1,
+            'start_time': '22:00:00',
+            'end_time': '06:00:00',
+          },
+        ],
+      });
+      expect(profile.schedules.single.endTime, '06:00:00');
+    });
+
+    test('preserves all ISO weekdays in the weekly schedule payload', () async {
+      late http.Request captured;
+      final client = MobileApiClient(
+        baseUrl: 'https://example.test/Reddiph_mobile_api/',
+        client: MockClient((request) async {
+          captured = request;
+          return http.Response(
+            jsonEncode({
+              'success': true,
+              'profile': {
+                'full_name': 'Test Responder',
+                'driver_responder_enabled': false,
+                'schedule_configured': true,
+                'availability_enabled': true,
+                'is_on_duty': false,
+                'schedules': [],
+              },
+              'monthly_dispatch_count': 0,
+              'hospital_arrivals_this_month': 0,
+            }),
+            200,
+          );
+        }),
+      );
+      final periods = List<ResponderDutyPeriod>.generate(
+        7,
+        (index) => ResponderDutyPeriod(
+          dayOfWeek: index + 1,
+          startTime: '07:00:00',
+          endTime: '19:00:00',
+        ),
+      );
+
+      await client.saveResponderSchedule(
+        token: 'signed-token',
+        availabilityEnabled: true,
+        schedules: periods,
+      );
+
+      final requestBody = jsonDecode(captured.body) as Map<String, dynamic>;
+      final schedules = requestBody['schedules'] as List<dynamic>;
+      expect(
+        schedules
+            .map(
+                (schedule) => (schedule as Map<String, dynamic>)['day_of_week'])
+            .toList(),
+        [1, 2, 3, 4, 5, 6, 7],
+      );
+    });
+
+    test('accepts only Ambulance and PTV vehicle types', () {
+      expect(MobileApiClient.normalizeResponderVehicleType('ambulance'),
+          'Ambulance');
+      expect(MobileApiClient.normalizeResponderVehicleType('PTV'), 'PTV');
+      expect(
+        () => MobileApiClient.normalizeResponderVehicleType('Truck'),
+        throwsArgumentError,
       );
     });
   });
@@ -315,7 +625,7 @@ void main() {
         latitude: 10.42,
         longitude: 122.92,
         incidentType: 'Medical',
-        status: 'urgent',
+        triageCategory: 'urgent',
         patientName: 'Alex Santos',
         patientAge: 28,
         patientGender: 'male',
@@ -356,7 +666,7 @@ void main() {
         'latitude',
         'longitude',
         'incident_type',
-        'status',
+        'triage_category',
         'reported_by',
         'request_another_vehicle',
         'patients',
@@ -384,7 +694,7 @@ void main() {
         latitude: 10.42,
         longitude: 122.92,
         incidentType: 'Vehicular',
-        status: 'critical',
+        triageCategory: 'emergent',
         patientName: 'Alex Santos',
         patientAge: 28,
         patientGender: 'male',
@@ -586,7 +896,7 @@ void main() {
       final id = await client.createResponderReport(
         token: 'responder-token',
         incidentType: 'Vehicle collision',
-        status: 'urgent',
+        triageCategory: 'urgent',
         reportedBy: 'on_scene',
         location: 'GPS 10.123456, 122.123456',
         latitude: 10.123456,
@@ -612,7 +922,7 @@ void main() {
       expect(captured.fields, {
         'token': 'responder-token',
         'incident_type': 'Vehicle collision',
-        'status': 'urgent',
+        'triage_category': 'urgent',
         'reported_by': 'on_scene',
         'location': 'GPS 10.123456, 122.123456',
         'latitude': '10.123456',
@@ -653,7 +963,7 @@ void main() {
       await client.createResponderReport(
         token: 'responder-token',
         incidentType: 'Medical',
-        status: 'critical',
+        triageCategory: 'emergent',
         reportedBy: 'on_scene',
         location: 'GPS 10, 122',
         latitude: 10,
@@ -807,6 +1117,74 @@ void main() {
       });
     });
 
+    test('loads registered hospitals for an authorized reroute', () async {
+      late http.Request captured;
+      final client = MobileApiClient(
+        baseUrl: 'https://example.test/Reddiph_mobile_api/',
+        client: MockClient((request) async {
+          captured = request;
+          return http.Response(
+            jsonEncode({
+              'success': true,
+              'hospitals': [
+                {'id': 2, 'name': 'District Hospital', 'can_route': true},
+                {'id': 3, 'name': 'Unmapped Hospital', 'can_route': false},
+              ],
+            }),
+            200,
+          );
+        }),
+      );
+
+      final hospitals = await client.responderRerouteHospitals(
+        token: 'token',
+        incidentId: 17,
+      );
+
+      expect(jsonDecode(captured.body), {
+        'token': 'token',
+        'incident_id': 17,
+        'action': 'list_reroute_hospitals',
+      });
+      expect(hospitals.map((hospital) => hospital.name), [
+        'District Hospital',
+        'Unmapped Hospital',
+      ]);
+      expect(hospitals.last.canRoute, isFalse);
+    });
+
+    test('posts the selected hospital for responder rerouting', () async {
+      late http.Request captured;
+      final client = MobileApiClient(
+        baseUrl: 'https://example.test/Reddiph_mobile_api/',
+        client: MockClient((request) async {
+          captured = request;
+          return http.Response(
+            jsonEncode({
+              'success': true,
+              'changed': true,
+              'hospital': {'id': 2, 'name': 'District Hospital'},
+            }),
+            200,
+          );
+        }),
+      );
+
+      final result = await client.rerouteResponderIncident(
+        token: 'token',
+        incidentId: 17,
+        hospitalId: 2,
+      );
+
+      expect(jsonDecode(captured.body), {
+        'token': 'token',
+        'incident_id': 17,
+        'action': 'reroute_to_hospital',
+        'hospital_id': 2,
+      });
+      expect(result['changed'], isTrue);
+    });
+
     test('posts hospital submission with condition and volunteer selection',
         () async {
       late http.Request captured;
@@ -822,7 +1200,7 @@ void main() {
         token: 'token',
         incidentId: 17,
         action: 'send_to_hospital',
-        status: 'urgent',
+        triageCategory: 'urgent',
         volunteerUserId: 28,
       );
 
@@ -830,7 +1208,7 @@ void main() {
         'token': 'token',
         'incident_id': 17,
         'action': 'send_to_hospital',
-        'status': 'urgent',
+        'triage_category': 'urgent',
         'volunteer_user_id': 28,
       });
     });
@@ -1085,8 +1463,10 @@ void main() {
   group('MobileApiClient session validation', () {
     test('checks the signed-in account and invalidates it when banned',
         () async {
-      var invalidated = false;
-      MobileApiClient.onSessionInvalid = () => invalidated = true;
+      String? invalidationMessage;
+      MobileApiClient.onSessionInvalid = (message) {
+        invalidationMessage = message;
+      };
       addTearDown(() => MobileApiClient.onSessionInvalid = null);
       late http.Request captured;
       final client = MobileApiClient(
@@ -1096,7 +1476,8 @@ void main() {
           return http.Response(
             jsonEncode({
               'success': false,
-              'message': 'Your session is no longer active.',
+              'message':
+                  'Your login has been disabled. Reason: Account review.',
             }),
             401,
           );
@@ -1110,7 +1491,50 @@ void main() {
 
       expect(captured.url.path, endsWith('api/auth/session.php'));
       expect(jsonDecode(captured.body), {'token': 'signed-token'});
-      expect(invalidated, isTrue);
+      expect(
+        invalidationMessage,
+        'Your login has been disabled. Reason: Account review.',
+      );
+    });
+
+    test(
+        'checks the session for an explanation after a protected request fails',
+        () async {
+      final requests = <http.Request>[];
+      String? invalidationMessage;
+      MobileApiClient.onSessionInvalid = (message) {
+        invalidationMessage = message;
+      };
+      addTearDown(() => MobileApiClient.onSessionInvalid = null);
+      final client = MobileApiClient(
+        baseUrl: 'https://example.test/Reddiph_mobile_api/',
+        client: MockClient((request) async {
+          requests.add(request);
+          final isSessionCheck =
+              request.url.path.endsWith('api/auth/session.php');
+          return http.Response(
+            jsonEncode({
+              'success': false,
+              'message': isSessionCheck
+                  ? 'Your login has been disabled. Reason: Account review.'
+                  : 'Your session is no longer active.',
+            }),
+            401,
+          );
+        }),
+      );
+
+      await expectLater(
+        client.responderDashboard(token: 'signed-token'),
+        throwsA(isA<MobileApiException>()),
+      );
+
+      expect(requests, hasLength(2));
+      expect(requests.last.url.path, endsWith('api/auth/session.php'));
+      expect(
+        invalidationMessage,
+        'Your login has been disabled. Reason: Account review.',
+      );
     });
   });
 }

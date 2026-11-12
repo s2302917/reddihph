@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/AccountValidator.php';
 require_once __DIR__ . '/../services/MailService.php';
+require_once __DIR__ . '/../services/AuditLogService.php';
 
 /**
  * Forgot-password flow on user_type, mirroring the admin: a temporary password is
@@ -42,25 +43,39 @@ final class PasswordModel
         $temporaryPassword = self::generateTemporaryPassword();
 
         $pdo->beginTransaction();
-        $pdo->prepare(
-            'UPDATE user_type
-             SET password_hash = ?, must_change_password = 1,
-                 temporary_password_expires_at = ?, reset_requested_at = NOW()
-             WHERE id = ?'
-        )->execute([
-            password_hash($temporaryPassword, PASSWORD_DEFAULT),
-            date('Y-m-d H:i:s', time() + self::TEMP_PASSWORD_LIFETIME),
-            $user['id'],
-        ]);
+        try {
+            $pdo->prepare(
+                'UPDATE user_type
+                 SET password_hash = ?, must_change_password = 1,
+                     temporary_password_expires_at = ?, reset_requested_at = NOW()
+                 WHERE id = ?'
+            )->execute([
+                password_hash($temporaryPassword, PASSWORD_DEFAULT),
+                date('Y-m-d H:i:s', time() + self::TEMP_PASSWORD_LIFETIME),
+                $user['id'],
+            ]);
 
-        // If the email fails, undo the change so the old password keeps working.
-        if (!MailService::sendTemporaryPassword($user['work_email'], $user['full_name'], $temporaryPassword)) {
-            $pdo->rollBack();
-            return false;
+            AuditLogService::record(
+                $pdo,
+                (int) $user['id'],
+                'password.reset_requested',
+                'user',
+                (string) $user['id']
+            );
+
+            // If the email fails, undo the change so the old password keeps working.
+            if (!MailService::sendTemporaryPassword($user['work_email'], $user['full_name'], $temporaryPassword)) {
+                $pdo->rollBack();
+                return false;
+            }
+            $pdo->commit();
+            return true;
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
         }
-        $pdo->commit();
-
-        return true;
     }
 
     /**
@@ -68,12 +83,29 @@ final class PasswordModel
      */
     public static function changePassword(int $userId, string $password): void
     {
-        Database::connection()->prepare(
-            'UPDATE user_type
-             SET password_hash = ?, must_change_password = 0,
-                 temporary_password_expires_at = NULL, password_changed_at = NOW()
-             WHERE id = ?'
-        )->execute([password_hash($password, PASSWORD_DEFAULT), $userId]);
+        $pdo = Database::connection();
+        $pdo->beginTransaction();
+        try {
+            $pdo->prepare(
+                'UPDATE user_type
+                 SET password_hash = ?, must_change_password = 0,
+                     temporary_password_expires_at = NULL, password_changed_at = NOW()
+                 WHERE id = ?'
+            )->execute([password_hash($password, PASSWORD_DEFAULT), $userId]);
+            AuditLogService::record(
+                $pdo,
+                $userId,
+                'password.changed',
+                'user',
+                (string) $userId
+            );
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
+        }
     }
 
     /**

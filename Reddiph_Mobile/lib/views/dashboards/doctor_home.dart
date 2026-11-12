@@ -45,8 +45,7 @@ class _DoctorHomeState extends State<DoctorHome> {
       _error = null;
     });
     try {
-      final dashboard =
-          await MobileApiClient.I.doctorDashboard(token: token);
+      final dashboard = await MobileApiClient.I.doctorDashboard(token: token);
       if (!mounted) return;
       setState(() {
         _profile = dashboard.profile;
@@ -124,8 +123,8 @@ class _DoctorHomeState extends State<DoctorHome> {
                     children: [
                       Text(
                         profile.available ? 'Available for duty' : 'Off duty',
-                        style: const TextStyle(
-                            fontSize: 9, color: Colors.white70),
+                        style:
+                            const TextStyle(fontSize: 9, color: Colors.white70),
                       ),
                       const SizedBox(height: 14),
                       Text(time.day.toString().padLeft(2, '0'),
@@ -153,8 +152,7 @@ class _DoctorHomeState extends State<DoctorHome> {
           else if (incoming.isEmpty)
             _empty('No incoming patients have been assigned.')
           else ...[
-            for (final item in incoming.take(3))
-              _incomingCard(context, item),
+            for (final item in incoming.take(3)) _incomingCard(context, item),
           ],
           const Section('Case review'),
           if (_reviewCases.isEmpty)
@@ -200,7 +198,7 @@ class _DoctorHomeState extends State<DoctorHome> {
   }
 
   Widget _incomingCard(BuildContext context, DoctorCaseRecord item) {
-    final severity = doctorSeverity(item.statusLabel);
+    final severity = doctorSeverity(item.triageCategoryLabel);
     return GestureDetector(
       onTap: () => Nav.push(
         context,
@@ -218,7 +216,7 @@ class _DoctorHomeState extends State<DoctorHome> {
           children: [
             Align(
               alignment: Alignment.centerRight,
-              child: SmallPill(item.statusLabel, severity),
+              child: SmallPill(item.triageCategoryLabel, severity),
             ),
             Text(
               '${item.title} · ${item.patient}',

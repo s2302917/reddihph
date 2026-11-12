@@ -68,7 +68,7 @@ class _DoctorMapTabState extends State<DoctorMapTab> {
   Widget build(BuildContext context) {
     final selected = _cases.isEmpty ? null : _cases[_selected];
     final severity =
-        selected == null ? null : doctorSeverity(selected.statusLabel);
+        selected == null ? null : doctorSeverity(selected.triageCategoryLabel);
     final hospitalLocation = _profile?.hospitalLatitude == null ||
             _profile?.hospitalLongitude == null
         ? null
@@ -76,10 +76,10 @@ class _DoctorMapTabState extends State<DoctorMapTab> {
             _profile!.hospitalLatitude!,
             _profile!.hospitalLongitude!,
           );
-    final incidentLocation = selected?.latitude == null ||
-            selected?.longitude == null
-        ? null
-        : LatLng(selected!.latitude!, selected.longitude!);
+    final incidentLocation =
+        selected?.latitude == null || selected?.longitude == null
+            ? null
+            : LatLng(selected!.latitude!, selected.longitude!);
     final markers = <OpenStreetMapMarker>[
       if (hospitalLocation != null)
         OpenStreetMapMarker(
@@ -90,8 +90,7 @@ class _DoctorMapTabState extends State<DoctorMapTab> {
           showLabel: true,
         ),
       for (int index = 0; index < _cases.length; index++)
-        if (_cases[index].latitude != null &&
-            _cases[index].longitude != null)
+        if (_cases[index].latitude != null && _cases[index].longitude != null)
           OpenStreetMapMarker(
             point: LatLng(_cases[index].latitude!, _cases[index].longitude!),
             label: '${_cases[index].patient} · ${_cases[index].title}',
@@ -198,7 +197,7 @@ class _DoctorMapTabState extends State<DoctorMapTab> {
                 else ...[
                   Align(
                     alignment: Alignment.centerRight,
-                    child: SmallPill(selected.statusLabel, severity!),
+                    child: SmallPill(selected.triageCategoryLabel, severity!),
                   ),
                   Align(
                     alignment: Alignment.centerLeft,

@@ -26,10 +26,15 @@ class HospitalnetworkController
         $coordinatorRole = $profile['role'] ?? ($_SESSION['role'] ?? 'hospital_admin');
         $hospitalId = isset($_SESSION['hospital_id']) ? (int) $_SESSION['hospital_id'] : null;
         $coordinatorImage = userProfileImageUrl($_SESSION['profile_image'] ?? null);
+        if (empty($_SESSION['hospitalnetwork_csrf'])) {
+            $_SESSION['hospitalnetwork_csrf'] = bin2hex(random_bytes(32));
+        }
+        $referralCsrf = $_SESSION['hospitalnetwork_csrf'];
         $hospitals = $this->model->getHospitals();
         $recentHospitals = $this->model->getRecentHospitals();
         $coordinatorInitials = $this->initials($coordinatorName);
         $incidents = $this->model->getReferralCandidates($hospitalId);
+        $referralHistory = $this->model->getReferralHistory((int) ($hospitalId ?? 0));
         $requestedIncidentId = filter_input(INPUT_GET, 'incident_id', FILTER_VALIDATE_INT) ?: 0;
 
         require __DIR__ . '/../views/hospitalnetworkView.php';
@@ -42,15 +47,41 @@ class HospitalnetworkController
         }
 
         $incidentId = filter_input(INPUT_POST, 'incident_id', FILTER_VALIDATE_INT);
-        $hospitalId = filter_input(INPUT_POST, 'hospital_id', FILTER_VALIDATE_INT);
+        $receivingHospitalId = filter_input(INPUT_POST, 'hospital_id', FILTER_VALIDATE_INT);
+        $sourceHospitalId = (int) ($_SESSION['hospital_id'] ?? 0);
+        $userId = (int) ($_SESSION['user_id'] ?? 0);
         $reason = trim((string) ($_POST['reason'] ?? ''));
+        $csrfToken = (string) ($_POST['csrf_token'] ?? '');
 
-        if (!$incidentId || !$hospitalId || $reason === '') {
+        if (!hash_equals((string) ($_SESSION['hospitalnetwork_csrf'] ?? ''), $csrfToken)) {
+            $this->json(['success' => false, 'message' => 'Invalid request token. Refresh and try again.'], 403);
+        }
+
+        if (
+            !$incidentId
+            || !$receivingHospitalId
+            || $sourceHospitalId <= 0
+            || $userId <= 0
+            || $reason === ''
+            || strlen($reason) > 255
+        ) {
             $this->json(['success' => false, 'message' => 'Please select a hospital and provide a referral reason.'], 422);
         }
 
-        $referralId = $this->model->createReferral((int) $incidentId, (int) $hospitalId, $reason, isset($_SESSION['user_id']) ? (int) $_SESSION['user_id'] : null);
-        $referral = $referralId !== null ? $this->model->getReferralStatus($referralId) : null;
+        try {
+            $referralId = $this->model->createReferral(
+                (int) $incidentId,
+                $sourceHospitalId,
+                (int) $receivingHospitalId,
+                $reason,
+                $userId
+            );
+        } catch (DomainException $e) {
+            $this->json(['success' => false, 'message' => $e->getMessage()], 409);
+        }
+        $referral = $referralId !== null
+            ? $this->model->getReferralStatus($referralId, $sourceHospitalId)
+            : null;
         $success = $referralId !== null && $referral !== null;
         $this->json([
             'success' => $success,

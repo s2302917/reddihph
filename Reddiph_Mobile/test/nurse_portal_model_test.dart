@@ -20,40 +20,30 @@ void main() {
           {
             'id': 42,
             'title': 'Vehicular collision',
-            'priority': 'Critical',
+            'triage_category_label': 'Emergent',
             'status': 'en_route',
             'patient_name': 'Alex Patient',
             'patient_gender': 'male',
             'location': 'Purok 3',
+            'hospital': 'District Hospital',
+            'incident_status': 'dispatched',
             'responder': 'Casey Responder',
             'unit': 'Unit 1',
-            'tasks': [
-              {'id': 4, 'name': 'Oxygen ready', 'done': 1, 'done_at': null},
-            ],
-            'prep_done': 1,
-            'prep_total': 5,
-            'prep_complete': false,
-            'arrival_confirmed': false,
             'patient_age': '34',
             'eta_minutes': 9,
-            'bed_id': null,
-            'bed_label': null,
             'note': '',
             'responder_notes': '',
             'heart_rate': null,
             'spo2': null,
             'blood_pressure': null,
+            'gcs': 12,
             'reported_at': '2026-10-28 10:00:00',
-            'arrived_at': null,
             'transport_type': 'Ambulance',
           },
         ],
         'summary': {
           'incoming': 1,
-          'prep_complete': 0,
-          'prep_total': 1,
-          'free_er_beds': 2,
-          'free_pediatric_beds': 1,
+          'active_cases': 1,
           'next_arrival': null,
         },
       });
@@ -61,14 +51,45 @@ void main() {
       expect(dashboard.profile.firstName, 'Jamie');
       expect(dashboard.profile.hospitalName, 'District Hospital');
       expect(dashboard.cases.single.id, 42);
-      expect(dashboard.cases.single.tasks.single.done, isTrue);
       expect(dashboard.cases.single.etaMinutes, 9);
-      expect(dashboard.summary['free_er_beds'], 2);
+      expect(dashboard.cases.single.hospitalName, 'District Hospital');
+      expect(dashboard.cases.single.incidentStatus, 'dispatched');
+      expect(dashboard.cases.single.gcs, 12);
+      expect(dashboard.summary['active_cases'], 1);
+    });
+
+    test('parses notified historical cases with incident timestamps', () {
+      final item = NurseCaseHistoryRecord.fromJson({
+        'id': 42,
+        'title': 'Vehicular collision',
+        'status': 'resolved',
+        'triage_category_label': 'Urgent',
+        'patient_name': 'Alex Patient',
+        'patient_gender': 'male',
+        'patient_age': 34,
+        'location': 'Purok 3',
+        'reported_at': '2026-10-28 10:00:00',
+        'updated_at': '2026-10-28 12:00:00',
+        'notified_at': '2026-10-28 10:05:00',
+        'responder': 'Casey Responder',
+        'unit': 'Unit 1',
+        'note': 'Assessment complete',
+        'responder_notes': '',
+        'heart_rate': 80,
+        'spo2': 98,
+        'blood_pressure': '120/80',
+      });
+
+      expect(item.id, 42);
+      expect(item.status, 'resolved');
+      expect(item.patientName, 'Alex Patient');
+      expect(item.updatedAt, '2026-10-28 12:00:00');
+      expect(item.heartRate, 80);
     });
 
     test('rejects incomplete API case payloads', () {
       expect(
-        () => NurseCaseRecord.fromJson({'id': 42}),
+        () => NurseCaseRecord.fromJson({'id': 'not-an-id'}),
         throwsFormatException,
       );
     });
@@ -79,34 +100,24 @@ void main() {
       const first = NurseCaseRecord(
         id: 1,
         title: 'Medical',
-        priority: 'Urgent',
+        triageCategoryLabel: 'Urgent',
         status: 'en_route',
         patientName: 'Patient One',
         patientGender: 'unknown',
         location: 'Location 1',
         responder: 'Responder',
         unit: 'Unit 1',
-        tasks: [],
-        prepDone: 0,
-        prepTotal: 0,
-        prepComplete: false,
-        arrivalConfirmed: false,
       );
       const second = NurseCaseRecord(
         id: 2,
         title: 'Fall',
-        priority: 'Stable',
+        triageCategoryLabel: 'Non-Urgent',
         status: 'notified',
         patientName: 'Patient Two',
         patientGender: 'unknown',
         location: 'Location 2',
         responder: 'Responder',
         unit: 'Unit 2',
-        tasks: [],
-        prepDone: 0,
-        prepTotal: 0,
-        prepComplete: false,
-        arrivalConfirmed: false,
       );
 
       NursePortalCache.saveCases('token-test', [first, second]);
@@ -115,25 +126,20 @@ void main() {
         const NurseCaseRecord(
           id: 1,
           title: 'Medical',
-          priority: 'Urgent',
+          triageCategoryLabel: 'Urgent',
           status: 'arrived',
           patientName: 'Patient One',
           patientGender: 'unknown',
           location: 'Location 1',
           responder: 'Responder',
           unit: 'Unit 1',
-          tasks: [],
-          prepDone: 0,
-          prepTotal: 0,
-          prepComplete: false,
-          arrivalConfirmed: true,
         ),
       );
 
       expect(NursePortalCache.cases('token-test'), hasLength(2));
       expect(
-        NursePortalCache.cases('token-test')!.first.arrivalConfirmed,
-        isTrue,
+        NursePortalCache.cases('token-test')!.first.status,
+        'arrived',
       );
       NursePortalCache.clear('token-test');
       expect(NursePortalCache.cases('token-test'), isNull);

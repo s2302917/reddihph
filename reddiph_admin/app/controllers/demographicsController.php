@@ -28,13 +28,31 @@ class DemographicsController
         $coordinatorImage = userProfileImageUrl($profile['profile_image'] ?? ($_SESSION['profile_image'] ?? null));
         $hospitalId = (int) ($_SESSION['hospital_id'] ?? 0);
         [$range, $fromDate, $toDate, $rangeLabel] = $this->resolveDateRange();
+        $searchQuery = trim((string) ($_GET['q'] ?? ''));
+        $searchQuery = substr($searchQuery, 0, 120);
+        $clearSearchParams = ['range' => $range];
+        if ($range === 'custom') {
+            $clearSearchParams['from'] = $fromDate;
+            $clearSearchParams['to'] = $toDate;
+        }
+        $clearSearchUrl = assetUrl('app/controllers/demographicsController.php')
+            . '?' . http_build_query($clearSearchParams);
 
         $summary = $this->model->getSummary($fromDate, $toDate, $hospitalId);
-        $logs = $this->model->getLogs($fromDate, $toDate, $hospitalId);
+        $logsError = null;
+        try {
+            $logs = $this->model->getLogs($fromDate, $toDate, $hospitalId, $searchQuery);
+        } catch (Throwable $e) {
+            $cause = $e->getPrevious() ?? $e;
+            error_log('[DemographicsController] Emergency logs unavailable: ' . $cause->getMessage());
+            $logs = [];
+            $logsError = 'Emergency logs could not be loaded. Check the database connection and incident schema, then try again.';
+        }
         $ageGroups = $this->model->getAgeGroups($fromDate, $toDate, $hospitalId);
         $genderBreakdown = $this->model->getGenderBreakdown($fromDate, $toDate, $hospitalId);
         $topLocations = $this->model->getTopLocations($fromDate, $toDate, $hospitalId);
         $genderGradient = $this->genderGradient($genderBreakdown);
+        $dataLoadErrors = $this->model->getQueryErrors();
 
         require __DIR__ . '/../views/demographicsView.php';
     }
@@ -64,7 +82,7 @@ class DemographicsController
 
         $stops = [];
         $offset = 0.0;
-        foreach ($genderBreakdown as $index => $item) {
+        foreach ($genderBreakdown as $item) {
             $value = max(0, (int) ($item['value'] ?? 0));
             if ($value <= 0) {
                 continue;

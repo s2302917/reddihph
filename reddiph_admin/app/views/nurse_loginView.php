@@ -10,7 +10,8 @@
     <link
         href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400&display=swap"
         rel="stylesheet">
-    <link rel="stylesheet" href="<?php echo htmlspecialchars(assetUrl('public/css/login.css')); ?>">
+    <link rel="stylesheet"
+        href="<?php echo htmlspecialchars(assetUrl('public/css/login.css')); ?>?v=<?php echo filemtime(__DIR__ . '/../../public/css/login.css'); ?>">
     <link rel="stylesheet"
         href="<?php echo htmlspecialchars(assetUrl('public/css/forgotpass.css')); ?>?v=<?php echo filemtime(__DIR__ . '/../../public/css/forgotpass.css'); ?>">
 </head>
@@ -53,6 +54,14 @@
                     <h2 class="nurse-login-main-title">Log in to your account</h2>
                 </header>
 
+                <?php if (!empty($errors)): ?>
+                    <div class="nurse-login-errors" role="alert">
+                        <?php foreach ($errors as $error): ?>
+                            <p><?php echo htmlspecialchars($error, ENT_QUOTES, 'UTF-8'); ?></p>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
+
                 <form class="nurse-login-form" id="nurseLoginForm" action="../controllers/nurse_loginController.php"
                     method="POST" autocomplete="off">
                     <input type="hidden" name="action" value="nurse_login">
@@ -65,7 +74,7 @@
                     <div class="nurse-form-group">
                         <label class="nurse-form-label" for="nurse-password">Password</label>
                         <input type="password" id="nurse-password" name="password" class="nurse-form-input"
-                            placeholder="Enter your password" required autocomplete="new-password">
+                            placeholder="Enter your password" required autocomplete="current-password">
                     </div>
 
                     <button type="submit" class="nurse-login-submit-btn">Log in</button>
@@ -76,10 +85,6 @@
                     </div>
                 </form>
 
-                <footer class="nurse-login-footer">
-                    <span>Not registered? </span><a href="../controllers/nurse_signupController.php"
-                        class="nurse-signup-link">Sign up here</a>
-                </footer>
             </div>
         </main>
     </div>

@@ -63,8 +63,8 @@ void main() {
     ));
 
     expect(find.text('Your active report'), findsOneWidget);
-    expect(find.textContaining('Responder: Responder One'), findsOneWidget);
-    expect(find.textContaining('Hospital: District Hospital'), findsOneWidget);
+    expect(find.text('Responder One\nETA 6 min'), findsOneWidget);
+    expect(find.textContaining('District Hospital'), findsNothing);
     expect(find.text('VIEW LIVE STATUS'), findsOneWidget);
     sos.reset();
   });

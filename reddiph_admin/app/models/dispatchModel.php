@@ -5,9 +5,12 @@
  * Database access for the Incoming Dispatches page.
  */
 
-class dispatchModel
+require_once __DIR__ . '/../services/IncidentTriageCategory.php';
+
+class DispatchModel
 {
     private ?PDO $db = null;
+    private static array $columnCache = [];
 
     public function __construct()
     {
@@ -137,12 +140,30 @@ class dispatchModel
      */
     public function getBarangays(?int $hospitalId = null): array
     {
+        $conditions = [];
+        if ($hospitalId) {
+            $conditions[] = 'b.hospital_id = ' . (int) $hospitalId;
+        }
+        if ($this->hasColumn('barangays', 'is_active')) {
+            $conditions[] = 'b.is_active = 1';
+        }
+        if ($this->hasColumn('barangays', 'archived_at')) {
+            $conditions[] = 'b.archived_at IS NULL';
+        }
+        if ($this->hasColumn('hospitals', 'is_active')) {
+            $conditions[] = 'h.is_active = 1';
+        }
+        if ($this->hasColumn('hospitals', 'archived_at')) {
+            $conditions[] = 'h.archived_at IS NULL';
+        }
+
         return $this->fetchAll("SELECT b.id, b.name, b.slug,
-            COUNT(CASE WHEN i.status IN ('critical', 'urgent', 'dispatched') THEN 1 END) AS active_dispatch_count
+            COUNT(CASE WHEN i.status IN ('open', 'dispatched', 'referred') THEN 1 END) AS active_dispatch_count
             FROM barangays b
+            JOIN hospitals h ON h.id = b.hospital_id
             LEFT JOIN incidents i ON (i.barangay_id = b.id OR i.location LIKE CONCAT('%', b.name, '%'))
                 AND i.hospital_id = b.hospital_id
-            WHERE " . ($hospitalId ? 'b.hospital_id = ' . (int) $hospitalId : '1=1') . "
+            WHERE " . ($conditions ? implode(' AND ', $conditions) : '1 = 1') . "
             GROUP BY b.id, b.name, b.slug, b.sort_order
             ORDER BY b.sort_order, b.id");
     }
@@ -300,6 +321,7 @@ class dispatchModel
     {
         return $this->fetchAll("SELECT i.incident_id, i.incident_type AS dispatch_purpose,
             i.patient_name, i.patient_gender, i.patient_age, i.location, i.status,
+            i.triage_category,
             i.eta_minutes, i.reported_at,
             COALESCE(i.transport_name, a.call_sign) AS vehicle_name,
             COALESCE(i.transport_type, a.vehicle_type) AS vehicle_type,
@@ -313,7 +335,7 @@ class dispatchModel
             LEFT JOIN barangays b ON b.id = i.barangay_id
             LEFT JOIN barangays fallback_b ON fallback_b.hospital_id = i.hospital_id
                 AND i.location LIKE CONCAT('%', fallback_b.name, '%')
-            WHERE i.status IN ('critical', 'urgent', 'dispatched')
+            WHERE i.status IN ('open', 'dispatched', 'referred')
               AND EXISTS (
                   SELECT 1
                   FROM incident_patients submitted_patient
@@ -321,7 +343,7 @@ class dispatchModel
               )
             " . ($hospitalId ? 'AND i.hospital_id = ' . (int) $hospitalId : '') . "
             GROUP BY i.incident_id, i.incident_type, i.patient_name, i.patient_gender, i.patient_age,
-                i.location, i.status, i.eta_minutes, i.reported_at, i.transport_name, i.transport_type,
+                i.location, i.status, i.triage_category, i.eta_minutes, i.reported_at, i.transport_name, i.transport_type,
                 i.driver_name, i.responder_name, a.call_sign, a.vehicle_type, a.driver_name,
                 b.id, b.slug, b.name, fallback_b.id, fallback_b.slug, fallback_b.name
             ORDER BY i.reported_at DESC");
@@ -337,7 +359,7 @@ class dispatchModel
         }
 
         $statement = $this->db->prepare(
-            "SELECT i.incident_id, i.incident_type, i.status, i.location,
+            "SELECT i.incident_id, i.incident_type, i.status, i.triage_category, i.location,
                 i.patient_name, i.reported_by, i.reported_at,
                 COALESCE(b.name, fallback_b.name, 'Barangay unavailable') AS barangay_name,
                 COALESCE(b.slug, fallback_b.slug) AS barangay_slug,
@@ -364,6 +386,11 @@ class dispatchModel
                 'id' => (int) $incident['incident_id'],
                 'incidentType' => (string) $incident['incident_type'],
                 'status' => (string) $incident['status'],
+                'triageCategoryLabel' => IncidentTriageCategory::label(
+                    $incident['triage_category'] !== null
+                        ? (string) $incident['triage_category']
+                        : null
+                ),
                 'location' => (string) $incident['location'],
                 'patientName' => (string) ($incident['patient_name'] ?? ''),
                 'reportedBy' => (string) $incident['reported_by'],
@@ -403,5 +430,24 @@ class dispatchModel
             error_log('[dispatchModel] Query failed: ' . $e->getMessage());
             return [];
         }
+    }
+
+    private function hasColumn(string $table, string $column): bool
+    {
+        if (!$this->db) {
+            return false;
+        }
+
+        $cacheKey = $table . '.' . $column;
+        if (!array_key_exists($cacheKey, self::$columnCache)) {
+            $statement = $this->db->prepare(
+                'SELECT COUNT(*) FROM information_schema.columns
+                 WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?'
+            );
+            $statement->execute([$table, $column]);
+            self::$columnCache[$cacheKey] = (int) $statement->fetchColumn() > 0;
+        }
+
+        return self::$columnCache[$cacheKey];
     }
 }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/ApiController.php';
 require_once __DIR__ . '/../models/ResponderDashboardModel.php';
 require_once __DIR__ . '/../models/ResponderIncidentWorkflowModel.php';
+require_once __DIR__ . '/../services/IncidentTriageCategory.php';
 require_once __DIR__ . '/../services/TokenService.php';
 
 /** Authenticated endpoints for patient records and responder incident actions. */
@@ -23,7 +24,7 @@ final class ResponderIncidentWorkflowController extends ApiController
     {
         self::requireMethod('POST');
         $data = self::readJsonBody();
-        [$incidentId] = self::authorizedIncident($data);
+        [$incidentId, , $userId] = self::authorizedIncident($data);
         $action = (string) ($data['action'] ?? 'list');
 
         try {
@@ -41,7 +42,7 @@ final class ResponderIncidentWorkflowController extends ApiController
                 if ($patientId === false || $patientId < 1) {
                     self::respond(422, ['success' => false, 'message' => 'A valid patient is required.']);
                 }
-                $filename = ResponderIncidentWorkflowModel::deletePatient($incidentId, $patientId);
+                $filename = ResponderIncidentWorkflowModel::deletePatient($incidentId, $patientId, $userId);
                 if ($filename === false) {
                     self::respond(404, ['success' => false, 'message' => 'Patient record not found.']);
                 }
@@ -67,7 +68,7 @@ final class ResponderIncidentWorkflowController extends ApiController
     {
         self::requireMethod('POST');
         $data = $_POST;
-        [$incidentId] = self::authorizedIncident($data);
+        [$incidentId, , $userId] = self::authorizedIncident($data);
 
         $name = trim((string) ($data['patient_name'] ?? ''));
         $age = filter_var($data['patient_age'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 0, 'max_range' => 130]]);
@@ -108,7 +109,7 @@ final class ResponderIncidentWorkflowController extends ApiController
                 'notes' => $notes !== '' ? $notes : null,
                 'scene_conditions' => $sceneConditions,
                 'photo_filename' => $photoFilename,
-            ]);
+            ], $userId);
             self::respond(201, [
                 'success' => true,
                 'patient' => [
@@ -185,12 +186,42 @@ final class ResponderIncidentWorkflowController extends ApiController
                     'incident_type' => $incidentType,
                 ]);
             }
-            if ($action === 'send_to_hospital') {
-                $status = (string) ($data['status'] ?? '');
-                if (!in_array($status, ['critical', 'urgent', 'stable'], true)) {
+            if ($action === 'update_incident_details') {
+                $incidentType = trim((string) ($data['incident_type'] ?? ''));
+                $triageCategory = (string) ($data['triage_category'] ?? '');
+                if ($incidentType === '' || strlen($incidentType) > 120
+                    || !IncidentTriageCategory::isValid($triageCategory)) {
                     self::respond(422, [
                         'success' => false,
-                        'message' => 'Choose Critical, Urgent or Stable for the incident condition.',
+                        'message' => 'Enter a valid incident type and condition.',
+                    ]);
+                }
+                $updated = ResponderIncidentWorkflowModel::updateIncidentDetails(
+                    $incidentId,
+                    $userId,
+                    $profile['hospital_id'],
+                    $profile['full_name'],
+                    $incidentType,
+                    $triageCategory
+                );
+                if (!$updated) {
+                    self::respond(409, [
+                        'success' => false,
+                        'message' => 'This incident is not assigned to you or has not been sent to a hospital.',
+                    ]);
+                }
+                self::respond(200, [
+                    'success' => true,
+                    'incident_type' => $incidentType,
+                    'triage_category' => $triageCategory,
+                ]);
+            }
+            if ($action === 'send_to_hospital') {
+                $triageCategory = (string) ($data['triage_category'] ?? '');
+                if (!IncidentTriageCategory::isValid($triageCategory)) {
+                    self::respond(422, [
+                        'success' => false,
+                        'message' => 'Choose a valid emergency category.',
                     ]);
                 }
                 $volunteerUserId = null;
@@ -212,8 +243,35 @@ final class ResponderIncidentWorkflowController extends ApiController
                     $userId,
                     $profile['hospital_id'],
                     $profile['full_name'],
-                    $status,
+                    $triageCategory,
                     $volunteerUserId === null ? null : (int) $volunteerUserId
+                );
+                self::respond(200, ['success' => true] + $result);
+            }
+            if ($action === 'list_reroute_hospitals') {
+                self::respond(200, [
+                    'success' => true,
+                    'hospitals' => ResponderIncidentWorkflowModel::routableHospitals(),
+                ]);
+            }
+            if ($action === 'reroute_to_hospital') {
+                $hospitalId = filter_var(
+                    $data['hospital_id'] ?? null,
+                    FILTER_VALIDATE_INT,
+                    ['options' => ['min_range' => 1]]
+                );
+                if ($hospitalId === false) {
+                    self::respond(422, [
+                        'success' => false,
+                        'message' => 'Choose a valid registered hospital.',
+                    ]);
+                }
+                $result = ResponderIncidentWorkflowModel::rerouteIncident(
+                    $incidentId,
+                    $userId,
+                    (int) $hospitalId,
+                    $profile['hospital_id'],
+                    (string) $profile['full_name']
                 );
                 self::respond(200, ['success' => true] + $result);
             }

@@ -116,9 +116,7 @@ class _DoctorShellState extends State<DoctorShell> {
                         children: [
                           Icon(_items[i].$1,
                               size: 17,
-                              color: i == tab
-                                  ? kDoctorBrand
-                                  : Colors.black54),
+                              color: i == tab ? kDoctorBrand : Colors.black54),
                           Text(_items[i].$2,
                               style: TextStyle(
                                   fontSize: 8,

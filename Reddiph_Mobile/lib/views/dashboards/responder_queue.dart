@@ -6,6 +6,7 @@ import '../../services/mobile_api_client.dart';
 import '../screens/case_detail_screen.dart';
 import '../screens/report_form_screen.dart';
 import '../widgets/common.dart';
+import '../widgets/responder_avatar.dart';
 import '../widgets/responder_widgets.dart';
 
 /// "Incoming" tab: the incidents of the responder's barangay, filterable by status,
@@ -129,11 +130,7 @@ class _Title extends StatelessWidget {
           icon: const Icon(Icons.add_circle_outline, size: 20),
           onPressed: () => Nav.push(context, const ReportFormScreen()),
         ),
-        CircleAvatar(
-            radius: 18,
-            backgroundColor: kResponderBrown,
-            child: Text(initials,
-                style: const TextStyle(color: Colors.white, fontSize: 12))),
+        ResponderAvatar(initials: initials),
       ]);
 }
 

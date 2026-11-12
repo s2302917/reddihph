@@ -426,6 +426,12 @@ body.hospitaladmin-signup-page {
     }
 }
 
+@media (max-width: 680px) {
+    body.hospitaladmin-signup-page .hospitaladmin-signup-shell {
+        display: none;
+    }
+}
+
 @media (min-width: 561px) {
 
     .nurse-signup-shell,
@@ -753,4 +759,197 @@ body.doctor-signup-page {
         linear-gradient(0deg, #020544, #020544);
     color: #ffffff;
     text-decoration: none;
+}
+
+body.hospitaladmin-signup-page {
+    align-items: flex-start;
+    padding: 32px;
+}
+
+body.hospitaladmin-signup-page .hospitaladmin-signup-shell {
+    width: min(960px, 100%);
+    min-height: 600px;
+    margin: auto;
+    border-radius: 34px;
+}
+
+body.hospitaladmin-signup-page .hospitaladmin-signup-brand {
+    width: 40%;
+    padding: 48px 0 0 44px;
+}
+
+body.hospitaladmin-signup-page .hospitaladmin-signup-icon {
+    width: 64px;
+    height: 64px;
+}
+
+body.hospitaladmin-signup-page .hospitaladmin-signup-icon svg {
+    width: 48px;
+    height: 48px;
+}
+
+body.hospitaladmin-signup-page .hospitaladmin-signup-copy {
+    left: 44px;
+    bottom: 56px;
+    max-width: 300px;
+}
+
+body.hospitaladmin-signup-page .hospitaladmin-signup-copy h2 {
+    font-size: clamp(2.5rem, 3.4vw, 3.5rem);
+}
+
+body.hospitaladmin-signup-page .hospitaladmin-signup-copy p {
+    max-width: 260px;
+    font-size: 1rem;
+}
+
+body.hospitaladmin-signup-page .hospitaladmin-signup-form-wrap {
+    width: 60%;
+    padding: 40px 48px 36px 32px;
+}
+
+body.hospitaladmin-signup-page .hospitaladmin-signup-form-box {
+    width: min(100%, 520px);
+}
+
+body.hospitaladmin-signup-page .hospitaladmin-signup-kicker {
+    margin-bottom: 8px;
+    font-size: 0.78rem;
+}
+
+body.hospitaladmin-signup-page .hospitaladmin-signup-title {
+    margin-bottom: 22px;
+    font-size: clamp(1.9rem, 2.6vw, 2.5rem);
+}
+
+body.hospitaladmin-signup-page .hospitaladmin-signup-form {
+    gap: 16px;
+}
+
+body.hospitaladmin-signup-page .hospitaladmin-signup-row {
+    gap: 16px;
+}
+
+body.hospitaladmin-signup-page .hospitaladmin-signup-field {
+    gap: 6px;
+}
+
+body.hospitaladmin-signup-page .hospitaladmin-signup-field label {
+    font-size: 0.85rem;
+}
+
+body.hospitaladmin-signup-page .hospitaladmin-signup-field input,
+body.hospitaladmin-signup-page .hospitaladmin-signup-field select {
+    height: 48px;
+    min-height: 48px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 9px;
+    padding: 0 14px;
+    font-size: 0.9rem;
+}
+
+body.hospitaladmin-signup-page .hospitaladmin-signup-field input::placeholder {
+    font-size: 0.85rem;
+}
+
+body.hospitaladmin-signup-page .hospitaladmin-signup-submit {
+    height: 52px;
+    margin-top: 6px;
+    border-radius: 11px;
+    font-size: 0.95rem;
+}
+
+body.hospitaladmin-signup-page .hospitaladmin-signup-footer {
+    margin-top: 18px;
+    font-size: 0.85rem;
+}
+
+body.hospitaladmin-signup-page .hospitaladmin-signup-status {
+    margin: 0 0 14px;
+    padding: 12px 14px;
+    border-radius: 9px;
+    font-size: 0.85rem;
+}
+
+@media (max-width: 900px) {
+    body.hospitaladmin-signup-page {
+        padding: 24px;
+    }
+
+    body.hospitaladmin-signup-page .hospitaladmin-signup-shell {
+        width: min(720px, 100%);
+        min-height: auto;
+        padding: 32px 40px 40px;
+    }
+
+    body.hospitaladmin-signup-page .hospitaladmin-signup-brand,
+    body.hospitaladmin-signup-page .hospitaladmin-signup-form-wrap {
+        width: 100%;
+    }
+
+    body.hospitaladmin-signup-page .hospitaladmin-signup-brand {
+        padding: 0;
+    }
+
+    body.hospitaladmin-signup-page .hospitaladmin-signup-copy {
+        margin: 16px auto 0;
+        text-align: center;
+    }
+
+    body.hospitaladmin-signup-page .hospitaladmin-signup-form-wrap {
+        padding: 36px 0 0;
+    }
+
+    body.hospitaladmin-signup-page .hospitaladmin-signup-form-box {
+        width: min(100%, 520px);
+        margin: 0 auto;
+    }
+}
+
+@media (max-width: 560px) {
+    body.hospitaladmin-signup-page {
+        padding: 16px 12px;
+    }
+
+    body.hospitaladmin-signup-page .hospitaladmin-signup-shell {
+        padding: 24px 20px 28px;
+        border-radius: 22px;
+    }
+
+    body.hospitaladmin-signup-page .hospitaladmin-signup-brand {
+        padding: 0;
+    }
+
+    body.hospitaladmin-signup-page .hospitaladmin-signup-copy {
+        margin-top: 12px;
+        text-align: center;
+    }
+
+    body.hospitaladmin-signup-page .hospitaladmin-signup-copy h2 {
+        font-size: 2.1rem;
+    }
+
+    body.hospitaladmin-signup-page .hospitaladmin-signup-copy p {
+        font-size: 1rem;
+    }
+
+    body.hospitaladmin-signup-page .hospitaladmin-signup-form-wrap {
+        padding: 24px 0 0;
+    }
+
+    body.hospitaladmin-signup-page .hospitaladmin-signup-title {
+        margin-bottom: 20px;
+        font-size: clamp(1.8rem, 7vw, 2.2rem);
+    }
+
+    body.hospitaladmin-signup-page .hospitaladmin-signup-form,
+    body.hospitaladmin-signup-page .hospitaladmin-signup-row {
+        gap: 16px;
+    }
+
+    body.hospitaladmin-signup-page .hospitaladmin-signup-field input,
+    body.hospitaladmin-signup-page .hospitaladmin-signup-field select {
+        height: 48px;
+        min-height: 48px;
+    }
 }

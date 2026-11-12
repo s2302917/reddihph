@@ -23,6 +23,8 @@ require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../services/PasswordPolicy.php';
 
 
+require_once __DIR__ . '/AuditLogModel.php';
+
 class settingsModel
 {
     private PDO $db;
@@ -167,6 +169,16 @@ class settingsModel
                 $sync = $this->db->prepare('UPDATE user_type SET hospital_name = :name WHERE hospital_id = :hospital_id');
                 $sync->execute([':name' => $hospitalName, ':hospital_id' => $hospitalId]);
             }
+            AuditLogModel::record($this->db, $userId, 'profile.updated', 'user', (string) $userId, [
+                'fields' => $hospitalName !== null
+                    ? ['work_email', 'phone_number', 'hospital_name', 'latitude', 'longitude']
+                    : ['work_email', 'phone_number'],
+            ]);
+            if ($hospitalName !== null) {
+                AuditLogModel::record($this->db, $userId, 'hospital.updated', 'hospital', (string) $hospitalId, [
+                    'fields' => ['name', 'latitude', 'longitude'],
+                ]);
+            }
             $this->db->commit();
             return true;
         } catch (Throwable $exception) {
@@ -198,7 +210,11 @@ class settingsModel
             ':password_hash' => password_hash($newPassword, PASSWORD_DEFAULT),
             ':user_id' => $adminId,
         ]);
-        return $update->rowCount() === 1;
+        $changed = $update->rowCount() === 1;
+        if ($changed) {
+            AuditLogModel::record($this->db, $adminId, 'password.changed', 'user', (string) $adminId);
+        }
+        return $changed;
     }
 
     public function updateProfileImage(int $adminId, string $fileName): ?string
@@ -216,6 +232,9 @@ class settingsModel
             $update = $this->db->prepare("UPDATE user_type SET profile_image = :image
                 WHERE id = :user_id AND role IN ('hospital_admin', 'doctor', 'nurse')");
             $update->execute([':image' => $fileName, ':user_id' => $adminId]);
+            AuditLogModel::record($this->db, $adminId, 'profile.updated', 'user', (string) $adminId, [
+                'fields' => ['profile_image'],
+            ]);
             $this->db->commit();
             return $previousImage !== null ? (string) $previousImage : null;
         } catch (Throwable $exception) {

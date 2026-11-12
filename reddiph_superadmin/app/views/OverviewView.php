@@ -1,40 +1,52 @@
 <?php
-$roleColors = [
-    'super_admin' => '#a52335',
-    'hospital_admin' => '#d04b36',
-    'barangay_admin' => '#7653a6',
-    'doctor' => '#3552b7',
-    'nurse' => '#3a7459',
-    'responder' => '#bd6737',
-    'volunteer' => '#27394d',
-    'resident' => '#a7adb5',
-];
-$roleTotal = max(1, array_sum($roles));
-$segments = [];
-$offset = 0;
-foreach ($roles as $role => $count) {
-    if ($count === 0) {
-        continue;
+if (empty($overviewError)) {
+    $roleColors = [
+        'super_admin' => '#a52335',
+        'hospital_admin' => '#d04b36',
+        'barangay_admin' => '#7653a6',
+        'doctor' => '#3552b7',
+        'nurse' => '#3a7459',
+        'responder' => '#bd6737',
+        'volunteer' => '#27394d',
+        'resident' => '#a7adb5',
+    ];
+    $roleTotal = max(1, array_sum($roles));
+    $segments = [];
+    $offset = 0;
+    foreach ($roles as $role => $count) {
+        if ($count === 0) {
+            continue;
+        }
+        $next = $offset + ($count / $roleTotal * 100);
+        $segments[] = ($roleColors[$role] ?? '#7653a6') . ' ' . $offset . '% ' . $next . '%';
+        $offset = $next;
     }
-    $next = $offset + ($count / $roleTotal * 100);
-    $segments[] = ($roleColors[$role] ?? '#7653a6') . ' ' . $offset . '% ' . $next . '%';
-    $offset = $next;
-}
-$roleGradient = $segments ? implode(', ', $segments) : '#292930 0% 100%';
-$maxIncidentCount = max(1, ...array_column($incidentHistory, 'count'));
-$chartPoints = [];
-foreach ($incidentHistory as $index => $point) {
-    $x = 8 + $index * 14;
-    $y = 76 - ($point['count'] / $maxIncidentCount * 58);
-    $chartPoints[] = $x . ',' . number_format($y, 2, '.', '');
+    $roleGradient = $segments ? implode(', ', $segments) : '#292930 0% 100%';
+    $maxIncidentCount = max(1, ...array_column($incidentHistory, 'count'));
+    $chartPoints = [];
+    foreach ($incidentHistory as $index => $point) {
+        $x = 8 + $index * 14;
+        $y = 76 - ($point['count'] / $maxIncidentCount * 58);
+        $chartPoints[] = $x . ',' . number_format($y, 2, '.', '');
+    }
 }
 ?>
 <section class="page-content overview-page">
+  <?php if (!empty($overviewError)): ?>
+    <section class="overview-error" role="alert" aria-labelledby="overview-error-title">
+      <span class="overview-error__icon" aria-hidden="true">!</span>
+      <div>
+        <h1 id="overview-error-title">Overview unavailable</h1>
+        <p><?= htmlspecialchars($overviewError) ?></p>
+        <a href="<?= htmlspecialchars(\App\Controllers\DashboardController::url('/overview')) ?>">Try again</a>
+      </div>
+    </section>
+  <?php else: ?>
   <header class="overview-heading">
-    <div><h1>Good morning, <?= htmlspecialchars($user['name']) ?></h1><p><?= date('l, F j, Y') ?> · <?= htmlspecialchars($config['app']['env']) ?></p></div>
+    <div><span class="overview-eyebrow">SUPER ADMIN CONSOLE</span><h1>Good morning, <?= htmlspecialchars($user['name']) ?></h1><p><?= date('l, F j, Y') ?> · <?= htmlspecialchars($config['app']['env']) ?></p></div>
   </header>
   <section class="overview-banner">
-    <div><h2>System overview</h2><p><?= number_format($summary['hospital_count']) ?> hospitals · <?= number_format($summary['barangay_count']) ?> barangays in the directory</p></div>
+    <div><span class="overview-banner-label">LIVE SYSTEM SNAPSHOT</span><h2>System overview</h2><p><?= number_format($summary['hospital_count']) ?> active hospitals · <?= number_format($summary['barangay_count']) ?> visible barangays</p></div>
     <div class="banner-kpi"><strong><?= number_format($summary['open_incidents']) ?></strong><span>open incidents</span></div>
   </section>
   <section class="overview-stat-grid" aria-label="Key metrics">
@@ -45,14 +57,18 @@ foreach ($incidentHistory as $index => $point) {
   </section>
   <div class="overview-analytics">
     <section class="overview-card incident-chart-card">
-      <div class="overview-card-heading"><div><h2>Incident reports</h2><p>Daily reports over the last 7 days</p></div><span class="chart-total"><?= array_sum(array_column($incidentHistory, 'count')) ?> reports</span></div>
+      <div class="overview-card-heading"><div><h2>Incident reports</h2><p>Daily reports over the last 7 days</p></div><span class="chart-total"><?= number_format(array_sum(array_column($incidentHistory, 'count'))) ?> reports</span></div>
       <div class="chart-wrap">
         <svg class="incident-chart" viewBox="0 0 100 88" role="img" aria-label="Incident report counts over the last seven days">
           <line x1="5" y1="18" x2="95" y2="18"></line><line x1="5" y1="47" x2="95" y2="47"></line><line x1="5" y1="76" x2="95" y2="76"></line>
           <polyline points="<?= htmlspecialchars(implode(' ', $chartPoints)) ?>"></polyline>
           <?php foreach ($incidentHistory as $index => $point): ?>
             <?php $x = 8 + $index * 14; $y = 76 - ($point['count'] / $maxIncidentCount * 58); ?>
-            <circle cx="<?= $x ?>" cy="<?= number_format($y, 2, '.', '') ?>" r="1.35" tabindex="0" data-chart-label="<?= htmlspecialchars($point['label']) ?>" data-chart-count="<?= (int) $point['count'] ?>"></circle>
+            <circle cx="<?= $x ?>" cy="<?= number_format($y, 2, '.', '') ?>" r="1.6" tabindex="0" role="img"
+                    aria-label="<?= htmlspecialchars(date('l, F j', strtotime($point['date'])) . ': ' . number_format($point['count']) . ' incident reports') ?>"
+                    data-chart-label="<?= htmlspecialchars($point['label']) ?>"
+                    data-chart-date="<?= htmlspecialchars(date('M j, Y', strtotime($point['date']))) ?>"
+                    data-chart-count="<?= (int) $point['count'] ?>"></circle>
           <?php endforeach; ?>
         </svg>
       </div>
@@ -63,7 +79,7 @@ foreach ($incidentHistory as $index => $point) {
       <div class="overview-card-heading"><div><h2>Accounts by role</h2><p><?= number_format($summary['user_count']) ?> total accounts</p></div></div>
       <div class="role-chart-content">
         <div class="role-donut" style="--role-chart: conic-gradient(<?= htmlspecialchars($roleGradient) ?>)"><strong><?= number_format($summary['user_count']) ?></strong><span>Accounts</span></div>
-        <ul class="role-legend">
+        <ul class="role-legend" tabindex="0" aria-label="Account counts by role; scroll for more roles">
           <?php foreach ($roles as $role => $count): ?>
             <?php if ($count === 0) continue; ?>
             <li><span style="--role-color: <?= htmlspecialchars($roleColors[$role] ?? '#7653a6') ?>"></span><span><?= htmlspecialchars($roleLabels[$role] ?? $role) ?></span><strong><?= number_format($count) ?></strong></li>
@@ -76,21 +92,22 @@ foreach ($incidentHistory as $index => $point) {
     <section class="overview-card resource-card">
       <div class="overview-card-heading"><div><h2>Directory summary</h2><p>Current records from the system database</p></div></div>
       <ul class="resource-list">
-        <li><span class="resource-indicator"></span><span>Hospitals</span><strong><?= number_format($summary['hospital_count']) ?></strong></li>
-        <li><span class="resource-indicator"></span><span>Barangays</span><strong><?= number_format($summary['barangay_count']) ?></strong></li>
+        <li><span class="resource-indicator"></span><span>Active hospitals</span><strong><?= number_format($summary['hospital_count']) ?></strong></li>
+        <li><span class="resource-indicator"></span><span>Visible barangays</span><strong><?= number_format($summary['barangay_count']) ?></strong></li>
         <li><span class="resource-indicator"></span><span>Ambulances available</span><strong><?= number_format($summary['available_ambulances']) ?></strong></li>
         <li><span class="resource-indicator"></span><span>Ready beds</span><strong><?= number_format($summary['ready_beds']) ?></strong></li>
       </ul>
     </section>
     <section class="overview-card recent-card">
-      <div class="overview-card-heading"><div><h2>Recent incidents</h2><p>Latest reports received</p></div><a href="<?= htmlspecialchars($navigation[1]['url']) ?>">View users</a></div>
+      <div class="overview-card-heading"><div><h2>Recent incidents</h2><p>Latest reports received</p></div><a href="<?= htmlspecialchars(\App\Controllers\DashboardController::url('/users')) ?>">View users</a></div>
       <?php if ($recentIncidents): ?>
         <ul class="recent-list">
           <?php foreach ($recentIncidents as $incident): ?>
-            <li><span class="incident-status status-<?= htmlspecialchars($incident['status']) ?>"></span><span class="recent-copy"><strong><?= htmlspecialchars($incident['incident_type'] ?: 'Incident report') ?></strong><small><?= htmlspecialchars($incident['location']) ?></small></span><time datetime="<?= htmlspecialchars(date(DATE_ATOM, strtotime($incident['reported_at']))) ?>"><?= htmlspecialchars(date('M j · H:i', strtotime($incident['reported_at']))) ?></time></li>
+            <li><span class="incident-status status-<?= htmlspecialchars($incident['status']) ?>"><?= htmlspecialchars(ucwords(str_replace('_', ' ', $incident['status']))) ?></span><span class="recent-copy"><strong><?= htmlspecialchars($incident['incident_type'] ?: 'Incident report') ?></strong><small><?= htmlspecialchars($incident['location']) ?></small><small class="recent-category">Category: <?= htmlspecialchars(match ($incident['triage_category']) { 'emergent' => 'Emergent', 'urgent' => 'Urgent', 'non_urgent' => 'Non-Urgent', 'expectant' => 'Expectant', default => 'Unclassified' }) ?></small></span><time datetime="<?= htmlspecialchars(date(DATE_ATOM, strtotime($incident['reported_at']))) ?>"><?= htmlspecialchars(date('M j · H:i', strtotime($incident['reported_at']))) ?></time></li>
           <?php endforeach; ?>
         </ul>
       <?php else: ?><p class="overview-empty">No incident reports have been recorded.</p><?php endif; ?>
     </section>
   </div>
+  <?php endif; ?>
 </section>

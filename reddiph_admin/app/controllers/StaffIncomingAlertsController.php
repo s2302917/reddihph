@@ -40,8 +40,27 @@ class StaffIncomingAlertsController
                 if ($alertId === false || $alertId === null || $alertId <= 0) {
                     $this->respond(['success' => false, 'message' => 'The incoming alert is invalid.'], 422);
                 }
-                if (!StaffIncomingAlertsModel::acknowledge($userId, $role, $alertId)) {
-                    $this->respond(['success' => false, 'message' => 'This notification is no longer pending.'], 409);
+                $outcome = StaffIncomingAlertsModel::acknowledge($userId, $role, $alertId);
+                if ($outcome === 'already_processed') {
+                    $this->respond([
+                        'success' => false,
+                        'code' => 'already_processed',
+                        'message' => 'This notification has already been processed. Refresh alerts to continue.',
+                    ], 409);
+                }
+                if ($outcome === 'not_found') {
+                    $this->respond([
+                        'success' => false,
+                        'code' => 'not_found',
+                        'message' => 'This notification was not found or is not assigned to your account.',
+                    ], 404);
+                }
+                if ($outcome !== 'acknowledged') {
+                    $this->respond([
+                        'success' => false,
+                        'code' => 'processing_failed',
+                        'message' => 'The notification is still pending but could not be processed. Please try again.',
+                    ], 500);
                 }
                 $this->respond(['success' => true]);
             }
@@ -49,7 +68,14 @@ class StaffIncomingAlertsController
             $this->respond(['success' => false, 'message' => 'Unsupported notification request.'], 405);
         } catch (Throwable $exception) {
             error_log('[StaffIncomingAlertsController] Notification request failed: ' . $exception->getMessage());
-            $this->respond(['success' => false, 'message' => 'Incoming incident notifications could not be processed.'], 500);
+            $isAcknowledgement = $action === 'acknowledge';
+            $this->respond([
+                'success' => false,
+                'code' => $isAcknowledgement ? 'processing_failed' : 'load_failed',
+                'message' => $isAcknowledgement
+                    ? 'The notification could not be processed. Refresh alerts before retrying.'
+                    : 'Incoming incident notifications could not be loaded. Please try again.',
+            ], 500);
         }
     }
 

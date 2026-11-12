@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/AccountValidator.php';
 require_once __DIR__ . '/VolunteerModel.php';
+require_once __DIR__ . '/../services/AuditLogService.php';
 
 /**
  * Signup validation and storage in user_type for every mobile role.
@@ -151,6 +152,14 @@ final class SignupModel
                     trim((string) ($data['vehicle_type'] ?? '')) ?: null
                 );
             }
+            AuditLogService::record(
+                $pdo,
+                $userId,
+                'signup.created',
+                'user',
+                (string) $userId,
+                ['role' => $role]
+            );
             $pdo->commit();
 
             return $userId;

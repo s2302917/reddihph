@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'controllers/auth_controller.dart';
 import 'controllers/sos_controller.dart';
 import 'core/theme.dart';
 import 'models/nurse_portal.dart';
+import 'services/app_language.dart';
 import 'services/mobile_api_client.dart';
 import 'services/location_service.dart';
 import 'views/screens/opening_screen.dart';
@@ -22,6 +24,7 @@ class _ReddiphAppState extends State<ReddiphApp> with WidgetsBindingObserver {
   bool _openingComplete = false;
   Timer? _sessionTimer;
   bool _handlingInvalidSession = false;
+  bool _appResumed = true;
 
   static final _navigatorKey = GlobalKey<NavigatorState>();
 
@@ -30,6 +33,7 @@ class _ReddiphAppState extends State<ReddiphApp> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     MobileApiClient.onSessionInvalid = _handleInvalidSession;
+    unawaited(AppLanguageService.I.load());
     _sessionTimer = Timer.periodic(
       const Duration(seconds: 60),
       (_) => _validateSession(),
@@ -47,13 +51,15 @@ class _ReddiphAppState extends State<ReddiphApp> with WidgetsBindingObserver {
   // Location is the only way to find the user, so ask on every open until allowed.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed && _openingComplete) {
+    _appResumed = state == AppLifecycleState.resumed;
+    if (_appResumed && _openingComplete) {
       _askForLocation();
       _validateSession();
     }
   }
 
   Future<void> _validateSession() async {
+    if (!_appResumed) return;
     final token = AuthController.I.user?['token'];
     if (token is! String || token.isEmpty || _handlingInvalidSession) return;
     try {
@@ -63,7 +69,7 @@ class _ReddiphAppState extends State<ReddiphApp> with WidgetsBindingObserver {
     }
   }
 
-  void _handleInvalidSession() {
+  void _handleInvalidSession(String message) {
     if (_handlingInvalidSession || AuthController.I.user == null) return;
     _handlingInvalidSession = true;
     final token = AuthController.I.user?['token'];
@@ -76,9 +82,7 @@ class _ReddiphAppState extends State<ReddiphApp> with WidgetsBindingObserver {
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       sosMessengerKey.currentState?.showSnackBar(
-        const SnackBar(
-            content: Text(
-                'Your account is suspended or your session expired. You have been signed out.')),
+        SnackBar(content: Text(message)),
       );
       _handlingInvalidSession = false;
     });
@@ -99,14 +103,24 @@ class _ReddiphAppState extends State<ReddiphApp> with WidgetsBindingObserver {
   }
 
   @override
-  Widget build(BuildContext context) => MaterialApp(
-        title: 'Reddiph',
-        navigatorKey: _navigatorKey,
-        scaffoldMessengerKey: sosMessengerKey,
-        debugShowCheckedModeBanner: false,
-        theme: appTheme(),
-        home: _openingComplete
-            ? const PortalScreen()
-            : OpeningScreen(onFinished: _finishOpening),
+  Widget build(BuildContext context) => AnimatedBuilder(
+        animation: AppLanguageService.I,
+        builder: (context, _) => MaterialApp(
+          title: 'Reddiph',
+          navigatorKey: _navigatorKey,
+          scaffoldMessengerKey: sosMessengerKey,
+          debugShowCheckedModeBanner: false,
+          theme: appTheme(),
+          locale: AppLanguageService.I.locale,
+          supportedLocales: const [Locale('en'), Locale('tl'), Locale('hil')],
+          localizationsDelegates: [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          home: _openingComplete
+              ? const PortalScreen()
+              : OpeningScreen(onFinished: _finishOpening),
+        ),
       );
 }

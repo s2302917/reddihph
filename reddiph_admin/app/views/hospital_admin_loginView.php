@@ -75,7 +75,7 @@
                         <label class="hospitaladmin-form-label" for="hospitaladmin-password">Password</label>
                         <input type="password" id="hospitaladmin-password" name="password"
                             class="hospitaladmin-form-input" placeholder="Enter your password" required
-                            autocomplete="new-password">
+                            autocomplete="current-password">
                     </div>
 
                     <button type="submit" class="hospitaladmin-login-submit-btn">Log in</button>
@@ -86,10 +86,6 @@
                     </div>
                 </form>
 
-                <footer class="hospitaladmin-login-footer">
-                    <span>Not registered? </span><a href="hospital_admin_signupController.php"
-                        class="hospitaladmin-signup-link">Sign up here</a>
-                </footer>
             </div>
         </main>
     </div>

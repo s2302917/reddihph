@@ -6,6 +6,7 @@ import '../../models/nurse_portal.dart';
 import '../../services/mobile_api_client.dart';
 import '../widgets/common.dart';
 import '../widgets/nurse_widgets.dart';
+import '../widgets/schedule_editor_dialog.dart';
 
 class NurseCalendarTab extends StatefulWidget {
   const NurseCalendarTab({super.key});
@@ -46,6 +47,7 @@ class _NurseCalendarTabState extends State<NurseCalendarTab> {
   String? _error;
   bool _loading = true;
   bool _requesting = false;
+  bool _savingSchedule = false;
 
   String? get _token => AuthController.I.user?['token'] as String?;
   String get _monthKey =>
@@ -189,6 +191,98 @@ class _NurseCalendarTabState extends State<NurseCalendarTab> {
     }
   }
 
+  Future<void> _editShift([NurseShift? shift]) async {
+    final token = _token;
+    if (token == null || _error != null || _savingSchedule) return;
+    final initialDate = shift == null
+        ? DateTime(_month.year, _month.month, _selected)
+        : DateTime.parse(shift.date);
+    final draft = await showScheduleEditorDialog(
+      context: context,
+      initialDate: initialDate,
+      typeOptions: const {
+        'day': 'Day shift',
+        'night': 'Night shift',
+        'on_call': 'On-call',
+        'off': 'Off / Leave',
+      },
+      initialType: shift?.type ?? 'day',
+      initialStart: shift?.start.isNotEmpty == true ? shift!.start : '07:00',
+      initialEnd: shift?.end.isNotEmpty == true ? shift!.end : '15:00',
+      editing: shift != null,
+    );
+    if (draft == null || !mounted) return;
+    setState(() => _savingSchedule = true);
+    try {
+      await MobileApiClient.I.saveNurseSchedule(
+        token: token,
+        scheduleId: shift?.id,
+        dates: draft.dates,
+        type: draft.type,
+        start: draft.start,
+        end: draft.end,
+      );
+      if (!mounted) return;
+      setState(() {
+        _month = DateTime(draft.dates.first.year, draft.dates.first.month);
+        _selected = draft.dates.first.day;
+        _savingSchedule = false;
+      });
+      await _load();
+    } on MobileApiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _error = error.message;
+        _savingSchedule = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message)),
+      );
+    }
+  }
+
+  Future<void> _deleteShift(NurseShift shift) async {
+    final token = _token;
+    if (token == null || _error != null || _savingSchedule) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Remove shift?'),
+        content: const Text('This shift will be removed from your schedule.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _savingSchedule = true);
+    try {
+      await MobileApiClient.I.deleteNurseSchedule(
+        token: token,
+        scheduleId: shift.id,
+      );
+      if (!mounted) return;
+      setState(() => _savingSchedule = false);
+      await _load();
+    } on MobileApiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _error = error.message;
+        _savingSchedule = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message)),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final first = DateTime(_month.year, _month.month, 1);
@@ -301,10 +395,39 @@ class _NurseCalendarTabState extends State<NurseCalendarTab> {
                     shift.status.replaceAll('_', ' '),
                     style: const TextStyle(fontSize: 8, color: Colors.black54),
                   ),
+                if (shift != null)
+                  Row(
+                    children: [
+                      TextButton.icon(
+                        onPressed: _error != null || _savingSchedule
+                            ? null
+                            : () => _editShift(shift),
+                        icon: const Icon(Icons.edit_outlined, size: 15),
+                        label: const Text('EDIT'),
+                      ),
+                      TextButton.icon(
+                        onPressed: _error != null || _savingSchedule
+                            ? null
+                            : () => _deleteShift(shift),
+                        icon: const Icon(Icons.delete_outline, size: 15),
+                        label: const Text('DELETE'),
+                      ),
+                    ],
+                  ),
               ],
             ),
           ),
           const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: _error != null || _loading || _savingSchedule
+                ? null
+                : () => _editShift(),
+            icon: const Icon(Icons.edit_calendar_outlined, size: 16),
+            label: Text(
+              _savingSchedule ? 'SAVING...' : 'TYPE DATE',
+              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800),
+            ),
+          ),
           OutlinedButton(
             onPressed:
                 _error != null || _loading || _requesting ? null : _requestSwap,

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../../config/config.php';
+require_once __DIR__ . '/../services/AuditLogService.php';
 
 /** Thrown when the password is right but the emailed temporary password is past its 24 hours. */
 final class TemporaryPasswordExpiredException extends RuntimeException
@@ -42,6 +43,7 @@ final class UserModel
                     u.hospital_id, u.barangay_id, u.hospital_name, b.name AS barangay_name,
                     u.password_hash,
                     u.must_change_password, u.temporary_password_expires_at, u.banned_until,
+                    u.login_disabled_reason,
                     u.approval_status,
                     p.vehicle_type, p.is_available,
                     (SELECT AVG(r.rating)
@@ -72,9 +74,12 @@ final class UserModel
             throw new UserPendingApprovalException('This account was not approved. Contact your Barangay Admin.');
         }
         if ($user['banned_until'] !== null && strtotime($user['banned_until']) > time()) {
+            $reason = trim((string) ($user['login_disabled_reason'] ?? ''));
             throw new UserTemporarilyBannedException(
-                'Your account is temporarily suspended until ' . $user['banned_until']
-                . '. Contact your Barangay Admin for help.'
+                $reason !== ''
+                    ? 'Your login has been disabled. Reason: ' . $reason
+                    : 'Your account is temporarily suspended until ' . $user['banned_until']
+                        . '. Contact your Barangay Admin for help.'
             );
         }
 
@@ -85,6 +90,12 @@ final class UserModel
         }
 
         $pdo->prepare('UPDATE user_type SET last_login_at = NOW() WHERE id = ?')->execute([$user['id']]);
+        try {
+            self::touchStaffPresence((int) $user['id'], $role);
+        } catch (Throwable $presenceError) {
+            error_log('[UserModel] Staff presence update failed: ' . $presenceError->getMessage());
+        }
+        AuditLogService::record($pdo, (int) $user['id'], 'auth.login_success', 'user', (string) $user['id']);
 
         return [
             'id' => (int) $user['id'],
@@ -108,6 +119,30 @@ final class UserModel
             'volunteer_assisted_incidents' => (int) ($user['volunteer_assisted_incidents'] ?? 0),
             'must_change_password' => $mustChange,
         ];
+    }
+
+    public static function touchStaffPresence(int $userId, ?string $role = null): void
+    {
+        if ($userId <= 0) {
+            return;
+        }
+
+        $pdo = Database::connection();
+        if ($role === null) {
+            $statement = $pdo->prepare('SELECT role FROM user_type WHERE id = ? LIMIT 1');
+            $statement->execute([$userId]);
+            $role = $statement->fetchColumn() ?: null;
+        }
+        if (!in_array($role, ['doctor', 'nurse'], true)) {
+            return;
+        }
+
+        $statement = $pdo->prepare(
+            'INSERT INTO staff_presence (user_id, last_seen_at)
+             VALUES (?, UTC_TIMESTAMP())
+             ON DUPLICATE KEY UPDATE last_seen_at = UTC_TIMESTAMP()'
+        );
+        $statement->execute([$userId]);
     }
 
     /**

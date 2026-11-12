@@ -80,19 +80,18 @@
                 <input type="hidden" name="action" value="save_settings">
                 <label for="settings-email">Email</label>
                 <div class="setting-input">
-                    <input class="settings-input" id="settings-email" name="email" type="email" maxlength="150" value="<?= htmlspecialchars($doctor['work_email']) ?>" readonly required>
-                    <button type="button" class="settings-edit-button" data-settings-edit="settings-email" aria-label="Edit email">⌕</button>
+                    <input class="settings-input" id="settings-email" name="email" type="email" maxlength="150" value="<?= htmlspecialchars($doctor['work_email']) ?>" required>
                 </div>
                 <label for="settings-phone">Phone</label>
                 <div class="setting-input">
-                    <input class="settings-input" id="settings-phone" name="phone_number" type="tel" maxlength="32" value="<?= htmlspecialchars($doctor['phone_number'] ?? '') ?>" readonly>
-                    <button type="button" class="settings-edit-button" data-settings-edit="settings-phone" aria-label="Edit phone number">⌕</button>
+                    <input class="settings-input" id="settings-phone" name="phone_number" type="tel" maxlength="32" value="<?= htmlspecialchars($doctor['phone_number'] ?? '') ?>">
                 </div>
-                <label for="settings-license">PRC License</label>
+                <label for="settings-license">PRC License (read-only)</label>
                 <div class="setting-input">
                     <input class="settings-input" id="settings-license" value="<?= htmlspecialchars($doctor['license_number'] ?? '') ?>" readonly>
                 </div>
                 <div class="settings-save-row">
+                    <button type="button" class="settings-cancel-button" id="settings-cancel-button">Cancel</button>
                     <button type="submit" class="settings-save-button" id="settings-save-button">Save changes</button>
                 </div>
             </form>

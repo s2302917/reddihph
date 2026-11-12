@@ -2,6 +2,7 @@
 
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../services/PasswordPolicy.php';
+require_once __DIR__ . '/AuditLogModel.php';
 
 class NurseSettingsModel
 {
@@ -41,25 +42,40 @@ class NurseSettingsModel
 
     public static function updateContact(int $nurseId, string $email, ?string $phoneNumber): void
     {
-        $statement = self::connection()->prepare(
-            "UPDATE user_type
-            SET work_email = :email, phone_number = :phone_number
-            WHERE id = :nurse_id AND role = 'nurse'"
-        );
-        $statement->execute([
-            'email' => $email,
-            'phone_number' => $phoneNumber,
-            'nurse_id' => $nurseId,
-        ]);
-
-        if ($statement->rowCount() === 0) {
-            $exists = self::connection()->prepare(
-                "SELECT 1 FROM user_type WHERE id = :nurse_id AND role = 'nurse' LIMIT 1"
+        $connection = self::connection();
+        $connection->beginTransaction();
+        try {
+            $statement = $connection->prepare(
+                "UPDATE user_type
+                SET work_email = :email, phone_number = :phone_number
+                WHERE id = :nurse_id AND role = 'nurse'"
             );
-            $exists->execute(['nurse_id' => $nurseId]);
-            if (!$exists->fetchColumn()) {
-                throw new RuntimeException('Nurse account not found.');
+            $statement->execute([
+                'email' => $email,
+                'phone_number' => $phoneNumber,
+                'nurse_id' => $nurseId,
+            ]);
+
+            if ($statement->rowCount() === 0) {
+                $exists = $connection->prepare(
+                    "SELECT 1 FROM user_type WHERE id = :nurse_id AND role = 'nurse' LIMIT 1"
+                );
+                $exists->execute(['nurse_id' => $nurseId]);
+                if (!$exists->fetchColumn()) {
+                    throw new RuntimeException('Nurse account not found.');
+                }
+            } else {
+                AuditLogModel::record($connection, $nurseId, 'profile.updated', 'user', (string) $nurseId, [
+                    'fields' => ['work_email', 'phone_number'],
+                ]);
             }
+
+            $connection->commit();
+        } catch (Throwable $exception) {
+            if ($connection->inTransaction()) {
+                $connection->rollBack();
+            }
+            throw $exception;
         }
     }
 
@@ -95,7 +111,11 @@ class NurseSettingsModel
             'nurse_id' => $nurseId,
         ]);
 
-        return $update->rowCount() === 1;
+        $changed = $update->rowCount() === 1;
+        if ($changed) {
+            AuditLogModel::record($connection, $nurseId, 'password.changed', 'user', (string) $nurseId);
+        }
+        return $changed;
     }
 
     public static function updateProfileImage(int $nurseId, string $fileName): ?string
@@ -121,6 +141,9 @@ class NurseSettingsModel
                 WHERE id = :nurse_id AND role = 'nurse'"
             );
             $update->execute(['image' => $fileName, 'nurse_id' => $nurseId]);
+            AuditLogModel::record($connection, $nurseId, 'profile.updated', 'user', (string) $nurseId, [
+                'fields' => ['profile_image'],
+            ]);
             $connection->commit();
 
             return $previousImage !== null ? (string) $previousImage : null;

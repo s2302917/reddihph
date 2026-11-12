@@ -8,10 +8,12 @@ import '../../controllers/auth_controller.dart';
 import '../../core/theme.dart';
 import '../../models/driving_route.dart';
 import '../../models/hospital_arrival_summary.dart';
+import '../../models/responder_dashboard.dart';
 import '../../models/responder_report_preview.dart';
 import '../../services/location_service.dart';
 import '../../services/mobile_api_client.dart';
 import '../widgets/open_street_map.dart';
+import 'responder_sos_incident_details_screen.dart';
 import 'responder_hospital_arrival_screen.dart';
 
 class HospitalRouteScreen extends StatefulWidget {
@@ -22,6 +24,8 @@ class HospitalRouteScreen extends StatefulWidget {
     required this.location,
     required this.preview,
     this.volunteerName,
+    this.incident,
+    this.incidentPoint,
     this.apiClient,
   });
 
@@ -30,6 +34,8 @@ class HospitalRouteScreen extends StatefulWidget {
   final String location;
   final ResponderReportPreview preview;
   final String? volunteerName;
+  final ResponderIncident? incident;
+  final LatLng? incidentPoint;
   final MobileApiClient? apiClient;
 
   @override
@@ -55,6 +61,13 @@ class _HospitalRouteScreenState extends State<HospitalRouteScreen> {
   bool _loading = true;
   bool _refreshing = false;
   bool _sendingNotes = false;
+  bool _showRerouteOptions = false;
+  bool _loadingRerouteHospitals = false;
+  bool _rerouting = false;
+  int? _currentHospitalId;
+  String? _currentHospitalName;
+  int? _selectedHospitalId;
+  List<ResponderHospitalOption> _rerouteHospitals = [];
   final bool _arrived = false;
   bool _arrivalSubmitting = false;
 
@@ -75,6 +88,8 @@ class _HospitalRouteScreenState extends State<HospitalRouteScreen> {
   @override
   void initState() {
     super.initState();
+    _currentHospitalId = widget.preview.hospitalId;
+    _currentHospitalName = widget.preview.hospitalName;
     _beginNavigation();
   }
 
@@ -348,6 +363,207 @@ class _HospitalRouteScreenState extends State<HospitalRouteScreen> {
     }
   }
 
+  Future<void> _openIncidentDetails() async {
+    final incident = widget.incident;
+    final point = widget.incidentPoint ?? incident?.point;
+    if (incident == null || point == null) {
+      setState(() {
+        _backgroundError = 'Incident coordinates are unavailable for updates.';
+      });
+      return;
+    }
+
+    final updated = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => ResponderSosIncidentDetailsScreen(
+          incidentId: widget.incidentId,
+          incidentType: incident.type,
+          triageCategory: incident.triageCategory,
+          location: widget.location,
+          point: point,
+          incident: incident,
+          apiClient: _apiClient,
+          alreadySentToHospital: true,
+        ),
+      ),
+    );
+    if (mounted && updated == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Updated incident details sent to hospital staff.'),
+        ),
+      );
+    }
+  }
+
+  Future<void> _toggleRerouteOptions() async {
+    if (_showRerouteOptions) {
+      setState(() => _showRerouteOptions = false);
+      return;
+    }
+
+    final token = AuthController.I.user?['token'] as String?;
+    if (token == null || token.isEmpty) {
+      setState(() => _backgroundError = 'Please sign in again to reroute.');
+      return;
+    }
+
+    setState(() {
+      _showRerouteOptions = true;
+      _loadingRerouteHospitals = true;
+      _backgroundError = null;
+    });
+    try {
+      final hospitals = await _apiClient.responderRerouteHospitals(
+        token: token,
+        incidentId: widget.incidentId,
+      );
+      if (!mounted) return;
+      setState(() {
+        _rerouteHospitals = hospitals;
+        _selectedHospitalId = _currentHospitalId;
+        if (hospitals.isEmpty) {
+          _backgroundError = 'No registered hospitals are available.';
+        }
+      });
+    } on MobileApiException catch (error) {
+      if (mounted) setState(() => _backgroundError = error.message);
+    } finally {
+      if (mounted) setState(() => _loadingRerouteHospitals = false);
+    }
+  }
+
+  Future<void> _rerouteToHospital(int hospitalId) async {
+    final token = AuthController.I.user?['token'] as String?;
+    if (token == null || token.isEmpty) {
+      setState(() => _backgroundError = 'Please sign in again to reroute.');
+      return;
+    }
+
+    setState(() {
+      _rerouting = true;
+      _backgroundError = null;
+    });
+    var destinationUpdated = false;
+    try {
+      final response = await _apiClient.rerouteResponderIncident(
+        token: token,
+        incidentId: widget.incidentId,
+        hospitalId: hospitalId,
+      );
+      final hospital = response['hospital'];
+      if (hospital is! Map<String, dynamic> ||
+          hospital['id'] is! num ||
+          hospital['name'] is! String) {
+        throw const MobileApiException(
+          'The server returned an invalid hospital destination.',
+        );
+      }
+      destinationUpdated = true;
+      setState(() {
+        _currentHospitalId = (hospital['id'] as num).toInt();
+        _currentHospitalName = hospital['name'] as String;
+        _selectedHospitalId = _currentHospitalId;
+        _showRerouteOptions = false;
+        _route = null;
+        _error = null;
+      });
+
+      final position = _position;
+      if (position == null) {
+        await _beginNavigation();
+      } else {
+        await _refreshRoute(position);
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Rerouted to ${_currentHospitalName!}.'),
+          ),
+        );
+      }
+    } on MobileApiException catch (error) {
+      if (mounted) {
+        setState(() {
+          _backgroundError = destinationUpdated
+              ? 'Hospital changed, but directions could not refresh: ${error.message}'
+              : error.message;
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _rerouting = false);
+    }
+  }
+
+  Widget _rerouteControl() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        OutlinedButton.icon(
+          onPressed: _rerouting || _loadingRerouteHospitals
+              ? null
+              : _toggleRerouteOptions,
+          icon: _rerouting || _loadingRerouteHospitals
+              ? const SizedBox(
+                  width: 17,
+                  height: 17,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.alt_route),
+          label: Text(
+            _showRerouteOptions ? 'CLOSE HOSPITAL LIST' : 'RE-ROUTE',
+          ),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: const Color(0xFF005B45),
+            minimumSize: const Size.fromHeight(46),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
+        if (_showRerouteOptions) ...[
+          const SizedBox(height: 8),
+          if (_loadingRerouteHospitals)
+            const LinearProgressIndicator(minHeight: 2)
+          else if (_rerouteHospitals.isNotEmpty)
+            DropdownButtonFormField<int>(
+              initialValue: _rerouteHospitals.any(
+                (hospital) => hospital.id == _selectedHospitalId,
+              )
+                  ? _selectedHospitalId
+                  : null,
+              decoration: const InputDecoration(
+                labelText: 'Registered hospital',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.local_hospital_outlined),
+              ),
+              items: [
+                for (final hospital in _rerouteHospitals)
+                  DropdownMenuItem<int>(
+                    value: hospital.id,
+                    enabled: hospital.canRoute && !_rerouting,
+                    child: Text(
+                      hospital.canRoute
+                          ? hospital.name
+                          : '${hospital.name} · routing unavailable',
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+              ],
+              onChanged: _rerouting
+                  ? null
+                  : (hospitalId) {
+                      if (hospitalId != null) {
+                        setState(() => _selectedHospitalId = hospitalId);
+                        unawaited(_rerouteToHospital(hospitalId));
+                      }
+                    },
+            ),
+        ],
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final route = _route;
@@ -412,7 +628,26 @@ class _HospitalRouteScreenState extends State<HospitalRouteScreen> {
                       ),
                     ],
                     const SizedBox(height: 12),
+                    if (widget.incident != null) ...[
+                      FilledButton.icon(
+                        onPressed: _openIncidentDetails,
+                        icon: const Icon(Icons.assignment_outlined, size: 18),
+                        label: const Text('ADD INCIDENT AND PATIENT DETAILS'),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFF005B45),
+                          minimumSize: const Size.fromHeight(46),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
                     _notesForm(),
+                    if (_isResponder) ...[
+                      const SizedBox(height: 12),
+                      _rerouteControl(),
+                    ],
                   ],
                 ),
               ),
@@ -424,7 +659,9 @@ class _HospitalRouteScreenState extends State<HospitalRouteScreen> {
   }
 
   Widget _destinationCard(DrivingRoute? route) {
-    final hospitalName = route?.hospitalName ?? widget.preview.hospitalName;
+    final hospitalName = route?.hospitalName ??
+        _currentHospitalName ??
+        widget.preview.hospitalName;
     return Row(
       children: [
         Expanded(

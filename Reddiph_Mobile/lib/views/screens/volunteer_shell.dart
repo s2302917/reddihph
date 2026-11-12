@@ -63,12 +63,19 @@ class _VolunteerShellState extends State<VolunteerShell>
       return;
     }
     final token = AuthController.I.user?['token'] as String?;
-    if (token == null || AuthController.I.user?['is_available'] == false) {
+    if (token == null) {
       return;
     }
 
     _publishingLocation = true;
     try {
+      if (AuthController.I.user?['is_available'] == false) {
+        final requests =
+            await MobileApiClient.I.volunteerRequests(token: token);
+        if (!requests.any((request) => request.status == 'accepted')) {
+          return;
+        }
+      }
       final position = await LocationService.currentPosition();
       await MobileApiClient.I.updateVolunteerLocation(
         token: token,

@@ -2,7 +2,7 @@ import 'package:image_picker/image_picker.dart';
 
 class ResponderIncidentDraft {
   final String incidentType;
-  final String status;
+  final String triageCategory;
   final String reportedBy;
   final String location;
   final double latitude;
@@ -12,7 +12,7 @@ class ResponderIncidentDraft {
 
   const ResponderIncidentDraft({
     required this.incidentType,
-    required this.status,
+    required this.triageCategory,
     required this.reportedBy,
     required this.location,
     required this.latitude,

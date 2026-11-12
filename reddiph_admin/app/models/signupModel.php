@@ -2,25 +2,34 @@
 
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../services/PasswordPolicy.php';
+require_once __DIR__ . '/AuditLogModel.php';
 
 class SignupModel
 {
+    private static array $columnCache = [];
+
     public static function getHospitals(): array
     {
         $pdo = Database::connection();
-        $stmt = $pdo->query("
-            SELECT id, name
-            FROM hospitals
-            ORDER BY name
-        ");
+        $conditions = self::activeHospitalConditions($pdo);
+        $stmt = $pdo->query(
+            'SELECT id, name FROM hospitals'
+            . ($conditions ? ' WHERE ' . implode(' AND ', $conditions) : '')
+            . ' ORDER BY name'
+        );
 
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     private static function hospitalExists(string $hospitalName): bool
     {
-        $stmt = Database::connection()->prepare(
-            'SELECT 1 FROM hospitals WHERE name = :hospital_name LIMIT 1'
+        $pdo = Database::connection();
+        $conditions = array_merge(
+            ['name = :hospital_name'],
+            self::activeHospitalConditions($pdo)
+        );
+        $stmt = $pdo->prepare(
+            'SELECT 1 FROM hospitals WHERE ' . implode(' AND ', $conditions) . ' LIMIT 1'
         );
         $stmt->execute([':hospital_name' => $hospitalName]);
 
@@ -146,15 +155,13 @@ class SignupModel
         PDO $pdo,
         string $hospitalName
     ): int {
-
-        $sql = "
-            SELECT id
-            FROM hospitals
-            WHERE name = :hospital_name
-            LIMIT 1
-        ";
-
-        $stmt = $pdo->prepare($sql);
+        $conditions = array_merge(
+            ['name = :hospital_name'],
+            self::activeHospitalConditions($pdo)
+        );
+        $stmt = $pdo->prepare(
+            'SELECT id FROM hospitals WHERE ' . implode(' AND ', $conditions) . ' LIMIT 1'
+        );
 
         $stmt->execute([
             ':hospital_name' => $hospitalName
@@ -167,6 +174,32 @@ class SignupModel
         }
 
         throw new RuntimeException('The selected hospital is not configured.');
+    }
+
+    private static function activeHospitalConditions(PDO $pdo): array
+    {
+        $conditions = [];
+        if (self::hasColumn($pdo, 'hospitals', 'is_active')) {
+            $conditions[] = 'is_active = 1';
+        }
+        if (self::hasColumn($pdo, 'hospitals', 'archived_at')) {
+            $conditions[] = 'archived_at IS NULL';
+        }
+        return $conditions;
+    }
+
+    private static function hasColumn(PDO $pdo, string $table, string $column): bool
+    {
+        $cacheKey = $table . '.' . $column;
+        if (!array_key_exists($cacheKey, self::$columnCache)) {
+            $stmt = $pdo->prepare(
+                'SELECT COUNT(*) FROM information_schema.columns
+                 WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?'
+            );
+            $stmt->execute([$table, $column]);
+            self::$columnCache[$cacheKey] = (int) $stmt->fetchColumn() > 0;
+        }
+        return self::$columnCache[$cacheKey];
     }
 
 
@@ -309,6 +342,9 @@ class SignupModel
 
             $userId = (int) $pdo->lastInsertId();
 
+            AuditLogModel::record($pdo, null, 'signup.created', 'user', (string) $userId, [
+                'role' => $role,
+            ]);
             $pdo->commit();
 
             return [

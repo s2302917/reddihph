@@ -82,7 +82,7 @@ function requireAuthenticated(?string $role = null): void
     $userId = filter_var($_SESSION['user_id'] ?? null, FILTER_VALIDATE_INT);
     try {
         $stmt = Database::connection()->prepare(
-            'SELECT role, banned_until,
+            'SELECT role, banned_until, login_disabled_reason,
                     (banned_until IS NOT NULL AND banned_until > NOW()) AS is_banned
              FROM user_type WHERE id = ? LIMIT 1'
         );
@@ -101,8 +101,18 @@ function requireAuthenticated(?string $role = null): void
     }
 
     if ((int) $account['is_banned'] === 1) {
-        invalidateApplicationSession((int) $userId);
-        header('Location: ' . assetUrl('app/controllers/portalController.php') . '?reason=account_suspended', true, 302);
+        $role = (string) ($_SESSION['role'] ?? '');
+        $reason = trim((string) ($account['login_disabled_reason'] ?? ''));
+        $notice = $reason !== ''
+            ? 'Your login has been disabled. Reason: ' . $reason
+            : 'Your login has been disabled by an administrator. Contact your administrator for help.';
+        invalidateApplicationSession((int) $userId, $notice, $role);
+        header(
+            'Location: ' . assetUrl('app/controllers/portalController.php')
+                . '?role=' . rawurlencode($role) . '&reason=account_suspended',
+            true,
+            302
+        );
         exit;
     }
 
@@ -121,18 +131,32 @@ function requireAuthenticated(?string $role = null): void
     }
 }
 
-function invalidateApplicationSession(?int $userId = null): void
+function invalidateApplicationSession(
+    ?int $userId = null,
+    ?string $loginNotice = null,
+    ?string $role = null
+): void
 {
     if (session_status() === PHP_SESSION_NONE) {
         startApplicationSession();
     }
     $userId ??= (int) ($_SESSION['user_id'] ?? 0);
+    $role ??= is_string($_SESSION['role'] ?? null) ? $_SESSION['role'] : null;
     if ($userId > 0) {
         Database::connection()->prepare(
             'UPDATE user_type SET last_login_at = NULL WHERE id = ?'
         )->execute([$userId]);
     }
     $_SESSION = [];
+    if (
+        $loginNotice !== null &&
+        is_string($role) &&
+        in_array($role, ['hospital_admin', 'doctor', 'nurse'], true)
+    ) {
+        session_regenerate_id(true);
+        $_SESSION['login_notice'] = $loginNotice;
+        return;
+    }
     if (ini_get('session.use_cookies')) {
         $params = session_get_cookie_params();
         setcookie(

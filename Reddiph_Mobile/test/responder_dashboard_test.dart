@@ -67,7 +67,8 @@ void main() {
               {
                 'incident_id': 3,
                 'incident_type': 'SOS emergency alert',
-                'status': 'critical',
+                'status': 'open',
+                'triage_category': 'emergent',
                 'location': 'GPS 1, 2',
                 'barangay': 'Barangay A',
                 'patient_name': 'Jamie Cruz',
@@ -107,11 +108,32 @@ void main() {
       expect(item.location, 'Barangay A');
       expect(item.distanceLabel, '2.4 km');
       expect(item.agoLabel, '1 h ago');
-      expect(item.severity, 'Critical');
+      expect(item.severity, 'Emergent');
       expect(item.patientName, 'Jamie Cruz');
       expect(item.patientAge, 29);
       expect(item.patientGender, 'female');
       expect(item.responderName, 'Mark Reyes');
+    });
+
+    test('reads the monthly responder statistics from the dashboard payload',
+        () {
+      final data = ResponderDashboard.fromJson({
+        'responder': {
+          'full_name': 'Mark Reyes',
+          'vehicle': {
+            'vehicle_type': 'Ambulance',
+            'call_sign': 'RB-04',
+            'plate_number': 'ABC 123'
+          },
+          'monthly_dispatch_count': 17,
+          'hospital_arrivals_this_month': 5,
+        },
+        'active_case': null,
+        'queue': {'items': [], 'page': 1, 'pages': 1, 'total': 0},
+      });
+
+      expect(data.monthlyDispatchCount, 17);
+      expect(data.hospitalArrivalsThisMonth, 5);
     });
 
     test('reads whether the active incident was sent to hospital', () {

@@ -57,6 +57,11 @@ class _ResponderIncidentRouteScreenState
   bool _arriving = false;
   bool _loadingVolunteers = false;
   String? _volunteerError;
+  bool _showRerouteHospitals = false;
+  bool _loadingRerouteHospitals = false;
+  bool _rerouting = false;
+  List<ResponderHospitalOption> _rerouteHospitals = [];
+  int? _selectedRerouteHospitalId;
 
   bool get _isHospitalRoute => widget.incident?.sentToHospital == true;
   double get _mapBearing => _followHeading ? (_heading ?? 0) : 0;
@@ -230,6 +235,172 @@ class _ResponderIncidentRouteScreenState
     } finally {
       if (mounted) setState(() => _refreshing = false);
     }
+  }
+
+  Future<void> _toggleRerouteHospitals() async {
+    if (_showRerouteHospitals) {
+      setState(() => _showRerouteHospitals = false);
+      return;
+    }
+
+    final token = AuthController.I.user?['token'] as String?;
+    if (token == null || token.isEmpty) {
+      setState(() => _error = 'Please sign in again before rerouting.');
+      return;
+    }
+
+    setState(() {
+      _showRerouteHospitals = true;
+      _loadingRerouteHospitals = true;
+      _error = null;
+    });
+    try {
+      final hospitals = await _api.responderRerouteHospitals(
+        token: token,
+        incidentId: widget.incidentId,
+      );
+      if (!mounted) return;
+      setState(() {
+        _rerouteHospitals = hospitals;
+        if (hospitals.isEmpty) {
+          _error = 'No registered hospitals are available for rerouting.';
+        }
+      });
+    } on MobileApiException catch (error) {
+      if (mounted) setState(() => _error = error.message);
+    } finally {
+      if (mounted) setState(() => _loadingRerouteHospitals = false);
+    }
+  }
+
+  Future<void> _rerouteToHospital(int hospitalId) async {
+    final token = AuthController.I.user?['token'] as String?;
+    if (token == null || token.isEmpty || _rerouting) {
+      if (token == null || token.isEmpty) {
+        setState(() => _error = 'Please sign in again before rerouting.');
+      }
+      return;
+    }
+
+    setState(() {
+      _rerouting = true;
+      _error = null;
+    });
+    var destinationChanged = false;
+    try {
+      final response = await _api.rerouteResponderIncident(
+        token: token,
+        incidentId: widget.incidentId,
+        hospitalId: hospitalId,
+      );
+      final hospital = response['hospital'];
+      if (hospital is! Map<String, dynamic> ||
+          hospital['id'] is! num ||
+          hospital['name'] is! String) {
+        throw const MobileApiException(
+          'The server returned an invalid hospital destination.',
+        );
+      }
+
+      destinationChanged = response['changed'] == true;
+      setState(() {
+        _showRerouteHospitals = false;
+        _selectedRerouteHospitalId = (hospital['id'] as num).toInt();
+        _route = null;
+      });
+
+      Position position;
+      try {
+        position = _position ?? await LocationService.currentPosition();
+      } on LocationUnavailableException {
+        throw const MobileApiException(
+          'Hospital destination updated, but GPS is unavailable to refresh directions.',
+        );
+      }
+      if (!mounted) return;
+      _position = position;
+      await _refreshRoute(position);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Rerouted to ${hospital['name'] as String}.'),
+        ),
+      );
+    } on MobileApiException catch (error) {
+      if (mounted) {
+        setState(() {
+          _error = destinationChanged
+              ? 'Hospital changed, but directions could not refresh: ${error.message}'
+              : error.message;
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _rerouting = false);
+    }
+  }
+
+  Widget _rerouteControl() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        OutlinedButton.icon(
+          onPressed: _loadingRerouteHospitals || _rerouting
+              ? null
+              : _toggleRerouteHospitals,
+          icon: _loadingRerouteHospitals || _rerouting
+              ? const SizedBox(
+                  width: 17,
+                  height: 17,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.alt_route, size: 18),
+          label: Text(
+            _showRerouteHospitals ? 'CLOSE HOSPITAL LIST' : 'RE-ROUTE',
+          ),
+        ),
+        if (_showRerouteHospitals) ...[
+          const SizedBox(height: 8),
+          if (_loadingRerouteHospitals)
+            const LinearProgressIndicator(minHeight: 2)
+          else if (_rerouteHospitals.isNotEmpty)
+            DropdownButtonFormField<int>(
+              initialValue: _rerouteHospitals.any(
+                (hospital) => hospital.id == _selectedRerouteHospitalId,
+              )
+                  ? _selectedRerouteHospitalId
+                  : null,
+              decoration: const InputDecoration(
+                labelText: 'Registered hospital',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+              items: [
+                for (final hospital in _rerouteHospitals)
+                  DropdownMenuItem<int>(
+                    value: hospital.id,
+                    enabled: hospital.canRoute && !_rerouting,
+                    child: Text(
+                      hospital.canRoute
+                          ? hospital.name
+                          : '${hospital.name} · routing unavailable',
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+              ],
+              onChanged: _rerouting
+                  ? null
+                  : (hospitalId) {
+                      if (hospitalId != null) {
+                        setState(
+                          () => _selectedRerouteHospitalId = hospitalId,
+                        );
+                        unawaited(_rerouteToHospital(hospitalId));
+                      }
+                    },
+            ),
+        ],
+      ],
+    );
   }
 
   Future<void> _sendResponderPresence(Position position) async {
@@ -784,6 +955,10 @@ class _ResponderIncidentRouteScreenState
                         label: const Text('Refresh route'),
                       ),
                     ),
+                    if (_isHospitalRoute) ...[
+                      const SizedBox(height: 4),
+                      _rerouteControl(),
+                    ],
                   ],
                 ),
               ),

@@ -72,16 +72,23 @@ $hospitalLocation = $hospitalLocation ?? 'La Carlota';
 
                 <a href="staffschedController.php" class="incomingdispatch-nav-item">Staff Schedule</a>
 
-                <a href="resourcesController.php" class="incomingdispatch-nav-item">Resources</a>
+                <details class="admin-resources-menu">
+                    <summary class="incomingdispatch-nav-item">Resources</summary>
+                    <div class="admin-resources-subnav">
+                        <a href="resourcesController.php?section=bed-capacity">Bed Capacity</a>
+                        <a href="resourcesController.php?section=ambulance">Ambulance</a>
+                        <a href="resourcesController.php?section=ptv">PTV</a>
+                    </div>
+                </details>
 
                 <a href="hospitalnetworkController.php" class="incomingdispatch-nav-item">Referral</a>
 
 
-                <a href="analyticsController.php" class="incomingdispatch-nav-item">Analytics</a>
 
 
                 <a href="demographicsController.php" class="incomingdispatch-nav-item">Logs &amp; Demographics</a>
 
+                <a href="manageAccountsController.php" class="incomingdispatch-nav-item">Manage Accounts</a>
 
                 <a href="settingsController.php" class="incomingdispatch-nav-item incomingdispatch-nav-item--active"
                     id="settings-nav-settings" aria-current="page">
@@ -90,26 +97,6 @@ $hospitalLocation = $hospitalLocation ?? 'La Carlota';
 
             </nav>
 
-
-            <!-- System Status -->
-
-            <div class="incomingdispatch-system-status">
-
-                <span class="incomingdispatch-system-status-icon" aria-hidden="true">!</span>
-
-                <div>
-
-                    <p class="incomingdispatch-system-status-title">
-                        System Status
-                    </p>
-
-                    <p class="incomingdispatch-system-status-sub">
-                        All systems operational.
-                    </p>
-
-                </div>
-
-            </div>
 
         </aside>
 
@@ -156,6 +143,16 @@ $hospitalLocation = $hospitalLocation ?? 'La Carlota';
                 </div>
             </header>
 
+            <div class="settings-notification-card" id="settings-notification-card" role="status" aria-live="polite" hidden
+                data-message="<?= htmlspecialchars((string) ($settingsMessage ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                data-kind="<?= htmlspecialchars((string) ($settingsMessageType ?? 'success'), ENT_QUOTES, 'UTF-8') ?>">
+                <span class="settings-notification-icon" aria-hidden="true"></span>
+                <div class="settings-notification-copy">
+                    <strong class="settings-notification-title"></strong>
+                    <p class="settings-notification-message"></p>
+                </div>
+                <button type="button" class="settings-notification-close" aria-label="Dismiss notification">×</button>
+            </div>
 
             <!-- ==================================================
              SETTINGS CARD
@@ -226,13 +223,8 @@ $hospitalLocation = $hospitalLocation ?? 'La Carlota';
                                 <div class="settings-field-control">
 
                                     <input type="email" id="settings-email" name="email" class="settings-input"
-                                        value="<?= htmlspecialchars($accountEmail) ?>" readonly required
+                                        value="<?= htmlspecialchars($accountEmail) ?>" required
                                         autocomplete="email">
-
-                                    <button type="button" class="settings-edit-button"
-                                        data-settings-edit="settings-email" aria-label="Edit email">
-                                        ✎
-                                    </button>
 
                                 </div>
 
@@ -249,13 +241,8 @@ $hospitalLocation = $hospitalLocation ?? 'La Carlota';
                                 <div class="settings-field-control">
 
                                     <input type="tel" id="settings-phone" name="phone_number" class="settings-input"
-                                        value="<?= htmlspecialchars($accountPhone) ?>" readonly autocomplete="tel"
+                                        value="<?= htmlspecialchars($accountPhone) ?>" autocomplete="tel"
                                         maxlength="32">
-
-                                    <button type="button" class="settings-edit-button"
-                                        data-settings-edit="settings-phone" aria-label="Edit phone number">
-                                        ✎
-                                    </button>
 
                                 </div>
 
@@ -382,9 +369,15 @@ $hospitalLocation = $hospitalLocation ?? 'La Carlota';
 
                     <div class="settings-actions">
 
-                        <button type="submit" class="settings-save-button" id="settings-save-button">
-                            Save changes
-                        </button>
+                        <div class="settings-form-actions">
+                            <button type="button" class="settings-cancel-button" id="settings-cancel-button">
+                                Cancel
+                            </button>
+
+                            <button type="submit" class="settings-save-button" id="settings-save-button">
+                                Save changes
+                            </button>
+                        </div>
 
 
                         <button type="button" class="settings-logout-button" id="settings-logout-button">
@@ -466,10 +459,15 @@ $hospitalLocation = $hospitalLocation ?? 'La Carlota';
         </section>
     </div>
 
-    <div class="settings-toast" id="settings-toast" role="status" aria-live="polite"
-        data-message="<?= htmlspecialchars((string) ($settingsMessage ?? ''), ENT_QUOTES, 'UTF-8') ?>"
-        data-kind="<?= htmlspecialchars((string) ($settingsMessageType ?? 'success'), ENT_QUOTES, 'UTF-8') ?>"></div>
-
+    <div class="settings-confirmation-overlay" id="settings-confirmation-overlay" aria-hidden="true" hidden>
+        <section class="settings-confirmation-card" role="dialog" aria-modal="true"
+            aria-labelledby="settings-confirmation-title" aria-describedby="settings-confirmation-message">
+            <span class="settings-confirmation-icon" aria-hidden="true">✓</span>
+            <h2 id="settings-confirmation-title"></h2>
+            <p id="settings-confirmation-message"></p>
+            <button type="button" id="settings-confirmation-close" class="settings-confirmation-button">OK</button>
+        </section>
+    </div>
 
     <div class="settings-logout-overlay" id="settings-logout-overlay" aria-hidden="true">
 

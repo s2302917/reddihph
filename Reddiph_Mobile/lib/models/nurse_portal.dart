@@ -42,196 +42,155 @@ class NurseProfile {
   }
 }
 
-class NursePrepTask {
-  const NursePrepTask({
-    required this.id,
-    required this.name,
-    required this.done,
-    this.doneAt,
-  });
-
-  final int id;
-  final String name;
-  final bool done;
-  final String? doneAt;
-
-  factory NursePrepTask.fromJson(Map<String, dynamic> json) => NursePrepTask(
-        id: _intValue(json['id'], 'task id'),
-        name: _stringValue(json['name'], 'task name'),
-        done: _boolValue(json['done'], 'task status'),
-        doneAt: _optionalString(json['done_at']),
-      );
-}
-
 class NurseCaseRecord {
   const NurseCaseRecord({
     required this.id,
     required this.title,
-    required this.priority,
+    required this.triageCategoryLabel,
     required this.status,
     required this.patientName,
     required this.patientGender,
     required this.location,
     required this.responder,
     required this.unit,
-    required this.tasks,
-    required this.prepDone,
-    required this.prepTotal,
-    required this.prepComplete,
-    required this.arrivalConfirmed,
     this.patientAge,
     this.etaMinutes,
-    this.bedId,
-    this.bedLabel,
     this.note = '',
     this.responderNotes = '',
     this.heartRate,
     this.spo2,
     this.bloodPressure,
     this.reportedAt,
-    this.arrivedAt,
     this.transportType = '',
+    this.triageCategory,
+    this.unseen = false,
+    this.hospitalName = '',
+    this.incidentStatus = '',
+    this.gcs,
   });
 
   final int id;
   final String title;
-  final String priority;
+  final String triageCategoryLabel;
   final String status;
   final String patientName;
   final String patientGender;
   final String location;
   final String responder;
   final String unit;
-  final List<NursePrepTask> tasks;
-  final int prepDone;
-  final int prepTotal;
-  final bool prepComplete;
-  final bool arrivalConfirmed;
   final int? patientAge;
   final int? etaMinutes;
-  final int? bedId;
-  final String? bedLabel;
   final String note;
   final String responderNotes;
   final int? heartRate;
   final int? spo2;
   final String? bloodPressure;
   final String? reportedAt;
-  final String? arrivedAt;
   final String transportType;
+  final String? triageCategory;
+  final bool unseen;
+  final String hospitalName;
+  final String incidentStatus;
+  final int? gcs;
 
   factory NurseCaseRecord.fromJson(Map<String, dynamic> json) {
-    final tasksJson = json['tasks'];
-    if (tasksJson is! List) {
-      throw const FormatException('Invalid nurse preparation tasks.');
-    }
     return NurseCaseRecord(
       id: _intValue(json['id'], 'incident id'),
       title: _stringValue(json['title'], 'case title'),
-      priority: _stringValue(json['priority'], 'case priority'),
+      triageCategoryLabel: _stringValue(
+        json['triage_category_label'],
+        'emergency category',
+      ),
       status: _stringValue(json['status'], 'case status'),
       patientName: _stringValue(json['patient_name'], 'patient name'),
       patientGender: _stringValue(json['patient_gender'], 'patient gender'),
       location: _stringValue(json['location'], 'incident location'),
       responder: _stringValue(json['responder'], 'responder name'),
       unit: _stringValue(json['unit'], 'transport unit'),
-      tasks: tasksJson.map((item) {
-        if (item is! Map<String, dynamic>) {
-          throw const FormatException('Invalid nurse preparation task.');
-        }
-        return NursePrepTask.fromJson(item);
-      }).toList(growable: false),
-      prepDone: _intValue(json['prep_done'], 'completed task count'),
-      prepTotal: _intValue(json['prep_total'], 'total task count'),
-      prepComplete: _boolValue(json['prep_complete'], 'preparation status'),
-      arrivalConfirmed:
-          _boolValue(json['arrival_confirmed'], 'arrival confirmation'),
       patientAge: _optionalInt(json['patient_age']),
       etaMinutes: _optionalInt(json['eta_minutes']),
-      bedId: _optionalInt(json['bed_id']),
-      bedLabel: _optionalString(json['bed_label']),
       note: _stringValue(json['note'], 'clinical note'),
       responderNotes: _stringValue(json['responder_notes'], 'responder notes'),
       heartRate: _optionalInt(json['heart_rate']),
       spo2: _optionalInt(json['spo2']),
       bloodPressure: _optionalString(json['blood_pressure']),
+      hospitalName: _stringValue(json['hospital'], 'hospital name'),
+      incidentStatus: _stringValue(json['incident_status'], 'incident status'),
+      gcs: _optionalInt(json['gcs']),
       reportedAt: _optionalString(json['reported_at']),
-      arrivedAt: _optionalString(json['arrived_at']),
       transportType: _stringValue(json['transport_type'], 'transport type'),
+      triageCategory: _optionalString(json['triage_category']),
+      unseen: json['unseen'] == null
+          ? false
+          : _boolValue(json['unseen'], 'notification status'),
     );
   }
 }
 
-class NurseBed {
-  const NurseBed({
+class NurseCaseHistoryRecord {
+  const NurseCaseHistoryRecord({
     required this.id,
-    required this.type,
-    required this.number,
-    required this.label,
+    required this.title,
     required this.status,
-    this.incidentId,
-    this.patientName,
-  });
-
-  final int id;
-  final String type;
-  final int number;
-  final String label;
-  final String status;
-  final int? incidentId;
-  final String? patientName;
-
-  factory NurseBed.fromJson(Map<String, dynamic> json) => NurseBed(
-        id: _intValue(json['id'], 'bed id'),
-        type: _stringValue(json['type'], 'bed type'),
-        number: _intValue(json['number'], 'bed number'),
-        label: _stringValue(json['label'], 'bed label'),
-        status: _stringValue(json['status'], 'bed status'),
-        incidentId: _optionalInt(json['incident_id']),
-        patientName: _optionalString(json['patient_name']),
-      );
-}
-
-class NurseHandoff {
-  const NurseHandoff({
-    required this.id,
-    required this.incidentId,
+    required this.triageCategoryLabel,
     required this.patientName,
-    required this.caseTitle,
-    required this.bedLabel,
-    required this.fromResponder,
-    required this.pulse,
+    required this.patientGender,
+    required this.location,
+    required this.reportedAt,
+    required this.updatedAt,
+    required this.notifiedAt,
+    required this.responder,
+    required this.unit,
+    required this.note,
+    required this.responderNotes,
+    required this.patientAge,
+    required this.heartRate,
     required this.spo2,
     required this.bloodPressure,
-    required this.notes,
-    required this.createdAt,
   });
 
   final int id;
-  final int incidentId;
+  final String title;
+  final String status;
+  final String triageCategoryLabel;
   final String patientName;
-  final String caseTitle;
-  final String bedLabel;
-  final String fromResponder;
-  final String pulse;
-  final String spo2;
-  final String bloodPressure;
-  final String notes;
-  final String createdAt;
+  final String patientGender;
+  final String location;
+  final String reportedAt;
+  final String updatedAt;
+  final String notifiedAt;
+  final String responder;
+  final String unit;
+  final String note;
+  final String responderNotes;
+  final int? patientAge;
+  final int? heartRate;
+  final int? spo2;
+  final String? bloodPressure;
 
-  factory NurseHandoff.fromJson(Map<String, dynamic> json) => NurseHandoff(
-        id: _intValue(json['id'], 'handoff id'),
-        incidentId: _intValue(json['incident_id'], 'incident id'),
-        patientName: _stringValue(json['patient_name'], 'patient name'),
-        caseTitle: _stringValue(json['case'], 'case title'),
-        bedLabel: _stringValue(json['bed_label'], 'bed label'),
-        fromResponder: _stringValue(json['from_responder'], 'responder name'),
-        pulse: _stringValue(json['pulse'], 'pulse'),
-        spo2: _stringValue(json['spo2'], 'SpO2'),
-        bloodPressure: _stringValue(json['blood_pressure'], 'blood pressure'),
-        notes: _stringValue(json['notes'], 'handoff notes'),
-        createdAt: _stringValue(json['created_at'], 'handoff date'),
-      );
+  factory NurseCaseHistoryRecord.fromJson(Map<String, dynamic> json) {
+    return NurseCaseHistoryRecord(
+      id: _intValue(json['id'], 'incident id'),
+      title: _stringValue(json['title'], 'case title'),
+      status: _stringValue(json['status'], 'case status'),
+      triageCategoryLabel:
+          _stringValue(json['triage_category_label'], 'emergency category'),
+      patientName: _stringValue(json['patient_name'], 'patient name'),
+      patientGender: _stringValue(json['patient_gender'], 'patient gender'),
+      location: _stringValue(json['location'], 'incident location'),
+      reportedAt: _stringValue(json['reported_at'], 'reported time'),
+      updatedAt: _stringValue(json['updated_at'], 'updated time'),
+      notifiedAt: _stringValue(json['notified_at'], 'notification time'),
+      responder: _stringValue(json['responder'], 'responder name'),
+      unit: _stringValue(json['unit'], 'transport unit'),
+      note: _stringValue(json['note'], 'clinical note'),
+      responderNotes: _stringValue(json['responder_notes'], 'responder notes'),
+      patientAge: _optionalInt(json['patient_age']),
+      heartRate: _optionalInt(json['heart_rate']),
+      spo2: _optionalInt(json['spo2']),
+      bloodPressure: _optionalString(json['blood_pressure']),
+    );
+  }
 }
 
 class NurseShift {
@@ -303,15 +262,13 @@ class NursePortalCache {
   static final Map<String, NurseDashboardData> _dashboards = {};
   static final Map<String, NurseProfile> _profiles = {};
   static final Map<String, List<NurseCaseRecord>> _cases = {};
-  static final Map<String, List<NurseBed>> _beds = {};
-  static final Map<String, List<NurseHandoff>> _handoffs = {};
+  static final Map<String, List<NurseCaseHistoryRecord>> _history = {};
   static final Map<String, List<NurseShift>> _schedules = {};
 
   static NurseDashboardData? dashboard(String token) => _dashboards[token];
   static NurseProfile? profile(String token) => _profiles[token];
   static List<NurseCaseRecord>? cases(String token) => _cases[token];
-  static List<NurseBed>? beds(String token) => _beds[token];
-  static List<NurseHandoff>? handoffs(String token) => _handoffs[token];
+  static List<NurseCaseHistoryRecord>? history(String token) => _history[token];
   static List<NurseShift>? schedule(String token, String month) =>
       _schedules['$token:$month'];
 
@@ -340,12 +297,8 @@ class NursePortalCache {
     _cases[token] = List.unmodifiable(cases);
   }
 
-  static void saveBeds(String token, List<NurseBed> beds) {
-    _beds[token] = beds;
-  }
-
-  static void saveHandoffs(String token, List<NurseHandoff> handoffs) {
-    _handoffs[token] = handoffs;
+  static void saveHistory(String token, List<NurseCaseHistoryRecord> history) {
+    _history[token] = history;
   }
 
   static void saveSchedule(
@@ -357,8 +310,7 @@ class NursePortalCache {
     _dashboards.remove(token);
     _profiles.remove(token);
     _cases.remove(token);
-    _beds.remove(token);
-    _handoffs.remove(token);
+    _history.remove(token);
     _schedules.removeWhere((key, _) => key.startsWith('$token:'));
   }
 }

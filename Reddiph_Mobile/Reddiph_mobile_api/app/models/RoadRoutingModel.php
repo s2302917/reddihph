@@ -236,7 +236,7 @@ final class RoadRoutingModel
                 ON p.user_id = u.id
                AND p.last_seen_at >= NOW() - INTERVAL 90 SECOND
              WHERE i.incident_id = ? AND i.reporter_user_id = ?
-               AND i.status IN ('critical', 'urgent', 'stable', 'dispatched')
+               AND i.status IN ('open', 'dispatched', 'referred')
              ORDER BY p.last_seen_at DESC
              LIMIT 1"
         );

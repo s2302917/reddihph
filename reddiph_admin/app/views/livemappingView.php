@@ -11,8 +11,9 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
     <link rel="stylesheet"
         href="<?php echo htmlspecialchars(assetUrl('public/css/incomingdispatch.css')); ?>?v=<?php echo filemtime(__DIR__ . '/../../public/css/incomingdispatch.css'); ?>">
+    <?php $liveMappingStylesheet = __DIR__ . '/../../public/css/livemapping.css'; ?>
     <link rel="stylesheet"
-        href="<?php echo htmlspecialchars(assetUrl('public/css/livemapping.css')); ?>?v=<?php echo filemtime(__DIR__ . '/../../public/css/livemapping.css'); ?>">
+        href="<?php echo htmlspecialchars(assetUrl('public/css/livemapping.css')); ?>?v=<?php echo hash_file('sha256', $liveMappingStylesheet); ?>">
 </head>
 
 <body class="incomingdispatch-body livemapping-body">
@@ -30,24 +31,23 @@
                     id="incomingdispatch-nav-alerts">Emergency Cases</a>
                 <a href="staffschedController.php" class="incomingdispatch-nav-item"
                     id="incomingdispatch-nav-schedule">Staff Schedule</a>
-                <a href="resourcesController.php" class="incomingdispatch-nav-item"
-                    id="incomingdispatch-nav-resources">Resources</a>
+                <details class="admin-resources-menu">
+                    <summary class="incomingdispatch-nav-item" id="incomingdispatch-nav-resources">Resources</summary>
+                    <div class="admin-resources-subnav">
+                        <a href="resourcesController.php?section=bed-capacity">Bed Capacity</a>
+                        <a href="resourcesController.php?section=ambulance">Ambulance</a>
+                        <a href="resourcesController.php?section=ptv">PTV</a>
+                    </div>
+                </details>
                 <a href="hospitalnetworkController.php" class="incomingdispatch-nav-item"
                     id="incomingdispatch-nav-network">Referral</a>
-                <a href="analyticsController.php" class="incomingdispatch-nav-item"
-                    id="incomingdispatch-nav-analytics">Analytics</a>
                 <a href="demographicsController.php" class="incomingdispatch-nav-item"
                     id="incomingdispatch-nav-logs">Logs &amp; Demographics</a>
+                <a href="manageAccountsController.php" class="incomingdispatch-nav-item"
+                    id="incomingdispatch-nav-manage-accounts">Manage Accounts</a>
                 <a href="settingsController.php" class="incomingdispatch-nav-item"
                     id="incomingdispatch-nav-settings">Settings</a>
             </nav>
-            <div class="incomingdispatch-system-status" id="incomingdispatch-system-status"><span
-                    class="incomingdispatch-system-status-icon">!</span>
-                <div>
-                    <p class="incomingdispatch-system-status-title">System Status</p>
-                    <p class="incomingdispatch-system-status-sub">All systems operational.</p>
-                </div>
-            </div>
         </aside>
         <main class="incomingdispatch-main livemapping-main">
             <header class="incomingdispatch-header">
@@ -89,20 +89,25 @@
             </header>
             <section class="livemapping-content" aria-label="Live emergency response map">
                 <div class="livemapping-map-panel">
-                    <div class="livemapping-legend"><span><i
-                                class="livemapping-legend-dot livemapping-legend-dot--en-route"></i>En
-                            route</span><span><i
-                                class="livemapping-legend-dot livemapping-legend-dot--arrived"></i>Arrived</span><span><i
-                                class="livemapping-legend-dot livemapping-legend-dot--available"></i>Available</span><span><i
-                                class="livemapping-legend-dot livemapping-legend-dot--offline"></i>Offline</span></div>
-                    <div id="livemapping-map" aria-label="Live ambulance and PTV map"></div>
+                    <div class="livemapping-legend" aria-label="Map legend">
+                        <span><i class="livemapping-legend-role livemapping-legend-role--responder" aria-hidden="true">R</i>Responder</span>
+                        <span><i class="livemapping-legend-role livemapping-legend-role--volunteer" aria-hidden="true">V</i>Volunteer</span>
+                        <span><i class="livemapping-legend-line" aria-hidden="true"></i>Route matches person color</span>
+                        <span><i class="livemapping-legend-dot livemapping-legend-dot--hospital" aria-hidden="true">H</i>Hospital</span>
+                        <span><i class="livemapping-legend-dot livemapping-legend-dot--incident" aria-hidden="true">!</i>Incident</span>
+                        <span><i class="livemapping-legend-dot livemapping-legend-dot--location" aria-hidden="true"></i>Current / last known location</span>
+                    </div>
+                    <div id="livemapping-map" aria-label="Live responder, volunteer, transport, hospital, and incident map"></div>
                     <p id="livemapping-route-status" class="livemapping-route-status"
                         role="status" aria-live="polite" hidden></p>
                 </div>
                 <aside class="livemapping-fleet">
                     <div class="livemapping-fleet-heading">
-                        <h2 class="livemapping-fleet-title">Fleet Status</h2>
-                        <span id="livemapping-incident-count" class="livemapping-incident-count">0 incidents</span>
+                        <div>
+                            <p class="livemapping-section-eyebrow">Live assignments &amp; GPS</p>
+                            <h2 class="livemapping-fleet-title">Responder &amp; Volunteer Tracking</h2>
+                        </div>
+                        <span id="livemapping-incident-count" class="livemapping-incident-count">0 staff</span>
                     </div>
                     <div class="livemapping-fleet-filters" role="group" aria-label="Fleet status filter">
                         <button type="button" class="livemapping-fleet-filter livemapping-fleet-filter--active"
@@ -123,7 +128,7 @@
                 <div class="livemapping-ambulance-directory-header">
                     <div>
                         <p class="livemapping-section-eyebrow">All hospitals · live database records</p>
-                        <h2 id="livemapping-ambulance-directory-title">Fleet Status &amp; Incidents</h2>
+                        <h2 id="livemapping-ambulance-directory-title">Hospital Vehicles &amp; Incidents</h2>
                     </div>
                     <span id="livemapping-ambulance-count" class="livemapping-ambulance-count">0 vehicles · 0 incidents</span>
                 </div>
@@ -131,64 +136,16 @@
             </section>
         </main>
     </div>
-    <div class="livemapping-alert-overlay" id="livemapping-alert-overlay" hidden>
-        <form class="livemapping-alert-drawer" id="livemapping-alert-form">
-            <button type="button" class="livemapping-alert-close" id="livemapping-alert-close"
-                aria-label="Close alert drawer">×</button>
-            <h2>Send alert to staff</h2>
-            <p id="livemapping-alert-transport" class="livemapping-alert-transport"></p>
-
-            <div class="livemapping-alert-incident" aria-live="polite">
-                <p class="livemapping-alert-section-label">Selected incident</p>
-                <strong id="livemapping-alert-incident-name">Loading incident...</strong>
-                <dl class="livemapping-alert-incident-grid">
-                    <div>
-                        <dt>Incident ID</dt>
-                        <dd id="livemapping-alert-incident-id">—</dd>
-                    </div>
-                    <div>
-                        <dt>Status</dt>
-                        <dd id="livemapping-alert-incident-status">—</dd>
-                    </div>
-                    <div>
-                        <dt>Location</dt>
-                        <dd id="livemapping-alert-incident-location">—</dd>
-                    </div>
-                    <div>
-                        <dt>Patient</dt>
-                        <dd id="livemapping-alert-incident-patient">—</dd>
-                    </div>
-                    <div>
-                        <dt>ETA</dt>
-                        <dd id="livemapping-alert-incident-eta">—</dd>
-                    </div>
-                    <div>
-                        <dt>Hospital</dt>
-                        <dd id="livemapping-alert-incident-hospital">—</dd>
-                    </div>
-                </dl>
-            </div>
-
-            <label for="livemapping-alert-specialization">Specialization</label>
-            <select id="livemapping-alert-specialization" name="specialization">
-                <option value="">All specializations</option>
-            </select>
-
-            <div id="livemapping-alert-recipients" class="livemapping-alert-recipients" aria-live="polite"></div>
-
-            <textarea name="message" placeholder="Optional message for the response team"></textarea>
-            <button type="submit" class="livemapping-alert-submit">Send alert</button>
-            <output id="livemapping-alert-status" class="livemapping-alert-status" aria-live="polite"></output>
-        </form>
-    </div>
+    <?php require __DIR__ . '/staffAlertDrawerView.php'; ?>
     <div class="livemapping-notification-toast" id="livemapping-notification-toast" role="status" aria-live="polite">
     </div>
     <script id="livemapping-initial-data"
         type="application/json"><?php echo htmlspecialchars(json_encode($mapData, JSON_UNESCAPED_SLASHES), ENT_NOQUOTES, 'UTF-8'); ?></script>
     <script>window.APP_BASE_URL = <?php echo json_encode(rtrim(assetUrl(''), '/')); ?>;</script>
     <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+    <?php $liveMappingScript = __DIR__ . '/../../public/js/script.js'; ?>
     <script
-        src="<?php echo htmlspecialchars(assetUrl('public/js/script.js')); ?>?v=<?php echo filemtime(__DIR__ . '/../../public/js/script.js'); ?>"></script>
+        src="<?php echo htmlspecialchars(assetUrl('public/js/script.js')); ?>?v=<?php echo hash_file('sha256', $liveMappingScript); ?>"></script>
 </body>
 
 </html>

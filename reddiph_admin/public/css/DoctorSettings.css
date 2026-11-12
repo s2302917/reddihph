@@ -387,6 +387,11 @@ a {
     font-size: 10px;
 }
 
+.setting-input input:not([readonly]) {
+    background: #fff;
+    color: #222;
+}
+
 .setting-input button {
     width: 40px;
     border: 0;
@@ -474,22 +479,16 @@ a {
     line-height: 1;
 }
 
-.settings-edit-button {
-    color: var(--doctor-primary);
-    cursor: pointer;
-}
-
-.settings-edit-button:hover {
-    color: var(--doctor-primary-dark);
-}
-
 .settings-save-row {
     display: flex;
     justify-content: flex-end;
+    align-items: center;
+    gap: 10px;
     margin-top: 18px;
 }
 
 .settings-save-button,
+.settings-cancel-button,
 .settings-primary-button {
     border: 0;
     border-radius: 7px;
@@ -501,15 +500,27 @@ a {
 }
 
 .settings-save-button:hover,
+.settings-cancel-button:hover,
 .settings-primary-button:hover {
     background: var(--doctor-primary-dark, #563987);
 }
 
 .settings-save-button:disabled,
+.settings-cancel-button:disabled,
 .settings-primary-button:disabled,
 .settings-secondary-button:disabled {
     cursor: wait;
     opacity: .65;
+}
+
+.settings-cancel-button {
+    background: transparent;
+    color: var(--doctor-primary);
+}
+
+.settings-cancel-button:hover {
+    background: transparent;
+    color: var(--doctor-primary-dark);
 }
 
 .settings-card .security-row {
@@ -794,10 +805,12 @@ body.doctor-settings-page .settings-logout-drawer {
     }
 
     .settings-save-row {
-        justify-content: stretch;
+        flex-direction: column-reverse;
+        align-items: stretch;
     }
 
-    .settings-save-button {
+    .settings-save-button,
+    .settings-cancel-button {
         width: 100%;
     }
 }

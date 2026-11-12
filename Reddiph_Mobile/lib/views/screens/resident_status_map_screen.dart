@@ -51,7 +51,8 @@ class ResidentStatusMapScreen extends StatelessWidget {
                           IconButton(
                             tooltip: 'Close full-screen map',
                             onPressed: () => Navigator.maybePop(context),
-                            icon: const Icon(Icons.close, color: kResidentBrand),
+                            icon:
+                                const Icon(Icons.close, color: kResidentBrand),
                           ),
                           const Expanded(
                             child: Text(
@@ -64,8 +65,8 @@ class ResidentStatusMapScreen extends StatelessWidget {
                           ),
                           const Padding(
                             padding: EdgeInsets.only(right: 16),
-                            child: Icon(Icons.my_location,
-                                color: kResidentBrand),
+                            child:
+                                Icon(Icons.my_location, color: kResidentBrand),
                           ),
                         ],
                       ),

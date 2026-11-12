@@ -3,6 +3,7 @@
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../services/passwordResetMailer.php';
 require_once __DIR__ . '/../services/PasswordPolicy.php';
+require_once __DIR__ . '/AuditLogModel.php';
 
 class LoginModel
 {
@@ -78,7 +79,8 @@ class LoginModel
                     password_hash,
                     must_change_password,
                     temporary_password_expires_at,
-                    banned_until
+                    banned_until,
+                    login_disabled_reason
                 FROM user_type
                 WHERE work_email = :work_email
                   AND role = :role
@@ -98,6 +100,7 @@ class LoginModel
              * Do not reveal whether the email exists.
              */
             if (!$user || !password_verify($password, $user['password_hash'])) {
+                AuditLogModel::record($pdo, null, 'auth.login_failed', 'user', null, ['role' => $role]);
                 return [
                     'success' => false,
                     'message' => 'Invalid email or password.'
@@ -105,9 +108,14 @@ class LoginModel
             }
 
             if ($user['banned_until'] !== null && strtotime($user['banned_until']) > time()) {
+                AuditLogModel::record($pdo, null, 'auth.login_failed', 'user', null, ['role' => $role, 'reason' => 'disabled']);
+                $reason = trim((string) ($user['login_disabled_reason'] ?? ''));
                 return [
                     'success' => false,
-                    'message' => 'Your account is suspended until ' . $user['banned_until'] . '. Contact an administrator for help.'
+                    'message' => $reason !== ''
+                        ? 'Your login has been disabled. Reason: ' . $reason
+                        : 'Your account is suspended until ' . $user['banned_until']
+                            . '. Contact an administrator for help.'
                 ];
             }
 
@@ -118,6 +126,7 @@ class LoginModel
                     strtotime($user['temporary_password_expires_at']) < time()
                 )
             ) {
+                AuditLogModel::record($pdo, null, 'auth.login_failed', 'user', null, ['role' => $role, 'reason' => 'temporary_password_expired']);
                 return [
                     'success' => false,
                     'message' => 'Your temporary password has expired. Request a new one.'
@@ -126,6 +135,9 @@ class LoginModel
 
             $loginUpdate = $pdo->prepare('UPDATE user_type SET last_login_at = NOW() WHERE id = :id');
             $loginUpdate->execute([':id' => $user['id']]);
+            AuditLogModel::record($pdo, (int) $user['id'], 'auth.login_success', 'user', (string) $user['id'], [
+                'role' => $role,
+            ]);
 
             /*
              * Upgrade password hash if PHP's recommended
@@ -219,12 +231,19 @@ class LoginModel
 
         $userId = (int) ($_SESSION['user_id'] ?? 0);
         if ($userId > 0) {
+            $pdo = null;
             try {
                 $pdo = Database::connection();
                 $logoutUpdate = $pdo->prepare('UPDATE user_type SET last_login_at = NULL WHERE id = :id');
                 $logoutUpdate->execute([':id' => $userId]);
             } catch (Throwable $e) {
                 error_log('Logout presence update failed: ' . $e->getMessage());
+            }
+            try {
+                $pdo ??= Database::connection();
+                AuditLogModel::record($pdo, $userId, 'auth.logout', 'user', (string) $userId);
+            } catch (Throwable $e) {
+                error_log('Logout audit logging failed: ' . $e->getMessage());
             }
         }
 
@@ -330,6 +349,7 @@ class LoginModel
                 ];
             }
 
+            AuditLogModel::record($pdo, (int) $user['id'], 'password.reset_requested', 'user', (string) $user['id']);
             $pdo->commit();
 
             return ['success' => true, 'message' => $genericMessage];
@@ -370,6 +390,7 @@ class LoginModel
                 ':password_hash' => password_hash($password, PASSWORD_DEFAULT),
                 ':id' => $userId
             ]);
+            AuditLogModel::record($pdo, $userId, 'password.changed', 'user', (string) $userId);
 
             if (session_status() === PHP_SESSION_NONE) {
                 startApplicationSession();
@@ -385,7 +406,7 @@ class LoginModel
     }
 
 
-    private static function generateTemporaryPassword(): string
+    public static function generateTemporaryPassword(): string
     {
         $alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%';
         $password = ['A', 'a', '!'];

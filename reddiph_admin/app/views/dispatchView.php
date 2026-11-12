@@ -48,30 +48,28 @@
         <a href="staffschedController.php" class="incomingdispatch-nav-item" id="incomingdispatch-nav-schedule">
           Staff Schedule
         </a>
-        <a href="resourcesController.php" class="incomingdispatch-nav-item" id="incomingdispatch-nav-resources">
-          Resources
-        </a>
+        <details class="admin-resources-menu">
+          <summary class="incomingdispatch-nav-item" id="incomingdispatch-nav-resources">Resources</summary>
+          <div class="admin-resources-subnav">
+            <a href="resourcesController.php?section=bed-capacity">Bed Capacity</a>
+            <a href="resourcesController.php?section=ambulance">Ambulance</a>
+            <a href="resourcesController.php?section=ptv">PTV</a>
+          </div>
+        </details>
         <a href="hospitalnetworkController.php" class="incomingdispatch-nav-item" id="incomingdispatch-nav-network">
           Referral
         </a>
-        <a href="analyticsController.php" class="incomingdispatch-nav-item" id="incomingdispatch-nav-analytics">
-          Analytics
-        </a>
         <a href="demographicsController.php" class="incomingdispatch-nav-item" id="incomingdispatch-nav-logs">
           Logs &amp; Demographics
+        </a>
+        <a href="manageAccountsController.php" class="incomingdispatch-nav-item" id="incomingdispatch-nav-manage-accounts">
+          Manage Accounts
         </a>
         <a href="settingsController.php" class="incomingdispatch-nav-item" id="incomingdispatch-nav-settings">
           Settings
         </a>
       </nav>
 
-      <div class="incomingdispatch-system-status" id="incomingdispatch-system-status">
-        <span class="incomingdispatch-system-status-icon">!</span>
-        <div>
-          <p class="incomingdispatch-system-status-title">System Status</p>
-          <p class="incomingdispatch-system-status-sub">All systems operational.</p>
-        </div>
-      </div>
     </aside>
 
     <!-- ===================== MAIN CONTENT ===================== -->
@@ -107,6 +105,7 @@
                       <?= $notification['patientAge'] !== null ? ', ' . (int) $notification['patientAge'] : '' ?>
                     <?php endif; ?></small><br>
                   <small><?= htmlspecialchars($notification['barangay']) ?> ·
+                    Category: <?= htmlspecialchars($notification['triageCategoryLabel'] ?? 'Unclassified') ?> ·
                     <?= htmlspecialchars($notification['status']) ?> ·
                     <?= htmlspecialchars($notification['vehicleName']) ?> ·
                     <?= htmlspecialchars($notification['driverName']) ?></small>
@@ -179,6 +178,7 @@
                 <th>Patient</th>
                 <th>Barangay</th>
                 <th>Dispatch purpose</th>
+                <th>Category</th>
                 <th>Vehicle</th>
                 <th>Driver</th>
                 <th>Status</th>
@@ -187,7 +187,7 @@
             <tbody id="incomingdispatch-active-list">
               <?php if (empty($activeDispatches)): ?>
                 <tr>
-                  <td colspan="6" class="incomingdispatch-dispatch-table-empty">No active dispatches</td>
+                  <td colspan="7" class="incomingdispatch-dispatch-table-empty">No active dispatches</td>
                 </tr>
               <?php else: ?>
                 <?php foreach ($activeDispatches as $dispatch): ?>
@@ -200,6 +200,7 @@
                     </td>
                     <td><?= htmlspecialchars($dispatch['barangay']) ?></td>
                     <td><?= htmlspecialchars($dispatch['dispatchPurpose']) ?></td>
+                    <td><?= htmlspecialchars($dispatch['triageCategoryLabel'] ?? 'Unclassified') ?></td>
                     <td>
                       <?= htmlspecialchars($dispatch['vehicleName']) ?><small><?= htmlspecialchars($dispatch['transportType']) ?></small>
                     </td>

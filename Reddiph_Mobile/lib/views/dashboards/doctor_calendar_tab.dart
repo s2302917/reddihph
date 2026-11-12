@@ -5,6 +5,7 @@ import '../../core/theme.dart';
 import '../../models/doctor_portal.dart';
 import '../../services/mobile_api_client.dart';
 import '../widgets/doctor_widgets.dart';
+import '../widgets/schedule_editor_dialog.dart';
 
 class DoctorCalendarTab extends StatefulWidget {
   const DoctorCalendarTab({super.key});
@@ -44,8 +45,7 @@ class _DoctorCalendarTabState extends State<DoctorCalendarTab> {
     _load();
   }
 
-  String get _monthKey =>
-      '${_month.year.toString().padLeft(4, '0')}-'
+  String get _monthKey => '${_month.year.toString().padLeft(4, '0')}-'
       '${_month.month.toString().padLeft(2, '0')}';
 
   Future<void> _load() async {
@@ -211,8 +211,8 @@ class _DoctorCalendarTabState extends State<DoctorCalendarTab> {
             for (final shift in selected) _shiftCard(shift),
           OutlinedButton.icon(
             onPressed: () => _editShift(),
-            icon: const Icon(Icons.add, size: 16),
-            label: const Text('ADD SHIFT',
+            icon: const Icon(Icons.edit_calendar_outlined, size: 16),
+            label: const Text('TYPE DATE',
                 style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800)),
           ),
         ],
@@ -315,109 +315,41 @@ class _DoctorCalendarTabState extends State<DoctorCalendarTab> {
   Future<void> _editShift([DoctorScheduleEntry? shift]) async {
     final token = AuthController.I.user?['token'] as String?;
     if (token == null) {
-      setState(() => _error = 'Your session has expired. Please sign in again.');
+      setState(
+          () => _error = 'Your session has expired. Please sign in again.');
       return;
     }
-    final type = ValueNotifier<String>(shift?.type ?? 'morning');
-    var start = _parseTime(shift?.start) ?? const TimeOfDay(hour: 6, minute: 0);
-    var end = _parseTime(shift?.end) ?? const TimeOfDay(hour: 14, minute: 0);
-
-    final saved = await showDialog<bool>(
+    final initialDate = shift?.date ?? _selectedDate;
+    final draft = await showScheduleEditorDialog(
       context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, updateDialog) => AlertDialog(
-          title: Text(shift == null ? 'Add shift' : 'Edit shift'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ValueListenableBuilder<String>(
-                valueListenable: type,
-                builder: (context, value, _) => DropdownButtonFormField<String>(
-                  initialValue: value,
-                  decoration: const InputDecoration(labelText: 'Shift type'),
-                  items: const [
-                    DropdownMenuItem(value: 'morning', child: Text('Morning')),
-                    DropdownMenuItem(value: 'evening', child: Text('Evening')),
-                    DropdownMenuItem(value: 'oncall', child: Text('On-call')),
-                    DropdownMenuItem(value: 'leave', child: Text('Leave')),
-                  ],
-                  onChanged: (value) {
-                    if (value != null) type.value = value;
-                  },
-                ),
-              ),
-              ValueListenableBuilder<String>(
-                valueListenable: type,
-                builder: (context, value, _) {
-                  if (value == 'leave' || value == 'oncall') {
-                    return const SizedBox.shrink();
-                  }
-                  return Column(
-                    children: [
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text('Starts', style: TextStyle(fontSize: 13)),
-                        trailing: Text(start.format(context)),
-                        onTap: () async {
-                          final value = await showTimePicker(
-                            context: dialogContext,
-                            initialTime: start,
-                          );
-                          if (value != null) {
-                            updateDialog(() => start = value);
-                          }
-                        },
-                      ),
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text('Ends', style: TextStyle(fontSize: 13)),
-                        trailing: Text(end.format(context)),
-                        onTap: () async {
-                          final value = await showTimePicker(
-                            context: dialogContext,
-                            initialTime: end,
-                          );
-                          if (value != null) {
-                            updateDialog(() => end = value);
-                          }
-                        },
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('Save'),
-            ),
-          ],
-        ),
-      ),
+      initialDate: initialDate,
+      typeOptions: const {
+        'morning': 'Morning shift',
+        'evening': 'Evening shift',
+        'oncall': 'On-call',
+        'leave': 'Off / Leave',
+      },
+      initialType: shift?.type ?? 'morning',
+      initialStart: shift?.start.isNotEmpty == true ? shift!.start : '06:00',
+      initialEnd: shift?.end.isNotEmpty == true ? shift!.end : '14:00',
+      editing: shift != null,
     );
-    final selectedType = type.value;
-    type.dispose();
-    if (saved != true || !mounted) return;
+    if (draft == null || !mounted) return;
 
     try {
       await MobileApiClient.I.saveDoctorSchedule(
         token: token,
         scheduleId: shift?.id,
-        date: _selectedDate,
-        type: selectedType,
-        start: selectedType == 'leave' || selectedType == 'oncall'
-            ? ''
-            : _formatTime(start),
-        end: selectedType == 'leave' || selectedType == 'oncall'
-            ? ''
-            : _formatTime(end),
+        date: draft.dates.first,
+        dates: draft.dates,
+        type: draft.type,
+        start: draft.start,
+        end: draft.end,
       );
+      setState(() {
+        _month = DateTime(draft.dates.first.year, draft.dates.first.month);
+        _selectedDate = draft.dates.first;
+      });
       await _load();
     } on MobileApiException catch (error) {
       if (mounted) setState(() => _error = error.message);
@@ -445,7 +377,8 @@ class _DoctorCalendarTabState extends State<DoctorCalendarTab> {
     if (confirmed != true || !mounted) return;
     final token = AuthController.I.user?['token'] as String?;
     if (token == null) {
-      setState(() => _error = 'Your session has expired. Please sign in again.');
+      setState(
+          () => _error = 'Your session has expired. Please sign in again.');
       return;
     }
     try {
@@ -458,18 +391,4 @@ class _DoctorCalendarTabState extends State<DoctorCalendarTab> {
       if (mounted) setState(() => _error = error.message);
     }
   }
-
-  TimeOfDay? _parseTime(String? value) {
-    if (value == null || value.isEmpty) return null;
-    final parts = value.split(':');
-    if (parts.length < 2) return null;
-    final hour = int.tryParse(parts[0]);
-    final minute = int.tryParse(parts[1]);
-    if (hour == null || minute == null) return null;
-    return TimeOfDay(hour: hour, minute: minute);
-  }
-
-  String _formatTime(TimeOfDay time) =>
-      '${time.hour.toString().padLeft(2, '0')}:'
-      '${time.minute.toString().padLeft(2, '0')}';
 }

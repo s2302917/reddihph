@@ -219,8 +219,7 @@ class _DoctorReportsTabState extends State<DoctorReportsTab> {
                                 mainAxisAlignment: MainAxisAlignment.end,
                                 children: [
                                   AnimatedContainer(
-                                    duration:
-                                        const Duration(milliseconds: 220),
+                                    duration: const Duration(milliseconds: 220),
                                     height: 20 +
                                         (history.weeklyCounts[index] /
                                                 maxCount) *
@@ -250,7 +249,7 @@ class _DoctorReportsTabState extends State<DoctorReportsTab> {
           const SizedBox(height: 12),
           Row(
             children: [
-              _stat('${history.critical}', 'Critical cases', kSos),
+              _stat('${history.emergent}', 'Emergent cases', kSos),
               const SizedBox(width: 10),
               _stat(
                 history.averageMinutes == null
@@ -274,7 +273,9 @@ class _DoctorReportsTabState extends State<DoctorReportsTab> {
             DCard(
               Column(
                 children: [
-                  for (int index = 0; index < history.cases.length; index++) ...[
+                  for (int index = 0;
+                      index < history.cases.length;
+                      index++) ...[
                     if (index > 0) const Divider(height: 1),
                     InkWell(
                       onTap: () => Nav.push(
@@ -351,8 +352,7 @@ class _DoctorReportsTabState extends State<DoctorReportsTab> {
                       fontSize: 20, fontWeight: FontWeight.w900, color: color)),
               const SizedBox(height: 2),
               Text(label,
-                  style:
-                      const TextStyle(fontSize: 9, color: Colors.black54)),
+                  style: const TextStyle(fontSize: 9, color: Colors.black54)),
             ],
           ),
         ),

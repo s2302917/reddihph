@@ -25,8 +25,8 @@ class DoctorNotifiedCasesController
         $_SESSION['doctor_duty_csrf_token'] ??= bin2hex(random_bytes(32));
         $_SESSION['profile_image'] = $doctor['profile_image'] ?? null;
 
-        $summary = DoctorNotifiedCasesModel::summary($this->doctorId());
         $cases = DoctorNotifiedCasesModel::cases($this->doctorId());
+        $summary = DoctorNotifiedCasesModel::summary($this->doctorId(), $cases);
         $pendingAlerts = DoctorNotifiedCasesModel::pendingAlerts($this->doctorId());
 
         require __DIR__ . '/../views/DoctorNotifiedCasesView.php';
@@ -68,11 +68,12 @@ class DoctorNotifiedCasesController
         header('Content-Type: application/json; charset=utf-8');
 
         try {
+            $cases = DoctorNotifiedCasesModel::cases($this->doctorId());
             $this->jsonResponse([
                 'success' => true,
                 'alerts' => DoctorNotifiedCasesModel::pendingAlerts($this->doctorId()),
-                'cases' => DoctorNotifiedCasesModel::cases($this->doctorId()),
-                'summary' => DoctorNotifiedCasesModel::summary($this->doctorId()),
+                'cases' => $cases,
+                'summary' => DoctorNotifiedCasesModel::summary($this->doctorId(), $cases),
             ]);
         } catch (Throwable $exception) {
             error_log('[DoctorNotifiedCasesController] Pending alerts could not be loaded: ' . $exception->getMessage());
@@ -98,8 +99,27 @@ class DoctorNotifiedCasesController
         }
 
         try {
-            if (!DoctorNotifiedCasesModel::acknowledgeAlert($this->doctorId(), $alertId)) {
-                $this->jsonResponse(['success' => false, 'message' => 'This alert is no longer pending. Refresh the page to continue.'], 409);
+            $outcome = DoctorNotifiedCasesModel::acknowledgeAlert($this->doctorId(), $alertId);
+            if ($outcome === 'already_processed') {
+                $this->jsonResponse([
+                    'success' => false,
+                    'code' => 'already_processed',
+                    'message' => 'This alert has already been processed. Refresh alerts to continue.',
+                ], 409);
+            }
+            if ($outcome === 'not_found') {
+                $this->jsonResponse([
+                    'success' => false,
+                    'code' => 'not_found',
+                    'message' => 'This alert was not found or is not assigned to your account.',
+                ], 404);
+            }
+            if ($outcome !== 'acknowledged') {
+                $this->jsonResponse([
+                    'success' => false,
+                    'code' => 'processing_failed',
+                    'message' => 'The alert is still pending but could not be processed. Please try again.',
+                ], 500);
             }
             $this->jsonResponse(['success' => true]);
         } catch (Throwable $exception) {

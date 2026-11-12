@@ -8,36 +8,32 @@ import 'package:latlong2/latlong.dart';
 import 'package:reddiph/controllers/auth_controller.dart';
 import 'package:reddiph/models/responder_dashboard.dart';
 import 'package:reddiph/services/mobile_api_client.dart';
-import 'package:reddiph/views/screens/incident_arrival_screen.dart';
 import 'package:reddiph/views/screens/report_next_screen.dart';
+import 'package:reddiph/views/screens/responder_sos_incident_details_screen.dart';
 
 void main() {
-  testWidgets('real emergency opens incident details, then prefills patient',
+  testWidgets('sent incident details flow prefills patient for review',
       (tester) async {
     await tester.binding.setSurfaceSize(const Size(390, 844));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     AuthController.I.user = {'token': 'test-token'};
     addTearDown(AuthController.I.logout);
 
-    late Map<String, dynamic> action;
     final apiClient = MobileApiClient(
       baseUrl: 'https://example.test/Reddiph_mobile_api/',
-      client: MockClient((request) async {
-        expect(request.url.path, endsWith('api/responder/incident_action.php'));
-        action = jsonDecode(request.body) as Map<String, dynamic>;
-        return http.Response(
-          jsonEncode({'success': true, 'incident_type': 'Medical'}),
-          200,
-        );
-      }),
+      client: MockClient((_) async => http.Response(
+            jsonEncode({'success': true}),
+            200,
+          )),
     );
     const incident = ResponderIncident(
       id: 52,
       type: 'SOS emergency alert',
-      status: 'critical',
+      status: 'open',
       location: 'Batuan',
       minutesAgo: 1,
       reportedBy: 'resident_sos',
+      triageCategory: 'emergent',
       patientName: 'Jamie Cruz',
       patientAge: 29,
       patientGender: 'female',
@@ -46,26 +42,26 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
-        home: IncidentArrivalScreen(
+        home: ResponderSosIncidentDetailsScreen(
           incidentId: incident.id,
           incidentType: incident.type,
+          triageCategory: incident.triageCategory,
           location: incident.location,
-          incidentPoint: incident.point,
+          point: incident.point!,
           incident: incident,
+          alreadySentToHospital: true,
           apiClient: apiClient,
         ),
       ),
     );
-    await tester.tap(find.text('REAL EMERGENCY'));
-    await tester.pumpAndSettle();
 
-    expect(find.text('Incident details'), findsOneWidget);
+    expect(find.text('Update incident details'), findsOneWidget);
     expect(find.text('Patient details'), findsNothing);
     expect(find.text('SOS emergency alert'), findsNothing);
     for (final type in ['Vehicular', 'Fall', 'Medical', 'Fire', 'Other']) {
       expect(find.widgetWithText(ChoiceChip, type), findsOneWidget);
     }
-    for (final condition in ['Critical', 'Urgent', 'Stable']) {
+    for (final condition in ['Emergent', 'Urgent', 'Non-Urgent', 'Expectant']) {
       expect(find.widgetWithText(ChoiceChip, condition), findsOneWidget);
     }
 
@@ -76,9 +72,6 @@ void main() {
     await tester.tap(find.text('CONTINUE TO PATIENT DETAILS'));
     await tester.pumpAndSettle();
 
-    expect(action['incident_id'], incident.id);
-    expect(action['action'], 'update_incident_type');
-    expect(action['incident_type'], 'Electrical burn');
     expect(find.byType(ReportNextScreen), findsOneWidget);
     expect(find.text('Patient details'), findsOneWidget);
     expect(
@@ -101,9 +94,9 @@ void main() {
     await tester.tap(find.text('NEXT'));
     await tester.pumpAndSettle();
     expect(find.text('Confirm patient details'), findsOneWidget);
-    expect(find.text('SEND TO HOSPITAL'), findsOneWidget);
+    expect(find.text('SEND UPDATED INCIDENT DETAILS'), findsOneWidget);
     expect(find.text('SAVE TO THIS INCIDENT'), findsNothing);
-    expect(find.text('URGENT'), findsOneWidget);
+    expect(find.text('Urgent'), findsOneWidget);
     expect(find.text('Jamie Cruz, 29'), findsOneWidget);
     expect(find.text('Female'), findsOneWidget);
     expect(tester.takeException(), isNull);

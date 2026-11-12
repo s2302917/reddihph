@@ -24,19 +24,19 @@
                 <a href="livemappingController.php" class="emergency_alert_nav_item" id="emergency_alert_nav_mapping"><span>Live Mapping</span></a>
                 <a href="emergency_alertController.php" class="emergency_alert_nav_item" id="emergency_alert_nav_alerts"><span>Emergency Cases</span></a>
                 <a href="staffschedController.php" class="emergency_alert_nav_item" id="emergency_alert_nav_schedule"><span>Staff Schedule</span></a>
-                <a href="resourcesController.php" class="emergency_alert_nav_item" id="emergency_alert_nav_resources"><span>Resources</span></a>
+                <details class="admin-resources-menu">
+                    <summary class="emergency_alert_nav_item" id="emergency_alert_nav_resources"><span>Resources</span></summary>
+                    <div class="admin-resources-subnav">
+                        <a href="resourcesController.php?section=bed-capacity">Bed Capacity</a>
+                        <a href="resourcesController.php?section=ambulance">Ambulance</a>
+                        <a href="resourcesController.php?section=ptv">PTV</a>
+                    </div>
+                </details>
                 <a href="hospitalnetworkController.php" class="emergency_alert_nav_item emergency_alert_nav_item_active" id="emergency_alert_nav_network"><span>Referral</span></a>
-                <a href="analyticsController.php" class="emergency_alert_nav_item" id="emergency_alert_nav_analytics"><span>Analytics</span></a>
                 <a href="demographicsController.php" class="emergency_alert_nav_item" id="emergency_alert_nav_logs"><span>Logs &amp; Demographics</span></a>
+                <a href="manageAccountsController.php" class="emergency_alert_nav_item" id="emergency_alert_nav_manage_accounts"><span>Manage Accounts</span></a>
                 <a href="settingsController.php" class="emergency_alert_nav_item" id="emergency_alert_nav_settings"><span>Settings</span></a>
             </nav>
-            <div class="emergency_alert_system_status" id="emergency_alert_system_status">
-                <span class="emergency_alert_system_status_icon" aria-hidden="true">!</span>
-                <div>
-                    <p class="emergency_alert_system_status_title">System Status</p>
-                    <p class="emergency_alert_system_status_sub">All systems operational.</p>
-                </div>
-            </div>
         </aside>
         <main class="emergency_alert_main hospitalnetwork-main" id="emergency_alert_main">
             <header class="emergency_alert_header hospitalnetwork-header" id="emergency_alert_header">
@@ -46,11 +46,6 @@
                     <p class="emergency_alert_subtitle">Partner hospitals and referral coordination</p>
                 </div>
                 <div class="emergency_alert_header_controls" id="emergency_alert_header_controls">
-                    <label class="emergency_alert_search" id="emergency_alert_search_wrap">
-                        <span class="emergency_alert_search_icon" aria-hidden="true">⌕</span>
-                        <input type="search" id="hospitalnetwork-search-input" class="emergency_alert_search_input"
-                            placeholder="Search hospitals..." aria-label="Search hospitals" autocomplete="off">
-                    </label>
                     <div class="emergency_alert_notification_wrap">
                         <button type="button" class="emergency_alert_bell" id="hospitalnetwork-bell-btn"
                             aria-label="Recently added hospitals" aria-expanded="false" aria-controls="hospitalnetwork-notification-panel">
@@ -86,6 +81,13 @@
                     </button>
                 </div>
             </header>
+            <div class="hospitalnetwork-toolbar">
+                <label class="emergency_alert_search" id="emergency_alert_search_wrap">
+                    <span class="emergency_alert_search_icon" aria-hidden="true">⌕</span>
+                    <input type="search" id="hospitalnetwork-search-input" class="emergency_alert_search_input"
+                        placeholder="Search hospitals..." aria-label="Search hospitals" autocomplete="off">
+                </label>
+            </div>
             <section class="hospitalnetwork-grid" id="hospitalnetwork-grid" aria-label="Partner hospitals">
                 <?php foreach ($hospitals as $hospital): ?>
                     <?php $hospitalSpecialties = array_filter(array_map('trim', explode(',', (string) ($hospital['specialties'] ?? '')))); ?>
@@ -114,6 +116,56 @@
                     </article>
                 <?php endforeach; ?>
             </section>
+            <section class="hospitalnetwork-referral-history" aria-labelledby="hospitalnetwork-referral-history-title">
+                <header>
+                    <div>
+                        <h2 id="hospitalnetwork-referral-history-title">Referral History</h2>
+                        <p>Recent referrals sent by or received at this hospital.</p>
+                    </div>
+                </header>
+                <?php if ($referralHistory): ?>
+                    <div class="hospitalnetwork-referral-history-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Incident / Patient</th>
+                                    <th>Referring Hospital</th>
+                                    <th>Receiving Hospital</th>
+                                    <th>Reason</th>
+                                    <th>Status</th>
+                                    <th>Referred At</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($referralHistory as $historyItem): ?>
+                                    <tr>
+                                        <td>
+                                            <a href="referralstatusController.php?id=<?= (int) $historyItem['id'] ?>">
+                                                #<?= (int) $historyItem['incident_id'] ?>
+                                                · <?= htmlspecialchars((string) ($historyItem['patient_name'] ?: 'Patient details unavailable')) ?>
+                                            </a>
+                                            <small><?= htmlspecialchars((string) $historyItem['incident_type']) ?>
+                                                <?php if ($historyItem['patient_age'] !== null): ?>
+                                                    · Age <?= (int) $historyItem['patient_age'] ?>
+                                                <?php endif; ?>
+                                            </small>
+                                        </td>
+                                        <td><?= htmlspecialchars((string) $historyItem['sending_hospital']) ?></td>
+                                        <td><?= htmlspecialchars((string) $historyItem['receiving_hospital']) ?></td>
+                                        <td><?= htmlspecialchars((string) $historyItem['referral_reason']) ?></td>
+                                        <td><span class="hospitalnetwork-referral-status hospitalnetwork-referral-status--<?= htmlspecialchars((string) $historyItem['status']) ?>">
+                                            <?= htmlspecialchars(ucfirst((string) $historyItem['status'])) ?>
+                                        </span></td>
+                                        <td><?= htmlspecialchars((string) $historyItem['created_at']) ?></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                <?php else: ?>
+                    <p class="hospitalnetwork-referral-history-empty">No referral records are available for this hospital.</p>
+                <?php endif; ?>
+            </section>
         </main>
     </div>
     <div class="hospitalnetwork-modal" id="hospitalnetwork-modal" aria-hidden="true" role="dialog" aria-modal="true">
@@ -125,6 +177,7 @@
             </header>
             <form id="hospitalnetwork-referral-form" method="post" action="hospitalnetworkController.php">
                 <input type="hidden" name="action" value="refer">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($referralCsrf) ?>">
                 <label class="hospitalnetwork-modal-label" for="hospitalnetwork-hospital-id">Receiving hospital</label>
                 <select class="hospitalnetwork-incident-select hospitalnetwork-hospital-select" id="hospitalnetwork-hospital-id" name="hospital_id" required>
                     <option value="" selected disabled>Select a hospital</option>
@@ -147,10 +200,11 @@
                     <option value="" disabled <?= !$requestedIncidentId ? 'selected' : '' ?>>Select an incident</option>
                     <?php foreach ($incidents as $incident): ?>
                         <?php
-                        $incidentSearchText = '#' . $incident['incident_id'] . ' ' . $incident['incident_type'] . ' ' . ($incident['patient_name'] ?? '') . ' ' . ($incident['location'] ?? '') . ' ' . ($incident['resident_name'] ?? '') . ' ' . ($incident['responder_name'] ?? '');
+                        $incidentSearchText = '#' . $incident['incident_id'] . ' ' . $incident['incident_type'] . ' ' . ($incident['patient_name'] ?? '') . ' ' . ($incident['location'] ?? '') . ' ' . ($incident['resident_name'] ?? '') . ' ' . ($incident['responder_name'] ?? '') . ' ' . $incident['triage_category_label'];
                         $incidentLabel = '#' . $incident['incident_id'] . ' · ' . $incident['incident_type']
                             . (!empty($incident['patient_name']) ? ' · ' . $incident['patient_name'] : '')
-                            . (!empty($incident['resident_name']) ? ' · Resident: ' . $incident['resident_name'] : '');
+                            . (!empty($incident['resident_name']) ? ' · Resident: ' . $incident['resident_name'] : '')
+                            . ' · Category: ' . $incident['triage_category_label'];
                         ?>
                         <option value="<?= (int) $incident['incident_id'] ?>"
                             data-search="<?= htmlspecialchars(strtolower($incidentSearchText)) ?>"
@@ -172,7 +226,8 @@
                 <p id="hospitalnetwork-referral-success-patient"></p>
                 <dl>
                     <div><dt>Receiving hospital</dt><dd id="hospitalnetwork-referral-success-destination"></dd></div>
-                    <div><dt>Status</dt><dd id="hospitalnetwork-referral-success-status"></dd></div>
+                    <div><dt>Referral status</dt><dd id="hospitalnetwork-referral-success-status"></dd></div>
+                    <div><dt>Incident workflow</dt><dd id="hospitalnetwork-referral-success-incident-status"></dd></div>
                     <div><dt>Reason</dt><dd id="hospitalnetwork-referral-success-reason"></dd></div>
                 </dl>
                 <a class="hospitalnetwork-map-link" id="hospitalnetwork-referral-map-link" href="livemappingController.php">View patient on Live Map</a>

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../models/responder_dashboard.dart';
+import '../models/triage_category.dart';
 import '../services/location_service.dart';
 import '../services/mobile_api_client.dart';
 import 'auth_controller.dart';
@@ -15,7 +16,10 @@ class ResponderQueueController extends ChangeNotifier {
       : _client = client ?? MobileApiClient.I;
 
   static const refreshEvery = Duration(seconds: 1);
-  static const filters = ['all', 'critical', 'urgent', 'stable'];
+  static final filters = [
+    'all',
+    for (final category in EmergencyCategory.values) category.value,
+  ];
 
   final MobileApiClient _client;
   Timer? _timer;
@@ -41,7 +45,7 @@ class ResponderQueueController extends ChangeNotifier {
     try {
       final result = await _client.responderQueue(
         token: AuthController.I.user?['token'] as String? ?? '',
-        status: filter,
+        triageCategory: filter,
         page: page,
         latitude: _position?.latitude,
         longitude: _position?.longitude,

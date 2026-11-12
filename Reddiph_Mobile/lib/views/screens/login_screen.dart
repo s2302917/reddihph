@@ -169,19 +169,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             ),
             const SizedBox(height: 12),
-            if (widget.role.name == 'Barangay Admin')
-              GestureDetector(
-                onTap: () => Nav.push(context, SignUpScreen(role: widget.role)),
-                child: Text(
-                  'New here? Create a Barangay Admin account.',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: widget.role.color,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              )
-            else if (widget.role.name == 'Responder')
+            if (widget.role.name == 'Responder')
               GestureDetector(
                 onTap: () => Nav.push(
                   context,
@@ -195,7 +183,9 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
               )
-            else
+            else if (widget.role.name != 'Barangay Admin' &&
+                widget.role.name != 'Doctor' &&
+                widget.role.name != 'Nurse')
               GestureDetector(
                 onTap: () => Nav.push(context, SignUpScreen(role: widget.role)),
                 child: Text(

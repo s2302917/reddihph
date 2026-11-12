@@ -7,12 +7,12 @@ require_once __DIR__ . '/../models/DispatchModel.php';
 require_once __DIR__ . '/../models/IncidentModel.php';
 require_once __DIR__ . '/../models/ResponderDashboardModel.php';
 require_once __DIR__ . '/../models/ResponderIncidentWorkflowModel.php';
+require_once __DIR__ . '/../services/IncidentTriageCategory.php';
 require_once __DIR__ . '/../services/TokenService.php';
 
 /** Creates an incident report from the responder Incoming page. */
 final class ResponderReportController extends ApiController
 {
-    private const STATUSES = ['critical', 'urgent', 'stable'];
     private const REPORTERS = ['on_scene', 'resident_sos'];
 
     public static function preview(): void
@@ -91,9 +91,10 @@ final class ResponderReportController extends ApiController
         if ($type === '' || strlen($type) > 120) {
             self::respond(422, ['success' => false, 'message' => 'Choose an incident type or enter a specific type.']);
         }
-        $status = (string) ($data['status'] ?? '');
+        $triageCategory = (string) ($data['triage_category'] ?? '');
         $reportedBy = (string) ($data['reported_by'] ?? '');
-        if (!in_array($status, self::STATUSES, true) || !in_array($reportedBy, self::REPORTERS, true)) {
+        if (!IncidentTriageCategory::isValid($triageCategory)
+            || !in_array($reportedBy, self::REPORTERS, true)) {
             self::respond(422, ['success' => false, 'message' => 'Choose a valid condition and reporter.']);
         }
 
@@ -161,7 +162,7 @@ final class ResponderReportController extends ApiController
             $report = [
                 'incident_type' => $type,
                 'reported_by' => $reportedBy,
-                'status' => $status,
+                'triage_category' => $triageCategory,
                 'location' => $location,
                 'barangay_id' => $profile['barangay_id'] ?? ($barangay['id'] ?? null),
                 'hospital_id' => $hospital['id'] ?? $profile['hospital_id'],

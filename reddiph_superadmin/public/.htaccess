@@ -1,1 +1,5 @@
-DirectoryIndex index.php
+Options -Indexes
+
+<FilesMatch "^\.">
+  Require all denied
+</FilesMatch>

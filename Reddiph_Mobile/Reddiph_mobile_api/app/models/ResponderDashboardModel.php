@@ -13,9 +13,10 @@ final class ResponderDashboardModel
 {
     public const PAGE_SIZE = 5;
     private const MAP_LIMIT = 200;
+    private static array $columnCache = [];
 
-    private const OPEN_STATUSES = "'critical', 'urgent', 'stable', 'dispatched'";
-    private const INCIDENT_COLUMNS = 'i.incident_id, i.incident_type, i.status, i.location, i.latitude, i.longitude,
+    private const OPEN_STATUSES = "'open', 'dispatched', 'referred'";
+    private const INCIDENT_COLUMNS = 'i.incident_id, i.incident_type, i.status, i.triage_category, i.location, i.latitude, i.longitude,
         (i.hospital_sent_at IS NOT NULL) AS sent_to_hospital,
         i.reported_by, i.reporter_user_id, reporter.role AS reporter_role,
         COALESCE(
@@ -75,13 +76,70 @@ final class ResponderDashboardModel
         )->execute([$userId, $latitude, $longitude]);
     }
 
+    /** Counts distinct incidents dispatched to, or completed for, the responder in the current month. */
+    public static function monthlyCounts(int $userId): array
+    {
+        $pdo = Database::connection();
+        $monthStartDate = new DateTimeImmutable(
+            'first day of this month 00:00:00',
+            new DateTimeZone('Asia/Manila')
+        );
+        $monthStart = $monthStartDate->format('Y-m-d H:i:s');
+        $nextMonthStart = $monthStartDate->modify('+1 month')->format('Y-m-d H:i:s');
+        $assignmentRole = self::hasColumn($pdo, 'responder_alerts', 'assignment_role')
+            ? " AND ra.assignment_role = 'responder'"
+            : '';
+
+        $dispatchStmt = $pdo->prepare(
+            'SELECT COUNT(DISTINCT i.incident_id)
+             FROM incidents i
+             JOIN responder_alerts ra
+               ON ra.incident_id = i.incident_id
+              AND ra.responder_user_id = i.assigned_responder_user_id
+             WHERE i.assigned_responder_user_id = ?'
+            . $assignmentRole . '
+               AND ra.created_at >= ?
+               AND ra.created_at < ?'
+        );
+        $dispatchStmt->execute([$userId, $monthStart, $nextMonthStart]);
+
+        $arrivalStmt = $pdo->prepare(
+            'SELECT COUNT(DISTINCT incident_id)
+             FROM incidents
+             WHERE assigned_responder_user_id = ?
+               AND hospital_arrived_at IS NOT NULL
+               AND hospital_arrived_at >= ?
+               AND hospital_arrived_at < ?'
+        );
+        $arrivalStmt->execute([$userId, $monthStart, $nextMonthStart]);
+
+        return [
+            'dispatches' => (int) $dispatchStmt->fetchColumn(),
+            'hospital_arrivals' => (int) $arrivalStmt->fetchColumn(),
+        ];
+    }
+
+    private static function hasColumn(PDO $pdo, string $table, string $column): bool
+    {
+        $cacheKey = $table . '.' . $column;
+        if (!array_key_exists($cacheKey, self::$columnCache)) {
+            $statement = $pdo->prepare(
+                'SELECT COUNT(*) FROM information_schema.columns
+                 WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?'
+            );
+            $statement->execute([$table, $column]);
+            self::$columnCache[$cacheKey] = (int) $statement->fetchColumn() > 0;
+        }
+
+        return self::$columnCache[$cacheKey];
+    }
+
     /** The latest open incident assigned to the responder, or null. */
     public static function activeCase(
         int $responderUserId,
         string $responderName,
         ?int $hospitalId
-    ): ?array
-    {
+    ): ?array {
         $stmt = Database::connection()->prepare(
             'SELECT ' . self::INCIDENT_COLUMNS . '
              FROM incidents i
@@ -116,8 +174,7 @@ final class ResponderDashboardModel
         ?int $excludeIncidentId,
         int $responderUserId,
         int $page
-    ): array
-    {
+    ): array {
         if ($barangayId === null && $hospitalId === null) {
             return [[], 0];
         }
@@ -125,7 +182,7 @@ final class ResponderDashboardModel
         $pdo = Database::connection();
         $scope = $barangayId !== null
             ? '(i.barangay_id = :barangay_id OR
-                (i.hospital_id = :hospital_id AND i.status = \'dispatched\'))'
+                (i.hospital_id = :hospital_id AND i.status IN (\'dispatched\', \'referred\')))'
             : 'i.hospital_id = :hospital_id';
         $where = $scope . ' AND i.status IN (' . self::OPEN_STATUSES . ')
                   AND i.incident_id <> :exclude_id
@@ -168,11 +225,10 @@ final class ResponderDashboardModel
         ?int $hospitalId,
         int $responderUserId,
         string $responderName,
-        ?string $status,
+        ?string $triageCategory,
         int $page,
         int $size
-    ): array
-    {
+    ): array {
         [$scope, $params] = self::scope($barangayId, $hospitalId);
         if ($scope === null) {
             return [[], 0];
@@ -183,9 +239,9 @@ final class ResponderDashboardModel
                                   OR i.responder_name = :responder_name)))';
         $params['responder_user_id'] = $responderUserId;
         $params['responder_name'] = $responderName;
-        if ($status !== null) {
-            $scope .= ' AND i.status = :status';
-            $params['status'] = $status;
+        if ($triageCategory !== null) {
+            $scope .= ' AND i.triage_category = :triage_category';
+            $params['triage_category'] = $triageCategory;
         }
 
         $pdo = Database::connection();
@@ -216,8 +272,7 @@ final class ResponderDashboardModel
         ?int $hospitalId,
         int $responderUserId,
         string $responderName
-    ): array
-    {
+    ): array {
         $params = [
             'barangay_id' => $barangayId ?? 0,
             'hospital_id' => $hospitalId ?? 0,
@@ -245,15 +300,21 @@ final class ResponderDashboardModel
         return array_map([self::class, 'incidentRow'], $stmt->fetchAll());
     }
 
-    /** Incident counts per status for the same scope as incidents(), plus an 'all' total. */
-    public static function statusCounts(
+    /** Incident counts per emergency category for the same scope, plus an 'all' total. */
+    public static function categoryCounts(
         ?int $barangayId,
         ?int $hospitalId,
         int $responderUserId,
         string $responderName
-    ): array
-    {
-        $counts = ['all' => 0, 'critical' => 0, 'urgent' => 0, 'stable' => 0];
+    ): array {
+        $counts = [
+            'all' => 0,
+            'emergent' => 0,
+            'urgent' => 0,
+            'non_urgent' => 0,
+            'expectant' => 0,
+            'unclassified' => 0,
+        ];
         [$scope, $params] = self::scope($barangayId, $hospitalId);
         if ($scope === null) {
             return $counts;
@@ -265,12 +326,13 @@ final class ResponderDashboardModel
         $params['responder_user_id'] = $responderUserId;
         $params['responder_name'] = $responderName;
 
-        $stmt = Database::connection()->prepare("SELECT i.status, COUNT(*) AS total FROM incidents i WHERE {$scope} GROUP BY i.status");
+        $stmt = Database::connection()->prepare("SELECT i.triage_category, COUNT(*) AS total FROM incidents i WHERE {$scope} GROUP BY i.triage_category");
         $stmt->execute($params);
         foreach ($stmt->fetchAll() as $row) {
             $counts['all'] += (int) $row['total'];
-            if (isset($counts[$row['status']])) {
-                $counts[$row['status']] = (int) $row['total'];
+            $key = $row['triage_category'] ?? 'unclassified';
+            if (isset($counts[$key])) {
+                $counts[$key] = (int) $row['total'];
             }
         }
 

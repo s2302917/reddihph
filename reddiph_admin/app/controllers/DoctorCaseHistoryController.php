@@ -23,50 +23,14 @@ class DoctorCaseHistoryController
             http_response_code(404);
             exit('Doctor account not found.');
         }
-        $_SESSION['doctor_history_csrf_token'] ??= bin2hex(random_bytes(32));
         $visibleCases = DoctorCaseHistoryModel::history($doctorId, $filter);
-        $stats = DoctorCaseHistoryModel::stats($doctorId, $filter);
+        $stats = DoctorCaseHistoryModel::stats(
+            $doctorId,
+            $filter,
+            DoctorNotifiedCasesModel::activeCount($doctorId)
+        );
 
         require __DIR__ . '/../views/DoctorCaseHistoryView.php';
-    }
-
-    public function updateStatus(): void
-    {
-        header('Content-Type: application/json; charset=utf-8');
-
-        $token = (string) ($_POST['csrf_token'] ?? '');
-        if (
-            empty($_SESSION['doctor_history_csrf_token']) ||
-            !hash_equals((string) $_SESSION['doctor_history_csrf_token'], $token)
-        ) {
-            $this->jsonResponse(['success' => false, 'message' => 'Your session expired. Refresh the page and try again.'], 419);
-        }
-
-        $incidentId = filter_var($_POST['id'] ?? null, FILTER_VALIDATE_INT);
-        $status = strtolower(trim((string) ($_POST['status'] ?? '')));
-        if (
-            $incidentId === false || $incidentId === null || $incidentId <= 0 ||
-            !in_array($status, ['critical', 'stable', 'resolved'], true)
-        ) {
-            $this->jsonResponse(['success' => false, 'message' => 'Choose a valid incident and status.'], 422);
-        }
-
-        try {
-            $updated = DoctorCaseHistoryModel::updateStatus((int) $_SESSION['user_id'], $incidentId, $status);
-            if (!$updated) {
-                $this->jsonResponse(['success' => false, 'message' => 'This incident was not notified to your account or is no longer available.'], 404);
-            }
-            $this->jsonResponse(['success' => true, 'status' => $status]);
-        } catch (Throwable $exception) {
-            error_log(sprintf(
-                '[DoctorCaseHistoryController] Incident status update failed for user %d, incident %d, status %s: %s',
-                (int) $_SESSION['user_id'],
-                $incidentId,
-                $status,
-                $exception->getMessage()
-            ));
-            $this->jsonResponse(['success' => false, 'message' => 'Could not save the selected status.'], 500);
-        }
     }
 
     public function refresh(): void
@@ -80,10 +44,11 @@ class DoctorCaseHistoryController
 
         try {
             $doctorId = (int) $_SESSION['user_id'];
+            $activeNotifiedCount = DoctorNotifiedCasesModel::activeCount($doctorId);
             $this->jsonResponse([
                 'success' => true,
                 'cases' => DoctorCaseHistoryModel::history($doctorId, $filter),
-                'stats' => DoctorCaseHistoryModel::stats($doctorId, $filter),
+                'stats' => DoctorCaseHistoryModel::stats($doctorId, $filter, $activeNotifiedCount),
             ], 200);
         } catch (Throwable $exception) {
             error_log('[DoctorCaseHistoryController] Case-history refresh failed: ' . $exception->getMessage());
@@ -107,8 +72,6 @@ if (realpath($_SERVER['SCRIPT_FILENAME'] ?? '') === __FILE__) {
     $controller = new DoctorCaseHistoryController();
     if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'refresh') {
         $controller->refresh();
-    } elseif ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['action'] ?? '') === 'update_status') {
-        $controller->updateStatus();
     } else {
         $controller->index();
     }

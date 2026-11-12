@@ -11,6 +11,125 @@ import 'package:reddiph/views/screens/report_next_screen.dart';
 import 'package:reddiph/views/screens/volunteer_picker_screen.dart';
 
 void main() {
+  testWidgets('sent incidents send reviewed details without redispatching',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    AuthController.I.user = {'token': 'test-token'};
+    addTearDown(AuthController.I.logout);
+
+    final requests = <String>[];
+    late Map<String, dynamic> detailsAction;
+    late Map<String, dynamic> hospitalUpdate;
+    final apiClient = MobileApiClient(
+      baseUrl: 'https://example.test/Reddiph_mobile_api/',
+      client: MockClient((request) async {
+        requests.add(request.url.toString());
+        if (request.url.path.endsWith('api/responder/patient.php')) {
+          return http.Response(
+            jsonEncode({
+              'success': true,
+              'patient': {
+                'id': 13,
+                'patient_name': 'Jamie Cruz',
+                'patient_age': 29,
+                'patient_gender': 'female',
+              },
+            }),
+            201,
+          );
+        }
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        if (request.url.path.endsWith('api/responder/incident_action.php')) {
+          detailsAction = body;
+        } else if (request.url.path
+            .endsWith('api/incidents/update_notes.php')) {
+          hospitalUpdate = body;
+        } else {
+          fail('Unexpected endpoint: ${request.url.path}');
+        }
+        return http.Response(jsonEncode({'success': true}), 200);
+      }),
+    );
+    const draft = ResponderIncidentDraft(
+      incidentType: 'Medical',
+      triageCategory: 'urgent',
+      reportedBy: 'resident_sos',
+      location: 'Batuan',
+      latitude: 10.5,
+      longitude: 122.8,
+      patientName: 'Jamie Cruz',
+      patientAge: 29,
+      patientGender: 'female',
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: Center(
+              child: ElevatedButton(
+                onPressed: () => Navigator.of(context).push<void>(
+                  MaterialPageRoute<void>(
+                    builder: (_) => ReportNextScreen(
+                      draft: draft,
+                      existingIncidentId: 52,
+                      alreadySentToHospital: true,
+                      apiClient: apiClient,
+                    ),
+                  ),
+                ),
+                child: const Text('Open details'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open details'));
+    await tester.pumpAndSettle();
+    expect(find.byType(ReportNextScreen), findsOneWidget);
+    expect(find.text('Patient details'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('NEXT'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.text('NEXT'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Confirm patient details'), findsOneWidget);
+    expect(find.text('SEND UPDATED INCIDENT DETAILS'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('SEND UPDATED INCIDENT DETAILS'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.text('SEND UPDATED INCIDENT DETAILS'));
+    await tester.pumpAndSettle();
+
+    expect(requests, [
+      'https://example.test/Reddiph_mobile_api/api/responder/patient.php',
+      'https://example.test/Reddiph_mobile_api/api/responder/incident_action.php',
+      'https://example.test/Reddiph_mobile_api/api/incidents/update_notes.php',
+    ]);
+    expect(detailsAction, {
+      'token': 'test-token',
+      'incident_id': 52,
+      'action': 'update_incident_details',
+      'incident_type': 'Medical',
+      'triage_category': 'urgent',
+    });
+    expect(hospitalUpdate['incident_id'], 52);
+    expect(hospitalUpdate['notes'], contains('Category: Urgent'));
+    expect(hospitalUpdate['notes'], contains('Jamie Cruz, age 29 (female)'));
+    expect(
+      requests.where((path) => path.contains('incident_action.php')),
+      hasLength(1),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('ask for help opens the volunteer picker page', (tester) async {
     await tester.binding.setSurfaceSize(const Size(360, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -20,7 +139,7 @@ void main() {
 
     const draft = ResponderIncidentDraft(
       incidentType: 'Medical',
-      status: 'critical',
+      triageCategory: 'emergent',
       reportedBy: 'on_scene',
       location: 'GPS 10, 122',
       latitude: 10,
@@ -116,7 +235,7 @@ void main() {
 
     const draft = ResponderIncidentDraft(
       incidentType: 'Medical',
-      status: 'critical',
+      triageCategory: 'emergent',
       reportedBy: 'on_scene',
       location: 'GPS 10, 122',
       latitude: 10,
@@ -191,6 +310,11 @@ void main() {
 
     expect(previewRequest.url.queryParameters, {'action': 'preview'});
     expect(find.text('Send to hospital'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('SEND TO HOSPITAL'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('SEND TO HOSPITAL'), findsOneWidget);
     expect(find.text('District Hospital'), findsOneWidget);
     expect(find.text('6 min'), findsOneWidget);

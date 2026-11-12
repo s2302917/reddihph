@@ -7,11 +7,10 @@
       <h1>Everything you run, in one place.</h1>
       <p>Manage users, roles, hospitals and barangays, and keep an eye on system health.</p>
     </div>
-    
   </section>
 
   <main class="panel">
-    <form class="card" method="post" action="<?= htmlspecialchars(\App\Controllers\DashboardController::url('/login')) ?>" novalidate>
+    <form class="card" method="post" action="<?= htmlspecialchars(\App\Controllers\DashboardController::url('/login')) ?>" data-login-form>
       <h2>Super Admin sign in</h2>
       <p class="sub">Use your administrator account to continue.</p>
 
@@ -19,7 +18,7 @@
         <div class="alert" role="alert"><?= htmlspecialchars($error) ?></div>
       <?php endif; ?>
 
-      <input type="hidden" name="csrf" value="<?= $csrf ?>">
+      <input type="hidden" name="csrf" value="<?= htmlspecialchars($csrf) ?>">
 
       <label for="email">Email</label>
       <input id="email" name="email" type="email" autocomplete="username" required autofocus
@@ -28,10 +27,10 @@
       <label for="password">Password</label>
       <div class="pw">
         <input id="password" name="password" type="password" autocomplete="current-password" required>
-        <button type="button" class="toggle" aria-controls="password" aria-pressed="false">Show</button>
+        <button type="button" class="toggle" aria-controls="password" aria-pressed="false" aria-label="Show password">Show</button>
       </div>
 
-      <button class="btn" type="submit">Sign in</button>
+      <button class="btn" type="submit" data-login-submit>Sign in</button>
       <p class="note">This portal is restricted to Super Admin accounts.</p>
     </form>
   </main>

@@ -25,8 +25,10 @@ class StaffschedModel
         try {
             $timezone = new DateTimeZone('Asia/Manila');
             $now = new DateTimeImmutable('now', $timezone);
-            $statement = $this->db->prepare("SELECT u.id, u.full_name, u.role, u.last_login_at,
+            $statement = $this->db->prepare("SELECT u.id, u.full_name, u.role,
                 CASE u.role WHEN 'doctor' THEN 'Doctor' WHEN 'nurse' THEN 'Nurse' ELSE '' END AS department,
+                s.department AS specialization,
+                presence.user_id AS online_user_id,
                 s.id AS staff_id, sh.id AS shift_id, sh.shift_date,
                 sh.shift_type, sh.shift_start, sh.shift_end, sh.shift_status
                 FROM user_type u
@@ -34,10 +36,13 @@ class StaffschedModel
                     SELECT matching_staff.id
                     FROM staff matching_staff
                     WHERE matching_staff.user_id = u.id
-                      AND (matching_staff.hospital_id = u.hospital_id OR matching_staff.hospital_id IS NULL)
-                    ORDER BY (matching_staff.hospital_id = u.hospital_id) DESC, matching_staff.id DESC
+                      AND matching_staff.hospital_id = u.hospital_id
+                    ORDER BY matching_staff.id DESC
                     LIMIT 1
                 )
+                LEFT JOIN staff_presence presence
+                    ON presence.user_id = u.id
+                   AND presence.last_seen_at >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 120 SECOND)
                 LEFT JOIN staff_shifts sh
                     ON sh.staff_id = s.id
                    AND sh.shift_date IN (:today, :yesterday)

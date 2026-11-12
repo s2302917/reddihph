@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../../config/config.php';
+require_once __DIR__ . '/../services/AuditLogService.php';
+require_once __DIR__ . '/../services/IncidentTriageCategory.php';
 require_once __DIR__ . '/DispatchModel.php';
 require_once __DIR__ . '/VolunteerModel.php';
 
@@ -13,6 +15,7 @@ final class IncidentModel
 {
     private const GENDERS = ['male', 'female', 'other', 'unknown'];
     private const UNASSIGNED_HOSPITAL = 'Unassigned';
+    private static array $columnCache = [];
 
     /**
      * @return string[] validation error messages
@@ -22,8 +25,10 @@ final class IncidentModel
         $latitude = filter_var($data['latitude'] ?? null, FILTER_VALIDATE_FLOAT);
         $longitude = filter_var($data['longitude'] ?? null, FILTER_VALIDATE_FLOAT);
 
-        if ($latitude === false || $latitude < -90 || $latitude > 90
-            || $longitude === false || $longitude < -180 || $longitude > 180) {
+        if (
+            $latitude === false || $latitude < -90 || $latitude > 90
+            || $longitude === false || $longitude < -180 || $longitude > 180
+        ) {
             return ['A valid device location is required.'];
         }
 
@@ -37,12 +42,66 @@ final class IncidentModel
             'SELECT id, name, latitude, longitude, ' . DispatchModel::DISTANCE_SQL . ' AS distance_km
              FROM hospitals
              WHERE latitude IS NOT NULL AND longitude IS NOT NULL
+             ' . self::activeHospitalFilter() . '
              ORDER BY distance_km
              LIMIT 1'
         );
         $stmt->execute(['lat1' => $latitude, 'lat2' => $latitude, 'lng' => $longitude]);
 
         return self::hospitalRow($stmt->fetch());
+    }
+
+    private static function activeHospitalFilter(): string
+    {
+        $pdo = Database::connection();
+        $conditions = [];
+        foreach (['is_active', 'archived_at'] as $column) {
+            if (!self::hasColumn($pdo, 'hospitals', $column)) {
+                continue;
+            }
+            $conditions[] = $column === 'is_active'
+                ? 'is_active = 1'
+                : 'archived_at IS NULL';
+        }
+
+        return $conditions ? ' AND ' . implode(' AND ', $conditions) : '';
+    }
+
+    private static function hasColumn(PDO $pdo, string $table, string $column): bool
+    {
+        $cacheKey = $table . '.' . $column;
+        if (!array_key_exists($cacheKey, self::$columnCache)) {
+            $statement = $pdo->prepare(
+                'SELECT COUNT(*) FROM information_schema.columns
+                 WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?'
+            );
+            $statement->execute([$table, $column]);
+            self::$columnCache[$cacheKey] = (int) $statement->fetchColumn() > 0;
+        }
+
+        return self::$columnCache[$cacheKey];
+    }
+
+    private static function incidentDriverName(array $report, ?array $transport): ?string
+    {
+        $assignedResponder = $report['driver_responder']['full_name'] ?? null;
+        if (is_string($assignedResponder) && trim($assignedResponder) !== '') {
+            return trim($assignedResponder);
+        }
+
+        $vehicleDriver = $transport['driver_name'] ?? null;
+        if (!is_string($vehicleDriver) || trim($vehicleDriver) === '') {
+            return null;
+        }
+        $vehicleDriver = trim($vehicleDriver);
+        $responder = Database::connection()->prepare(
+            "SELECT 1 FROM user_type
+             WHERE role = 'responder' AND full_name = ?
+             LIMIT 1"
+        );
+        $responder->execute([$vehicleDriver]);
+
+        return $responder->fetchColumn() === false ? $vehicleDriver : null;
     }
 
     public static function hospitalById(int $id): ?array
@@ -64,6 +123,16 @@ final class IncidentModel
         $reporter = $report['reporter'];
         $transport = $report['transport'];
         $gender = $reporter['gender'] ?? null;
+        $triageCategory = $report['triage_category'] ?? null;
+        if (
+            $triageCategory !== null
+            && (!is_string($triageCategory)
+                || !IncidentTriageCategory::isValid($triageCategory))
+        ) {
+            throw new InvalidArgumentException(
+                'Choose a valid emergency category.'
+            );
+        }
 
         $pdo = Database::connection();
         $ownsTransaction = !$pdo->inTransaction();
@@ -84,13 +153,13 @@ final class IncidentModel
             }
             $stmt = $pdo->prepare(
                 'INSERT INTO incidents
-                    (incident_type, reported_by, status, reporter_user_id, location, barangay_id, hospital_id,
+                    (incident_type, reported_by, status, triage_category, reporter_user_id, location, barangay_id, hospital_id,
                      hospital_name, latitude, longitude, patient_name, patient_age, patient_gender,
                      eta_minutes, responder_name, assigned_responder_user_id,
                      assigned_ambulance_id,
                      transport_name, transport_type, driver_name, notes)
                  VALUES
-                    (:incident_type, :reported_by, :status, :reporter_user_id, :location, :barangay_id, :hospital_id,
+                    (:incident_type, :reported_by, \'open\', :triage_category, :reporter_user_id, :location, :barangay_id, :hospital_id,
                      :hospital_name, :latitude, :longitude, :patient_name, :patient_age, :patient_gender,
                      :eta_minutes, :responder_name, :assigned_responder_user_id,
                      :assigned_ambulance_id,
@@ -99,7 +168,7 @@ final class IncidentModel
             $stmt->execute([
                 'incident_type' => $report['incident_type'] ?? 'SOS emergency alert',
                 'reported_by' => $report['reported_by'] ?? 'resident_sos',
-                'status' => $report['status'] ?? 'critical',
+                'triage_category' => $report['triage_category'] ?? null,
                 'reporter_user_id' => $report['reporter_user_id'],
                 'location' => $report['barangay']['name'] ?? sprintf(
                     'GPS %.6f, %.6f',
@@ -124,19 +193,47 @@ final class IncidentModel
                 'assigned_ambulance_id' => $transport['id'] ?? null,
                 'transport_name' => $transport['call_sign'] ?? null,
                 'transport_type' => $transport['vehicle_type'] ?? null,
-                'driver_name' => $transport['driver_name'] ?? null,
+                'driver_name' => self::incidentDriverName($report, $transport),
                 'notes' => $report['notes'] ?? 'Sent from the Reddiph mobile app.',
             ]);
 
             $incidentId = (int) $pdo->lastInsertId();
-            if (isset($report['responder']['id'])) {
+            AuditLogService::record(
+                $pdo,
+                isset($report['reporter_user_id']) && $report['reporter_user_id'] !== null
+                ? (int) $report['reporter_user_id']
+                : null,
+                'incident.created',
+                'incident',
+                (string) $incidentId
+            );
+            foreach (array_filter([
+                ['responder_user_id' => $report['responder']['id'] ?? null, 'assignment_role' => 'responder'],
+                ['responder_user_id' => $report['driver_responder']['id'] ?? null, 'assignment_role' => 'driver'],
+            ], static fn(array $assignment): bool => $assignment['responder_user_id'] !== null) as $assignment) {
+                $columnCheck = $pdo->prepare(
+                    'SELECT 1 FROM information_schema.columns
+                     WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?'
+                );
+                $columnCheck->execute(['responder_alerts', 'assignment_role']);
+                if ((int) $columnCheck->fetchColumn() === 1) {
+                    $pdo->prepare(
+                        "INSERT INTO responder_alerts (incident_id, responder_user_id, assignment_role, status, created_at)
+                         VALUES (?, ?, ?, 'pending', NOW())
+                         ON DUPLICATE KEY UPDATE status = 'pending', created_at = NOW(), acknowledged_at = NULL"
+                    )->execute([$incidentId, (int) $assignment['responder_user_id'], $assignment['assignment_role']]);
+                    continue;
+                }
                 $pdo->prepare(
-                    "INSERT INTO responder_alerts (incident_id, responder_user_id)
-                     VALUES (?, ?)"
-                )->execute([$incidentId, (int) $report['responder']['id']]);
+                    "INSERT INTO responder_alerts (incident_id, responder_user_id, status, created_at)
+                     VALUES (?, ?, 'pending', NOW())
+                     ON DUPLICATE KEY UPDATE status = 'pending', created_at = NOW(), acknowledged_at = NULL"
+                )->execute([$incidentId, (int) $assignment['responder_user_id']]);
             }
-            if (($report['request_another_vehicle'] ?? false)
-                && isset($report['responder']['id'])) {
+            if (
+                ($report['request_another_vehicle'] ?? false)
+                && isset($report['responder']['id'])
+            ) {
                 $pdo->prepare(
                     'INSERT INTO incident_vehicle_requests (incident_id, responder_user_id) VALUES (?, ?)'
                 )->execute([$incidentId, (int) $report['responder']['id']]);
@@ -174,6 +271,16 @@ final class IncidentModel
                         $patient['photo_filename'],
                     ]);
                     $patientId = (int) $pdo->lastInsertId();
+                    AuditLogService::record(
+                        $pdo,
+                        isset($report['reporter_user_id']) && $report['reporter_user_id'] !== null
+                        ? (int) $report['reporter_user_id']
+                        : null,
+                        'patient.created',
+                        'patient',
+                        (string) $patientId,
+                        ['incident_id' => $incidentId]
+                    );
                     foreach ($patient['scene_conditions'] as $condition) {
                         $insertCondition->execute([$patientId, $condition]);
                     }
@@ -200,7 +307,8 @@ final class IncidentModel
     public static function details(int $id): ?array
     {
         $stmt = Database::connection()->prepare(
-            'SELECT i.incident_id, i.incident_type, i.status, i.location, i.latitude, i.longitude,
+            'SELECT i.incident_id, i.incident_type, i.status, i.triage_category,
+                    i.location, i.latitude, i.longitude,
                     i.reporter_user_id, i.patient_name, i.hospital_name, i.eta_minutes, i.responder_name,
                     i.assigned_responder_user_id, i.driver_name,
                     i.transport_name, i.transport_type, i.hospital_sent_at,
@@ -224,7 +332,7 @@ final class IncidentModel
                 WHERE r.incident_id = i.incident_id
                 ORDER BY r.created_at DESC, r.id DESC
                 LIMIT 1
-             )
+             ) AND latest_referral.status IN (\'pending\', \'accepted\')
              LEFT JOIN hospitals h
                 ON h.id = COALESCE(latest_referral.receiving_hospital_id, i.hospital_id)
              LEFT JOIN ambulances a
@@ -259,10 +367,12 @@ final class IncidentModel
             ? null
             : ($row['eta_minutes'] !== null ? (int) $row['eta_minutes'] : null);
         if ($row['hospital_sent_at'] !== null) {
-            if ($row['hospital_latitude'] !== null
+            if (
+                $row['hospital_latitude'] !== null
                 && $row['hospital_longitude'] !== null
                 && $row['responder_latitude'] !== null
-                && $row['responder_longitude'] !== null) {
+                && $row['responder_longitude'] !== null
+            ) {
                 $distanceKm = round(DispatchModel::distanceKm(
                     (float) $row['responder_latitude'],
                     (float) $row['responder_longitude'],
@@ -289,7 +399,8 @@ final class IncidentModel
                     $distanceKm = round(DispatchModel::distanceKm(
                         $fromLatitude,
                         $fromLongitude,
-                        (float) $row['latitude'], (float) $row['longitude']
+                        (float) $row['latitude'],
+                        (float) $row['longitude']
                     ), 1);
                     $distanceFrom = $source;
                     if ($source === 'responder') {
@@ -309,6 +420,7 @@ final class IncidentModel
             'incident_id' => (int) $row['incident_id'],
             'incident_type' => $row['incident_type'],
             'status' => $row['status'],
+            'triage_category' => $row['triage_category'],
             'location' => $row['location'],
             'reporter_user_id' => $row['reporter_user_id'] !== null
                 ? (int) $row['reporter_user_id']
@@ -364,7 +476,7 @@ final class IncidentModel
         $stmt = Database::connection()->prepare(
             "SELECT incident_id FROM incidents
              WHERE reporter_user_id = ?
-               AND status IN ('critical', 'urgent', 'stable', 'dispatched')
+               AND status IN ('open', 'dispatched', 'referred')
              ORDER BY reported_at DESC, incident_id DESC
              LIMIT 1"
         );

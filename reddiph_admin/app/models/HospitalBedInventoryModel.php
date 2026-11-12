@@ -1,5 +1,7 @@
 <?php
 
+require_once __DIR__ . '/AuditLogModel.php';
+
 class HospitalBedInventoryModel
 {
     private const MAX_BEDS = 10000;
@@ -23,7 +25,7 @@ class HospitalBedInventoryModel
         }
     }
 
-    public static function resize(PDO $connection, int $hospitalId, int $newMaximum): void
+    public static function resize(PDO $connection, int $hospitalId, int $newMaximum, ?int $actorId = null): void
     {
         if ($newMaximum < 0 || $newMaximum > self::MAX_BEDS) {
             throw new InvalidArgumentException('Maximum bed capacity must be between 0 and ' . self::MAX_BEDS . '.');
@@ -40,6 +42,11 @@ class HospitalBedInventoryModel
             );
             $updateHospital->execute(['total_beds' => $newMaximum, 'hospital_id' => $hospitalId]);
             self::synchronizeAggregates($connection, $hospitalId);
+            if ($actorId !== null) {
+                AuditLogModel::record($connection, $actorId, 'resource.updated', 'hospital', (string) $hospitalId, [
+                    'fields' => ['total_beds', 'bed_inventory'],
+                ]);
+            }
             $connection->commit();
         } catch (Throwable $exception) {
             if ($connection->inTransaction()) {
@@ -49,7 +56,7 @@ class HospitalBedInventoryModel
         }
     }
 
-    public static function adjustAvailability(PDO $connection, int $hospitalId, int $change): void
+    public static function adjustAvailability(PDO $connection, int $hospitalId, int $change, ?int $actorId = null): void
     {
         if (!in_array($change, [-1, 1], true)) {
             throw new InvalidArgumentException('Choose to add or subtract exactly one available bed.');
@@ -85,6 +92,11 @@ class HospitalBedInventoryModel
             );
             $update->execute(['status' => $statusTo, 'bed_id' => $bedId, 'hospital_id' => $hospitalId]);
             self::synchronizeAggregates($connection, $hospitalId);
+            if ($actorId !== null) {
+                AuditLogModel::record($connection, $actorId, 'resource.updated', 'hospital', (string) $hospitalId, [
+                    'fields' => ['available_beds', 'bed_status'],
+                ]);
+            }
             $connection->commit();
         } catch (Throwable $exception) {
             if ($connection->inTransaction()) {
@@ -205,13 +217,21 @@ class HospitalBedInventoryModel
     {
         $statement = $connection->prepare(
             "UPDATE hospitals
-             SET available_beds = (
+             SET total_beds = (
                  SELECT COUNT(*) FROM hospital_beds
-                 WHERE hospital_id = :beds_hospital_id AND status IN ('ready', 'preparing')
+                 WHERE hospital_id = :total_hospital_id
+             ),
+             available_beds = (
+                 SELECT COUNT(*) FROM hospital_beds
+                 WHERE hospital_id = :available_hospital_id AND status IN ('ready', 'preparing')
              )
              WHERE id = :hospital_id"
         );
-        $statement->execute(['beds_hospital_id' => $hospitalId, 'hospital_id' => $hospitalId]);
+        $statement->execute([
+            'total_hospital_id' => $hospitalId,
+            'available_hospital_id' => $hospitalId,
+            'hospital_id' => $hospitalId,
+        ]);
 
         $facility = $connection->prepare(
             "INSERT INTO facility_status (hospital_id, metric_key, current_value, max_value, status_label)

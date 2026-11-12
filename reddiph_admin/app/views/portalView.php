@@ -26,7 +26,11 @@
 
         <main class="portal__main">
             <h1 class="portal__title">Emergency Coordination Portal</h1>
-            <?php if (($_GET['reason'] ?? '') === 'account_suspended'): ?>
+            <?php if (is_string($loginNotice) && $loginNotice !== ''): ?>
+                <p class="portal__notice" role="alert">
+                    <?php echo htmlspecialchars($loginNotice, ENT_QUOTES, 'UTF-8'); ?>
+                </p>
+            <?php elseif (($_GET['reason'] ?? '') === 'account_suspended'): ?>
                 <p class="portal__notice" role="alert">
                     Your account was suspended by an administrator. You have been logged out.
                 </p>

@@ -10,6 +10,7 @@ import '../screens/responder_incident_route_screen.dart';
 import '../widgets/common.dart';
 import '../widgets/open_street_map.dart';
 import '../widgets/philippine_clock.dart';
+import '../widgets/responder_avatar.dart';
 import '../widgets/responder_widgets.dart';
 
 class ResponderHome extends StatefulWidget {
@@ -117,12 +118,7 @@ class _Header extends StatelessWidget {
             ]),
           ),
           const SizedBox(width: 12),
-          CircleAvatar(
-            radius: 18,
-            backgroundColor: kResponderBrown,
-            child: Text(data.initials,
-                style: const TextStyle(color: Colors.white, fontSize: 12)),
-          ),
+          ResponderAvatar(initials: data.initials),
         ]),
       );
 }

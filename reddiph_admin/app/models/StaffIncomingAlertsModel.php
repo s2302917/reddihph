@@ -2,6 +2,8 @@
 
 require_once __DIR__ . '/../../config/config.php';
 
+require_once __DIR__ . '/AuditLogModel.php';
+
 class StaffIncomingAlertsModel
 {
     public static function pending(int $userId, string $role): array
@@ -10,7 +12,8 @@ class StaffIncomingAlertsModel
             throw new InvalidArgumentException('Unsupported staff role.');
         }
 
-        $statement = Database::connection()->prepare(
+        $connection = Database::connection();
+        $statement = $connection->prepare(
             "SELECT
                 alert.id AS alert_id,
                 i.incident_id,
@@ -154,27 +157,87 @@ class StaffIncomingAlertsModel
         return $summary;
     }
 
-    public static function acknowledge(int $userId, string $role, int $alertId): bool
+    public static function acknowledge(int $userId, string $role, int $alertId): string
     {
         if (!in_array($role, ['doctor', 'nurse'], true)) {
             throw new InvalidArgumentException('Unsupported staff role.');
         }
+        if ($userId <= 0 || $alertId <= 0) {
+            return 'not_found';
+        }
 
-        $statement = Database::connection()->prepare(
-            "UPDATE staff_alerts
-            SET status = 'read'
-            WHERE id = :alert_id
-              AND recipient_user_id = :user_id
-              AND recipient_role = :role
-              AND channel = 'admin'
-              AND status = 'queued'"
-        );
-        $statement->execute([
-            'alert_id' => $alertId,
-            'user_id' => $userId,
-            'role' => $role,
-        ]);
+        $connection = Database::connection();
+        $connection->beginTransaction();
 
-        return $statement->rowCount() === 1;
+        try {
+            $statement = $connection->prepare(
+                "UPDATE staff_alerts
+                SET status = 'read'
+                WHERE id = :alert_id
+                  AND recipient_user_id = :user_id
+                  AND recipient_role = :role
+                  AND channel = 'admin'
+                  AND status = 'queued'
+                  AND EXISTS (
+                      SELECT 1
+                      FROM incidents i
+                      INNER JOIN user_type staff
+                          ON staff.id = staff_alerts.recipient_user_id
+                          AND staff.role = staff_alerts.recipient_role
+                          AND staff.hospital_id = i.hospital_id
+                      WHERE i.incident_id = staff_alerts.incident_id
+                  )"
+            );
+            $statement->execute([
+                'alert_id' => $alertId,
+                'user_id' => $userId,
+                'role' => $role,
+            ]);
+
+            if ($statement->rowCount() === 1) {
+                AuditLogModel::record(
+                    $connection,
+                    $userId,
+                    'staff.alert_acknowledged',
+                    'staff_alert',
+                    (string) $alertId
+                );
+                $connection->commit();
+                return 'acknowledged';
+            }
+
+            $currentStatus = $connection->prepare(
+                "SELECT alert.status
+                 FROM staff_alerts alert
+                 INNER JOIN incidents i ON i.incident_id = alert.incident_id
+                 INNER JOIN user_type staff
+                     ON staff.id = alert.recipient_user_id
+                     AND staff.role = alert.recipient_role
+                     AND staff.hospital_id = i.hospital_id
+                 WHERE alert.id = :alert_id
+                   AND alert.recipient_user_id = :user_id
+                   AND alert.recipient_role = :role
+                   AND alert.channel = 'admin'
+                 LIMIT 1"
+            );
+            $currentStatus->execute([
+                'alert_id' => $alertId,
+                'user_id' => $userId,
+                'role' => $role,
+            ]);
+            $status = $currentStatus->fetchColumn();
+            $connection->rollBack();
+
+            if ($status === false) {
+                return 'not_found';
+            }
+
+            return $status === 'queued' ? 'pending' : 'already_processed';
+        } catch (Throwable $exception) {
+            if ($connection->inTransaction()) {
+                $connection->rollBack();
+            }
+            throw $exception;
+        }
     }
 }

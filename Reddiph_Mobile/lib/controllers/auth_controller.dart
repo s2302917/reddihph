@@ -1,7 +1,9 @@
+import 'package:flutter/foundation.dart';
+
 import '../models/role.dart';
 import '../services/mobile_api_client.dart';
 
-class AuthController {
+class AuthController extends ChangeNotifier {
   AuthController._();
   static final I = AuthController._();
 
@@ -19,6 +21,7 @@ class AuthController {
       password: password,
     );
     role = r;
+    notifyListeners();
   }
 
   Future<String> forgotPassword(Role r, {required String email}) =>
@@ -34,8 +37,16 @@ class AuthController {
         confirmPassword: confirmPassword,
       );
 
+  void updateResponderProfileImage(String? imageUrl) {
+    final currentUser = user;
+    if (currentUser == null) return;
+    currentUser['profile_image_url'] = imageUrl;
+    notifyListeners();
+  }
+
   void logout() {
     role = null;
     user = null;
+    notifyListeners();
   }
 }

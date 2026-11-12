@@ -258,6 +258,57 @@ body.emergency_alert_body {
     font-weight: 700;
 }
 
+.admin-resources-menu {
+    display: flex;
+    flex-direction: column;
+}
+
+.admin-resources-menu > summary {
+    list-style: none;
+    cursor: pointer;
+}
+
+.admin-resources-menu > summary::-webkit-details-marker {
+    display: none;
+}
+
+.admin-resources-menu[open] > summary {
+    color: var(--emergency_alert_text_main);
+}
+
+.admin-resources-subnav {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 2px 0 5px 12px;
+}
+
+.admin-resources-subnav a {
+    display: flex;
+    align-items: center;
+    min-height: 32px;
+    padding: 7px 10px;
+    border-left: 2px solid transparent;
+    border-radius: 0 6px 6px 0;
+    color: var(--emergency_alert_text_muted);
+    font-size: 12px;
+    font-weight: 500;
+    text-decoration: none;
+}
+
+.admin-resources-subnav a:hover,
+.admin-resources-subnav a:focus-visible {
+    background: #f4f2ee;
+    color: var(--emergency_alert_text_main);
+}
+
+.admin-resources-subnav a[aria-current="page"] {
+    border-left-color: var(--emergency_alert_maroon);
+    background: #fbeaea;
+    color: var(--emergency_alert_maroon);
+    font-weight: 700;
+}
+
 
 /* =========================================================
    NAVIGATION ICON
@@ -281,70 +332,6 @@ body.emergency_alert_body {
     font-size: 14px;
 
     line-height: 1;
-}
-
-
-/* =========================================================
-   SYSTEM STATUS
-   =========================================================
-   Matches Dashboard / Incoming Dispatches.
-   ========================================================= */
-
-.emergency_alert_system_status {
-    display: flex;
-
-    gap: 10px;
-
-    padding: 12px;
-
-    background: #8f3442;
-
-    border-radius: var(--emergency_alert_radius_md);
-}
-
-
-.emergency_alert_system_status_icon {
-    width: 20px;
-
-    height: 20px;
-
-    flex-shrink: 0;
-
-    display: flex;
-
-    align-items: center;
-
-    justify-content: center;
-
-    border-radius: 50%;
-
-    background: var(--emergency_alert_maroon);
-
-    color: #ffffff;
-
-    font-size: 12px;
-
-    font-weight: 700;
-}
-
-
-.emergency_alert_system_status_title {
-    margin: 0;
-
-    font-size: 12.5px;
-
-    font-weight: 700;
-
-    color: #ffffff;
-}
-
-
-.emergency_alert_system_status_sub {
-    margin: 2px 0 0;
-
-    color: rgba(255, 255, 255, 0.7);
-
-    font-size: 11.5px;
 }
 
 
@@ -528,6 +515,37 @@ body.emergency_alert_body {
 }
 
 
+.emergency_alert_case_toolbar {
+    display: flex;
+
+    align-items: center;
+
+    gap: 16px;
+
+    min-width: 0;
+
+    margin: 0 0 24px 14px;
+}
+
+
+.emergency_alert_case_toolbar .emergency_alert_search {
+    flex: 0 1 300px;
+
+    min-width: 220px;
+}
+
+
+.emergency_alert_case_toolbar .emergency_alert_search_input {
+    width: 100%;
+}
+
+
+.emergency_alert_case_toolbar .emergency_alert_search_input:focus,
+.emergency_alert_case_toolbar .emergency_alert_search--focused .emergency_alert_search_input {
+    width: 100%;
+}
+
+
 /* =========================================================
    NOTIFICATION BELL
    ========================================================= */
@@ -663,20 +681,35 @@ body.emergency_alert_body {
     font-size: 11px;
 }
 
-.emergency_alert_notification_status {
+.emergency_alert_notification_category {
     align-self: start;
     padding: 2px 5px;
     border-radius: 3px;
-    background: #f5e8e7;
-    color: #8b211c;
+    background: #DC2626;
+    color: #fff;
     font-size: 9px;
     font-weight: 800;
     text-transform: uppercase;
 }
 
-.emergency_alert_notification_status_urgent {
-    background: #fff3dc;
-    color: #815400;
+.emergency_alert_notification_category_urgent {
+    background: #EAB308;
+    color: #000;
+}
+
+.emergency_alert_notification_category_non_urgent {
+    background: #16A34A;
+    color: #fff;
+}
+
+.emergency_alert_notification_category_expectant {
+    background: #000;
+    color: #fff;
+}
+
+.emergency_alert_notification_category_unclassified {
+    background: #6B7280;
+    color: #fff;
 }
 
 .emergency_alert_notification_empty {
@@ -880,40 +913,53 @@ body.emergency_alert_body {
 
 .emergency_alert_summary_card_active .emergency_alert_summary_label,
 .emergency_alert_summary_card_active .emergency_alert_summary_value,
-.emergency_alert_summary_card_critical_active .emergency_alert_summary_label,
-.emergency_alert_summary_card_critical_active .emergency_alert_summary_value,
+.emergency_alert_summary_card_emergent_active .emergency_alert_summary_label,
+.emergency_alert_summary_card_emergent_active .emergency_alert_summary_value,
 .emergency_alert_summary_card_urgent_active .emergency_alert_summary_label,
 .emergency_alert_summary_card_urgent_active .emergency_alert_summary_value,
-.emergency_alert_summary_card_stable_active .emergency_alert_summary_label,
-.emergency_alert_summary_card_stable_active .emergency_alert_summary_value {
+.emergency_alert_summary_card_non_urgent_active .emergency_alert_summary_label,
+.emergency_alert_summary_card_non_urgent_active .emergency_alert_summary_value,
+.emergency_alert_summary_card_expectant_active .emergency_alert_summary_label,
+.emergency_alert_summary_card_expectant_active .emergency_alert_summary_value {
     color: #ffffff !important;
 }
 
 
-/* Critical */
+/* Emergent */
 
-.emergency_alert_summary_card[data-status="critical"].emergency_alert_summary_card_active,
-.emergency_alert_summary_card.emergency_alert_summary_card_critical_active {
-    background: #800000 !important;
-    border-color: #800000 !important;
+.emergency_alert_summary_card[data-category="emergent"].emergency_alert_summary_card_active {
+    background: #DC2626 !important;
+    border-color: #DC2626 !important;
 }
 
 
 /* Urgent */
 
-.emergency_alert_summary_card[data-status="urgent"].emergency_alert_summary_card_active,
+.emergency_alert_summary_card[data-category="urgent"].emergency_alert_summary_card_active,
 .emergency_alert_summary_card.emergency_alert_summary_card_urgent_active {
-    background: #757575 !important;
-    border-color: #757575 !important;
+    background: #EAB308 !important;
+    border-color: #EAB308 !important;
+    color: #000 !important;
+}
+
+.emergency_alert_summary_card[data-category="urgent"].emergency_alert_summary_card_active .emergency_alert_summary_label,
+.emergency_alert_summary_card[data-category="urgent"].emergency_alert_summary_card_active .emergency_alert_summary_value {
+    color: #000 !important;
 }
 
 
-/* Stable */
+/* Non-urgent */
 
-.emergency_alert_summary_card[data-status="stable"].emergency_alert_summary_card_active,
-.emergency_alert_summary_card.emergency_alert_summary_card_stable_active {
-    background: #008000 !important;
-    border-color: #008000 !important;
+.emergency_alert_summary_card[data-category="non_urgent"].emergency_alert_summary_card_active,
+.emergency_alert_summary_card.emergency_alert_summary_card_non_urgent_active {
+    background: #16A34A !important;
+    border-color: #16A34A !important;
+}
+
+.emergency_alert_summary_card[data-category="expectant"].emergency_alert_summary_card_active,
+.emergency_alert_summary_card.emergency_alert_summary_card_expectant_active {
+    background: #000000 !important;
+    border-color: #000000 !important;
 }
 
 
@@ -928,7 +974,7 @@ body.emergency_alert_body {
 
     gap: 8px;
 
-    margin: 0 0 24px 14px;
+    flex-shrink: 0;
 }
 
 
@@ -972,32 +1018,37 @@ body.emergency_alert_body {
 }
 
 
-/* Critical filter */
+/* Category filters */
 
-.emergency_alert_filter[data-status="critical"].emergency_alert_filter_active,
-.emergency_alert_filter.emergency_alert_filter_active_critical {
-    background: #800000 !important;
+.emergency_alert_filter[data-category="emergent"].emergency_alert_filter_active,
+.emergency_alert_filter.emergency_alert_filter_active_emergent {
+    background: #DC2626 !important;
     color: #ffffff !important;
 }
 
 
 /* Urgent filter */
 
-.emergency_alert_filter[data-status="urgent"].emergency_alert_filter_active,
+.emergency_alert_filter[data-category="urgent"].emergency_alert_filter_active,
 .emergency_alert_filter.emergency_alert_filter_active_urgent {
-    background: #757575 !important;
-    color: #ffffff !important;
+    background: #EAB308 !important;
+    color: #000000 !important;
 }
 
 
-/* Stable filter */
+/* Non-urgent filter */
 
-.emergency_alert_filter[data-status="stable"].emergency_alert_filter_active,
-.emergency_alert_filter.emergency_alert_filter_active_stable {
-    background: #008000 !important;
+.emergency_alert_filter[data-category="non_urgent"].emergency_alert_filter_active,
+.emergency_alert_filter.emergency_alert_filter_active_non_urgent {
+    background: #16A34A !important;
     color: #ffffff !important;
 }
 
+.emergency_alert_filter[data-category="expectant"].emergency_alert_filter_active,
+.emergency_alert_filter.emergency_alert_filter_active_expectant {
+    background: #000000 !important;
+    color: #ffffff !important;
+}
 
 /* =========================================================
    CRITICAL NOTICE
@@ -1268,7 +1319,7 @@ body.emergency_alert_body {
    STATUS BADGES
    ========================================================= */
 
-.emergency_alert_status {
+.emergency_alert_category {
     display: inline-flex;
 
     align-items: center;
@@ -1285,26 +1336,45 @@ body.emergency_alert_body {
 }
 
 
-/* Critical */
+/* Category classification */
 
-.emergency_alert_status_critical {
-    background: #f5e8e7;
-
-    color: #8b211c;
+.emergency_alert_category_emergent {
+    background: #DC2626;
+    color: #fff;
 }
 
 
 /* Urgent */
 
-.emergency_alert_status_urgent {
-    background: #ffffff;
-
-    border: 1px solid #d9cbc6;
-
-    color: #68615e;
+.emergency_alert_category_urgent {
+    background: #EAB308;
+    color: #000;
 }
 
-.emergency_alert_status_select {
+.emergency_alert_category_non_urgent {
+    background: #16A34A;
+    color: #fff;
+}
+
+.emergency_alert_category_expectant {
+    background: #000;
+    color: #fff;
+}
+
+.emergency_alert_category_unclassified {
+    background: #6B7280;
+    color: #fff;
+}
+
+.emergency_alert_lifecycle {
+    display: block;
+    margin-top: 4px;
+    color: #716b68;
+    font-size: 9px;
+    text-transform: capitalize;
+}
+
+.emergency_alert_category_select {
     display: block;
     width: 100%;
     max-width: 100px;
@@ -1322,7 +1392,7 @@ body.emergency_alert_body {
     cursor: pointer;
 }
 
-.emergency_alert_status_select:focus-visible {
+.emergency_alert_category_select:focus-visible {
     outline: 2px solid #7a1f2b;
     outline-offset: 2px;
 }
@@ -1358,15 +1428,6 @@ body.emergency_alert_body {
 .emergency_alert_page_controls button:disabled {
     opacity: .45;
     cursor: default;
-}
-
-
-/* Stable */
-
-.emergency_alert_status_stable {
-    background: #edf8ef;
-
-    color: #36833b;
 }
 
 
@@ -1728,7 +1789,6 @@ body.emergency_alert_body {
         emergency_alert_row_in 0.25s ease both;
 }
 
-
 /* =========================================================
    RESPONSIVE — 1200px
    ========================================================= */
@@ -1775,18 +1835,6 @@ body.emergency_alert_body {
         width: 100%;
 
         min-width: 0;
-    }
-
-    .emergency_alert_search {
-        flex: 1;
-    }
-
-    .emergency_alert_search_input {
-        width: 100%;
-    }
-
-    .emergency_alert_search_input:focus {
-        width: 100%;
     }
 
 }
@@ -1842,11 +1890,6 @@ body.emergency_alert_body {
     }
 
 
-    .emergency_alert_system_status {
-        display: none;
-    }
-
-
     /* -----------------------------------------
        MAIN
        ----------------------------------------- */
@@ -1884,22 +1927,6 @@ body.emergency_alert_body {
         min-width: 220px;
     }
 
-
-    .emergency_alert_search_input {
-        width: 100%;
-    }
-
-
-    .emergency_alert_search_input:focus {
-        width: 100%;
-    }
-
-
-    .emergency_alert_search--focused .emergency_alert_search_input {
-        width: 100%;
-    }
-
-
     /* -----------------------------------------
        SUMMARY
        ----------------------------------------- */
@@ -1914,12 +1941,22 @@ body.emergency_alert_body {
        FILTER
        ----------------------------------------- */
 
-    .emergency_alert_filter_bar {
+    .emergency_alert_case_toolbar {
+        gap: 12px;
+
         margin-left: 0;
 
         overflow-x: auto;
 
         padding-bottom: 3px;
+    }
+
+    .emergency_alert_case_toolbar .emergency_alert_search {
+        flex: 0 0 230px;
+    }
+
+    .emergency_alert_filter_bar {
+        flex-shrink: 0;
     }
 
 
@@ -2018,4 +2055,10 @@ body.emergency_alert_body {
         margin-top: 20px;
     }
 
+}
+
+@media (max-width: 680px) {
+    body.emergency_alert_body .emergency_alert_shell {
+        display: none;
+    }
 }

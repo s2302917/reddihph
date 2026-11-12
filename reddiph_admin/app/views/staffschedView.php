@@ -30,24 +30,23 @@
                     id="emergency_alert_nav_alerts"><span>Emergency Cases</span></a>
                 <a href="staffschedController.php" class="emergency_alert_nav_item emergency_alert_nav_item_active"
                     id="emergency_alert_nav_schedule"><span>Staff Schedule</span></a>
-                <a href="resourcesController.php" class="emergency_alert_nav_item"
-                    id="emergency_alert_nav_resources"><span>Resources</span></a>
+                <details class="admin-resources-menu">
+                    <summary class="emergency_alert_nav_item" id="emergency_alert_nav_resources"><span>Resources</span></summary>
+                    <div class="admin-resources-subnav">
+                        <a href="resourcesController.php?section=bed-capacity">Bed Capacity</a>
+                        <a href="resourcesController.php?section=ambulance">Ambulance</a>
+                        <a href="resourcesController.php?section=ptv">PTV</a>
+                    </div>
+                </details>
                 <a href="hospitalnetworkController.php" class="emergency_alert_nav_item"
                     id="emergency_alert_nav_network"><span>Referral</span></a>
-                <a href="analyticsController.php" class="emergency_alert_nav_item"
-                    id="emergency_alert_nav_analytics"><span>Analytics</span></a>
                 <a href="demographicsController.php" class="emergency_alert_nav_item"
                     id="emergency_alert_nav_logs"><span>Logs &amp; Demographics</span></a>
+                <a href="manageAccountsController.php" class="emergency_alert_nav_item"
+                    id="emergency_alert_nav_manage_accounts"><span>Manage Accounts</span></a>
                 <a href="settingsController.php" class="emergency_alert_nav_item"
                     id="emergency_alert_nav_settings"><span>Settings</span></a>
             </nav>
-            <div class="emergency_alert_system_status" id="emergency_alert_system_status">
-                <span class="emergency_alert_system_status_icon" aria-hidden="true">!</span>
-                <div>
-                    <p class="emergency_alert_system_status_title">System Status</p>
-                    <p class="emergency_alert_system_status_sub">All systems operational.</p>
-                </div>
-            </div>
         </aside>
         <main class="emergency_alert_main" id="emergency_alert_main">
             <header class="emergency_alert_header" id="emergency_alert_header">
@@ -59,12 +58,6 @@
                     <p class="emergency_alert_subtitle">Doctors and nurses on duty</p>
                 </div>
                 <div class="emergency_alert_header_controls" id="emergency_alert_header_controls">
-                    <label class="emergency_alert_search" id="emergency_alert_search_wrap">
-                        <span class="emergency_alert_search_icon" aria-hidden="true">⌕</span>
-                        <input type="search" id="hospitalsched-search-input" class="emergency_alert_search_input"
-                            placeholder="Search doctors or nurses..." autocomplete="off"
-                            aria-label="Search doctors or nurses">
-                    </label>
                     <div class="emergency_alert_notification_wrap">
                         <button type="button" class="emergency_alert_bell" id="hospitalsched-bell-btn"
                             aria-label="New doctor and nurse accounts" aria-expanded="false"
@@ -112,11 +105,22 @@
                 <article><span>Nurses on duty</span><strong id="hospitalsched-nurse-count"><?php echo $nurseCount; ?></strong></article>
             </section>
             <section class="hospitalsched-panel">
-                <div class="hospitalsched-filters" role="group" aria-label="Staff filters"><button
-                        class="hospitalsched-filter hospitalsched-filter--active" data-role="all">All
-                        staff</button><button class="hospitalsched-filter" data-role="on_duty">On duty
-                        now</button><button class="hospitalsched-filter" data-role="doctor">Doctors</button><button
-                        class="hospitalsched-filter" data-role="nurse">Nurses</button></div>
+                <div class="hospitalsched-toolbar">
+                    <label class="emergency_alert_search" id="emergency_alert_search_wrap">
+                        <span class="emergency_alert_search_icon" aria-hidden="true">⌕</span>
+                        <input type="search" id="hospitalsched-search-input" class="emergency_alert_search_input"
+                            placeholder="Search doctors or nurses..." autocomplete="off"
+                            aria-label="Search doctors or nurses">
+                    </label>
+                    <div class="hospitalsched-filters" role="group" aria-label="Staff filters">
+                        <button class="hospitalsched-filter hospitalsched-filter--active" data-role="all">
+                            All staff
+                        </button>
+                        <button class="hospitalsched-filter" data-role="on_duty">On duty now</button>
+                        <button class="hospitalsched-filter" data-role="doctor">Doctors</button>
+                        <button class="hospitalsched-filter" data-role="nurse">Nurses</button>
+                    </div>
+                </div>
                 <div class="hospitalsched-table-wrap">
                     <table class="hospitalsched-table">
                         <thead>
@@ -124,22 +128,33 @@
                                 <th>Staff</th>
                                 <th>Role</th>
                                 <th>Shift today</th>
-                                <th>Status</th>
+                                <th>Online Status</th>
+                                <th>Duty Status</th>
                             </tr>
                         </thead>
                         <tbody id="hospitalsched-table-body"><?php foreach ($schedules as $schedule): ?>
                                 <tr data-role="<?php echo strtolower($schedule['role']); ?>"
-                                    data-status="<?php echo htmlspecialchars($schedule['status']); ?>">
-                                    <td><span
-                                            class="hospitalsched-initials"><?php echo htmlspecialchars($schedule['initials']); ?></span><strong><?php echo htmlspecialchars($schedule['name']); ?></strong>
+                                    data-duty-status="<?php echo htmlspecialchars($schedule['dutyStatus']); ?>">
+                                    <td class="hospitalsched-staff-cell" data-label="Staff">
+                                        <span class="hospitalsched-staff-details">
+                                            <span class="hospitalsched-staff-name">
+                                                <span class="hospitalsched-profile-circle" aria-hidden="true"><?php echo htmlspecialchars($schedule['initials']); ?></span>
+                                                <strong><?php echo htmlspecialchars($schedule['displayName']); ?></strong>
+                                            </span>
+                                            <?php if ($schedule['role'] === 'Doctor'): ?>
+                                                <small><?php echo htmlspecialchars($schedule['specialization'] !== '' ? $schedule['specialization'] : 'Specialty not recorded'); ?></small>
+                                            <?php else: ?>
+                                                <small><?php echo htmlspecialchars($schedule['role']); ?></small>
+                                            <?php endif; ?>
+                                        </span>
                                     </td>
-                                    <td><?php echo htmlspecialchars($schedule['role']); ?></td>
-                                    <td><?php echo htmlspecialchars($schedule['shift']); ?></td>
-                                    <td><span
-                                            class="hospitalsched-status hospitalsched-status--<?php echo $schedule['online'] ? 'online' : 'offline'; ?>"
-                                            title="<?php echo $schedule['online'] ? 'Online in the system' : 'Offline in the system'; ?>"
-                                            aria-label="<?php echo htmlspecialchars($schedule['statusLabel'] . ', ' . ($schedule['online'] ? 'online' : 'offline')); ?>"><?php echo htmlspecialchars($schedule['statusLabel']); ?></span>
-                                    </td>
+                                    <td data-label="Role"><?php echo htmlspecialchars($schedule['role']); ?></td>
+                                    <td data-label="Shift today"><?php echo htmlspecialchars($schedule['shift']); ?></td>
+                                    <td data-label="Online Status"><span class="hospitalsched-online-status hospitalsched-online-status--<?php echo $schedule['online'] ? 'online' : 'offline'; ?>">
+                                            <span class="hospitalsched-online-dot hospitalsched-online-dot--<?php echo $schedule['online'] ? 'online' : 'offline'; ?>"
+                                                aria-hidden="true"></span><?php echo htmlspecialchars($schedule['onlineStatus']); ?>
+                                        </span></td>
+                                    <td data-label="Duty Status"><span class="hospitalsched-indicator hospitalsched-indicator--<?php echo htmlspecialchars($schedule['dutyStatus']); ?>"><?php echo htmlspecialchars($schedule['dutyStatusLabel']); ?></span></td>
                                 </tr><?php endforeach; ?>
                         </tbody>
                     </table>

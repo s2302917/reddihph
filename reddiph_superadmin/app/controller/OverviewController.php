@@ -10,7 +10,14 @@ class OverviewController
     public function index(): void
     {
         DashboardController::requireSuperAdmin();
-        DashboardController::renderDashboard('overview', OverviewModel::data());
+        try {
+            DashboardController::renderDashboard('overview', OverviewModel::data());
+        } catch (\RuntimeException $exception) {
+            error_log('Super Admin overview could not load: ' . $exception->getMessage());
+            DashboardController::renderDashboard('overview', [
+                'overviewError' => 'The overview could not load from the configured database. Check the database connection and confirm the backup schema is present.',
+            ]);
+        }
     }
 }
 

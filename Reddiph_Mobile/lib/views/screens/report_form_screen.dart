@@ -5,6 +5,7 @@ import '../../core/nav.dart';
 import '../../core/theme.dart';
 import '../../models/incident_patient.dart';
 import '../../models/role.dart';
+import '../../models/triage_category.dart';
 import '../../services/location_service.dart';
 import '../widgets/common.dart';
 import '../widgets/responder_widgets.dart';
@@ -22,10 +23,10 @@ class ReportFormScreen extends StatefulWidget {
 
 class _ReportFormScreenState extends State<ReportFormScreen> {
   static const _types = ['Vehicular', 'Fall', 'Medical', 'Fire', 'Other'];
-  static const _conditions = ['Critical', 'Urgent', 'Stable'];
+  static const _categories = EmergencyCategory.values;
 
   String? _type;
-  String _condition = 'Critical';
+  String _category = EmergencyCategory.emergent.value;
   String _reportedBy = 'on_scene';
   String? _otherType;
   double? _latitude;
@@ -62,7 +63,7 @@ class _ReportFormScreenState extends State<ReportFormScreen> {
     }
     final draft = ResponderIncidentDraft(
       incidentType: type,
-      status: _condition.toLowerCase(),
+      triageCategory: _category,
       reportedBy: _reportedBy,
       location:
           'GPS ${_latitude!.toStringAsFixed(6)}, ${_longitude!.toStringAsFixed(6)}',
@@ -85,17 +86,15 @@ class _ReportFormScreenState extends State<ReportFormScreen> {
       );
 
   Widget _choice(String label, bool selected, VoidCallback onTap,
-      {bool emphasized = false}) {
-    final color = widget.color;
+      {Color? selectedColor, Color? selectedTextColor}) {
+    final color = selectedColor ?? widget.color;
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 140),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: selected
-              ? (emphasized ? const Color(0xFFBA696B) : color)
-              : Colors.white,
+          color: selected ? color : Colors.white,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: selected ? color : Colors.black26),
         ),
@@ -103,7 +102,9 @@ class _ReportFormScreenState extends State<ReportFormScreen> {
             style: TextStyle(
               fontSize: 10,
               fontWeight: FontWeight.w600,
-              color: selected ? Colors.white : Colors.black87,
+              color: selected
+                  ? (selectedTextColor ?? Colors.white)
+                  : Colors.black87,
             )),
       ),
     );
@@ -150,14 +151,18 @@ class _ReportFormScreenState extends State<ReportFormScreen> {
               style: const TextStyle(fontSize: 11),
             ),
           ],
-          _sectionLabel('Condition'),
+          _sectionLabel('Emergency category'),
           Wrap(
             spacing: 5,
             children: [
-              for (final value in _conditions)
-                _choice(value, _condition == value,
-                    () => setState(() => _condition = value),
-                    emphasized: value == 'Critical'),
+              for (final category in _categories)
+                _choice(
+                  category.label,
+                  _category == category.value,
+                  () => setState(() => _category = category.value),
+                  selectedColor: category.color,
+                  selectedTextColor: category.textColor,
+                ),
             ],
           ),
           _sectionLabel('Location'),

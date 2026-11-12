@@ -10,7 +10,10 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 
 $referralId = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
-$referral = $referralId ? (new HospitalnetworkModel())->getReferralStatus((int) $referralId) : null;
+$hospitalId = (int) ($_SESSION['hospital_id'] ?? 0);
+$referral = $referralId && $hospitalId > 0
+    ? (new HospitalnetworkModel())->getReferralStatus((int) $referralId, $hospitalId)
+    : null;
 
 if (!$referral) {
     header('Location: ' . assetUrl('app/controllers/hospitalnetworkController.php'));

@@ -6,13 +6,15 @@ require_once __DIR__ . '/ApiController.php';
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../models/DispatchModel.php';
 require_once __DIR__ . '/../models/ResponderDashboardModel.php';
+require_once __DIR__ . '/../models/ResponderProfileModel.php';
 require_once __DIR__ . '/../models/IncidentModel.php';
 require_once __DIR__ . '/../models/UserModel.php';
 require_once __DIR__ . '/../services/TokenService.php';
+require_once __DIR__ . '/../services/AuditLogService.php';
 
 final class ResponderAlertController extends ApiController
 {
-    private const OPEN_STATUSES = "'critical', 'urgent', 'stable', 'dispatched'";
+    private const OPEN_STATUSES = "'open', 'dispatched', 'referred'";
 
     public static function handle(): void
     {
@@ -55,6 +57,9 @@ final class ResponderAlertController extends ApiController
     private static function queue(int $userId, ?array $origin): void
     {
         ResponderDashboardModel::updatePresence($userId, $origin);
+        if (!ResponderProfileModel::isEligibleNow($userId)) {
+            self::respond(200, ['success' => true, 'alerts' => []]);
+        }
         $profile = ResponderDashboardModel::profile($userId);
         if ($profile !== null) {
             self::dispatchWaitingIncidents($profile);
@@ -72,7 +77,7 @@ final class ResponderAlertController extends ApiController
         );
         $stmt->execute([$userId]);
         $alerts = array_map(
-            static fn (array $row): array => [
+            static fn(array $row): array => [
                 'alert_id' => (int) $row['id'],
                 'incident_id' => (int) $row['incident_id'],
                 'incident_type' => $row['incident_type'],
@@ -122,28 +127,30 @@ final class ResponderAlertController extends ApiController
                 if ($incident['latitude'] === null || $incident['longitude'] === null) {
                     continue;
                 }
-                $responder = DispatchModel::availableResponder(
+                $pair = DispatchModel::availableResponderPair(
                     $incident['barangay_id'] !== null ? (int) $incident['barangay_id'] : null,
                     $incident['reporter_user_id'] !== null
-                        ? (int) $incident['reporter_user_id']
-                        : null,
+                    ? (int) $incident['reporter_user_id']
+                    : null,
                     (float) $incident['latitude'],
                     (float) $incident['longitude']
                 );
-                if ($responder === null) {
+                if ($pair === null) {
                     continue;
                 }
+                $primaryResponder = $pair['responder'];
+                $driverResponder = $pair['driver'];
 
-                $transportHospitalId = $responder['hospital_id']
+                $transportHospitalId = $primaryResponder['hospital_id']
                     ?? ($incident['hospital_id'] !== null ? (int) $incident['hospital_id'] : null);
                 $transport = $transportHospitalId === null
                     ? null
                     : DispatchModel::availableTransport($transportHospitalId);
                 $eta = null;
-                if ($responder['latitude'] !== null && $responder['longitude'] !== null) {
+                if ($primaryResponder['latitude'] !== null && $primaryResponder['longitude'] !== null) {
                     $eta = DispatchModel::etaMinutes(
-                        $responder['latitude'],
-                        $responder['longitude'],
+                        $primaryResponder['latitude'],
+                        $primaryResponder['longitude'],
                         (float) $incident['latitude'],
                         (float) $incident['longitude']
                     );
@@ -154,19 +161,17 @@ final class ResponderAlertController extends ApiController
                      SET assigned_responder_user_id = ?, responder_name = ?,
                          assigned_ambulance_id = ?, transport_name = ?,
                          transport_type = ?, driver_name = ?,
-                         eta_minutes = COALESCE(?, eta_minutes)
+                         eta_minutes = COALESCE(?, eta_minutes), status = CASE WHEN status = \'open\' THEN \'dispatched\' ELSE status END
                      WHERE incident_id = ?
-                       AND assigned_responder_user_id IS NULL
-                       AND (responder_name IS NULL OR responder_name = \'\')
                        AND status IN (' . self::OPEN_STATUSES . ')'
                 );
                 $update->execute([
-                    $responder['id'],
-                    $responder['full_name'],
+                    $primaryResponder['id'],
+                    $primaryResponder['full_name'],
                     $transport['id'] ?? null,
                     $transport['call_sign'] ?? null,
                     $transport['vehicle_type'] ?? null,
-                    $transport['driver_name'] ?? null,
+                    $driverResponder['full_name'] ?? null,
                     $eta,
                     $incident['incident_id'],
                 ]);
@@ -174,16 +179,50 @@ final class ResponderAlertController extends ApiController
                     continue;
                 }
 
-                $pdo->prepare(
-                    "INSERT INTO responder_alerts
-                        (incident_id, responder_user_id, status, created_at)
-                     VALUES (?, ?, 'pending', NOW())
-                     ON DUPLICATE KEY UPDATE
-                        status = 'pending', created_at = NOW(), acknowledged_at = NULL"
-                )->execute([
-                    (int) $incident['incident_id'],
-                    $responder['id'],
-                ]);
+                $assignmentRoleSupported = $pdo->prepare(
+                    'SELECT 1 FROM information_schema.columns
+                     WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?'
+                );
+                $assignmentRoleSupported->execute(['responder_alerts', 'assignment_role']);
+                $supportsAssignmentRole = (int) $assignmentRoleSupported->fetchColumn() === 1;
+                $assignments = [
+                    [
+                        'responder_user_id' => $primaryResponder['id'],
+                        'assignment_role' => 'responder',
+                    ]
+                ];
+                if ($driverResponder !== null) {
+                    $assignments[] = [
+                        'responder_user_id' => $driverResponder['id'],
+                        'assignment_role' => 'driver',
+                    ];
+                }
+                foreach ($assignments as $assignment) {
+                    if ($supportsAssignmentRole) {
+                        $pdo->prepare(
+                            "INSERT INTO responder_alerts
+                                (incident_id, responder_user_id, assignment_role, status, created_at)
+                             VALUES (?, ?, ?, 'pending', NOW())
+                             ON DUPLICATE KEY UPDATE
+                                status = 'pending', created_at = NOW(), acknowledged_at = NULL"
+                        )->execute([
+                                    (int) $incident['incident_id'],
+                                    $assignment['responder_user_id'],
+                                    $assignment['assignment_role'],
+                                ]);
+                        continue;
+                    }
+                    $pdo->prepare(
+                        "INSERT INTO responder_alerts
+                            (incident_id, responder_user_id, status, created_at)
+                         VALUES (?, ?, 'pending', NOW())
+                         ON DUPLICATE KEY UPDATE
+                            status = 'pending', created_at = NOW(), acknowledged_at = NULL"
+                    )->execute([
+                                (int) $incident['incident_id'],
+                                $assignment['responder_user_id'],
+                            ]);
+                }
             }
             $pdo->commit();
         } catch (Throwable $error) {
@@ -211,13 +250,31 @@ final class ResponderAlertController extends ApiController
         if ($id === false) {
             self::respond(422, ['success' => false, 'message' => 'A valid alert is required.']);
         }
-        $stmt = Database::connection()->prepare(
-            "UPDATE responder_alerts SET status = 'acknowledged', acknowledged_at = NOW()
-             WHERE id = ? AND responder_user_id = ? AND status = 'pending'"
-        );
-        $stmt->execute([$id, $userId]);
-        if ($stmt->rowCount() !== 1) {
-            self::respond(409, ['success' => false, 'message' => 'This alert is no longer pending.']);
+        $pdo = Database::connection();
+        $pdo->beginTransaction();
+        try {
+            $stmt = $pdo->prepare(
+                "UPDATE responder_alerts SET status = 'acknowledged', acknowledged_at = NOW()
+                 WHERE id = ? AND responder_user_id = ? AND status = 'pending'"
+            );
+            $stmt->execute([$id, $userId]);
+            if ($stmt->rowCount() !== 1) {
+                $pdo->rollBack();
+                self::respond(409, ['success' => false, 'message' => 'This alert is no longer pending.']);
+            }
+            AuditLogService::record(
+                $pdo,
+                $userId,
+                'responder.alert_acknowledged',
+                'responder_alert',
+                (string) $id
+            );
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
         }
         self::respond(200, ['success' => true]);
     }

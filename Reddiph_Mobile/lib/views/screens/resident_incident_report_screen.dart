@@ -8,6 +8,7 @@ import '../../core/nav.dart';
 import '../../core/theme.dart';
 import '../../models/incident_patient.dart';
 import '../../models/role.dart';
+import '../../models/triage_category.dart';
 import '../../models/volunteer.dart';
 import '../../services/location_service.dart';
 import '../../services/mobile_api_client.dart';
@@ -25,7 +26,7 @@ class ResidentIncidentReportScreen extends StatefulWidget {
 
 class _ResidentIncidentReportScreenState
     extends State<ResidentIncidentReportScreen> {
-  static const _conditions = ['critical', 'urgent', 'stable'];
+  static const _categories = EmergencyCategory.values;
   static const _genders = ['male', 'female', 'other', 'unknown'];
 
   final _incidentFormKey = GlobalKey<FormState>();
@@ -46,7 +47,7 @@ class _ResidentIncidentReportScreenState
   double? _latitude;
   double? _longitude;
   String _selectedIncidentType = '';
-  String _condition = _conditions.first;
+  String _category = EmergencyCategory.emergent.value;
   String _gender = _genders.last;
   String _reportedBy = 'resident_sos';
   String? _locationError;
@@ -256,7 +257,7 @@ class _ResidentIncidentReportScreenState
         latitude: latitude,
         longitude: longitude,
         incidentType: _incidentType,
-        status: _condition,
+        triageCategory: _category,
         patientName: _patients.first.name,
         patientAge: _patients.first.age,
         patientGender: _patients.first.gender,
@@ -436,17 +437,18 @@ class _ResidentIncidentReportScreenState
               color: kResidentBrand,
             ),
             const SizedBox(height: 16),
-            _label('Condition'),
+            _label('Emergency category'),
             Wrap(
               spacing: 7,
               runSpacing: 6,
               children: [
-                for (final condition in _conditions)
+                for (final category in _categories)
                   _choicePill(
-                    _title(condition),
-                    selected: _condition == condition,
-                    onTap: () => setState(() => _condition = condition),
-                    color: kResidentBrand,
+                    category.label,
+                    selected: _category == category.value,
+                    onTap: () => setState(() => _category = category.value),
+                    color: category.color,
+                    selectedTextColor: category.textColor,
                   ),
               ],
             ),
@@ -802,7 +804,10 @@ class _ResidentIncidentReportScreenState
           const SizedBox(height: 12),
           _summaryCard('Incident', [
             ('Type', _incidentType),
-            ('Condition', _title(_condition)),
+            (
+              'Emergency category',
+              EmergencyCategory.fromValue(_category)?.label ?? 'Unclassified'
+            ),
             (
               'Reported by',
               _reportedBy == 'on_scene' ? 'On scene' : 'Resident SOS'
@@ -992,13 +997,14 @@ class _ResidentIncidentReportScreenState
     required bool selected,
     required VoidCallback onTap,
     required Color color,
+    Color selectedTextColor = Colors.white,
   }) =>
       OutlinedButton(
         onPressed: onTap,
         style: OutlinedButton.styleFrom(
           minimumSize: const Size(0, 38),
           padding: const EdgeInsets.symmetric(horizontal: 14),
-          foregroundColor: selected ? Colors.white : Colors.black87,
+          foregroundColor: selected ? selectedTextColor : Colors.black87,
           backgroundColor: selected ? color : Colors.white,
           side: BorderSide(color: selected ? color : Colors.black26),
           shape: const StadiumBorder(),

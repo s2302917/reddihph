@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../../config/config.php';
+require_once __DIR__ . '/../services/AuditLogService.php';
 
 final class FalseReportAlreadyExistsException extends RuntimeException
 {
@@ -81,6 +82,22 @@ final class FalseReportModel
                 "UPDATE incidents SET status = 'resolved', resolved_at = NOW()
                  WHERE incident_id = ?"
             )->execute([$incidentId]);
+            AuditLogService::record(
+                $pdo,
+                $responderId,
+                'false_report.submitted',
+                'false_report',
+                (string) $falseReportId,
+                ['incident_id' => $incidentId]
+            );
+            AuditLogService::record(
+                $pdo,
+                $responderId,
+                'incident.status_updated',
+                'incident',
+                (string) $incidentId,
+                ['status' => 'resolved']
+            );
 
             $pdo->commit();
 
@@ -169,6 +186,14 @@ final class FalseReportModel
                      SET review_status = 'dismissed', reviewed_by_user_id = ?, reviewed_at = NOW()
                      WHERE id = ?"
                 )->execute([$adminId, $falseReportId]);
+                AuditLogService::record(
+                    $pdo,
+                    $adminId,
+                    'false_report.reviewed',
+                    'false_report',
+                    (string) $falseReportId,
+                    ['decision' => 'dismiss']
+                );
                 $pdo->commit();
 
                 return [
@@ -205,6 +230,14 @@ final class FalseReportModel
                      reviewed_by_user_id = ?, reviewed_at = NOW(), ban_applied_until = ?
                  WHERE id = ?"
             )->execute([$warningCount, $adminId, $bannedUntil, $falseReportId]);
+            AuditLogService::record(
+                $pdo,
+                $adminId,
+                'false_report.reviewed',
+                'false_report',
+                (string) $falseReportId,
+                ['decision' => 'confirm', 'warning_count' => $warningCount]
+            );
             $pdo->commit();
 
             return [

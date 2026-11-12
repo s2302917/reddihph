@@ -23,7 +23,7 @@ class DoctorCase {
     this.timeline = const [],
   });
 
-  bool get critical => severity == 'Critical';
+  bool get critical => severity == 'Emergent';
 }
 
 enum ShiftType { day, night, onCall, off }
@@ -33,7 +33,7 @@ class DoctorData {
     DoctorCase(
       name: 'Dela Cruz, J.',
       summary: 'Vehicular collision · 42, male',
-      severity: 'Critical',
+      severity: 'Emergent',
       status: 'Incoming',
       pulse: '102',
       spo2: '92%',
@@ -48,7 +48,7 @@ class DoctorData {
     DoctorCase(
       name: 'Aling Nena',
       summary: 'Fall injury · 71, female',
-      severity: 'Stable',
+      severity: 'Non-Urgent',
       status: 'Incoming',
       eta: '14 min',
       distance: '5.1 km',

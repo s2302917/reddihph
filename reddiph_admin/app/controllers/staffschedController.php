@@ -90,7 +90,12 @@ class StaffschedController
             ? 'Doctor'
             : ($schedule['role'] === 'nurse' ? 'Nurse' : $schedule['department']);
         $status = $this->getDutyStatus($schedule, $now);
-        $online = !empty($schedule['last_login_at']);
+        $isOnline = $schedule['online_user_id'] !== null;
+        $dutyStatus = $status === 'on_duty' ? 'on_duty' : 'off_duty';
+        $name = trim((string) $schedule['full_name']);
+        $displayName = $role === 'Doctor' && $name !== ''
+            ? 'Dr. ' . preg_replace('/^(?:Dr\.\s*)+/i', '', $name)
+            : $name;
         $shiftDate = $schedule['shift_date'] ?? null;
         $priority = 0;
         if ($shiftDate !== null) {
@@ -100,24 +105,29 @@ class StaffschedController
         }
 
         return [
-            'name' => (string) $schedule['full_name'],
+            'name' => $name,
+            'displayName' => $displayName,
             'role' => $role,
             'initials' => $this->initials((string) $schedule['full_name']),
             'shift' => $this->formatShift($schedule, $now),
+            'specialization' => trim((string) ($schedule['specialization'] ?? '')),
             'status' => $status,
             'statusLabel' => $status === 'on_duty'
                 ? 'On duty'
                 : ($status === 'starts_later'
                     ? 'Starts at ' . $this->formatDutyTime($schedule['shift_start'] ?? null)
                     : 'Off duty'),
-            'online' => $online,
+            'dutyStatus' => $dutyStatus,
+            'dutyStatusLabel' => $dutyStatus === 'on_duty' ? 'On Duty' : 'Off Duty',
+            'online' => $isOnline,
+            'onlineStatus' => $isOnline ? 'Online' : 'Offline',
             '_priority' => $priority,
         ];
     }
 
     private function initials(string $name): string
     {
-        $words = preg_split('/\s+/', preg_replace('/^Dr\.\s*/i', '', trim($name)));
+        $words = preg_split('/\s+/', preg_replace('/^(?:Dr\.\s*)+/i', '', trim($name)));
         return implode('', array_map(fn(string $word): string => strtoupper(substr($word, 0, 1)), array_slice($words ?: [], 0, 2)));
     }
 

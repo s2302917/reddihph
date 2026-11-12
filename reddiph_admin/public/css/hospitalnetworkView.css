@@ -4,15 +4,22 @@
 }
 
 .hospitalnetwork-header {
-    margin-bottom: 28px;
+    margin-bottom: 20px;
 }
 
-.hospitalnetwork-header .incomingdispatch-search-input {
-    transition: width 0.2s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+.hospitalnetwork-toolbar {
+    display: flex;
+    justify-content: flex-start;
+    margin-bottom: 24px;
 }
 
-.hospitalnetwork-header .incomingdispatch-search-input:focus {
-    width: 340px;
+.hospitalnetwork-toolbar .emergency_alert_search {
+    width: min(360px, 100%);
+}
+
+.hospitalnetwork-toolbar .emergency_alert_search_input,
+.hospitalnetwork-toolbar .emergency_alert_search_input:focus {
+    width: 100%;
 }
 
 .hospitalnetwork-grid {
@@ -433,8 +440,8 @@
         justify-content: space-between;
     }
 
-    .hospitalnetwork-header .incomingdispatch-search-input {
-        width: min(68vw, 300px);
+    .hospitalnetwork-toolbar .emergency_alert_search {
+        width: 100%;
     }
 
     .hospitalnetwork-modal {
@@ -639,5 +646,105 @@
     .hospitalnetwork-status-note strong {
         display: block;
         margin-top: 8px;
+    }
+}
+
+.hospitalnetwork-referral-history {
+    max-width: 1080px;
+    margin-top: 28px;
+    padding: 18px;
+    border: 1px solid #e8d8d5;
+    border-radius: 10px;
+    background: #fffaf9;
+    box-shadow: var(--incomingdispatch-shadow);
+}
+
+.hospitalnetwork-referral-history > header {
+    margin-bottom: 12px;
+}
+
+.hospitalnetwork-referral-history h2 {
+    margin: 0;
+    font-size: 16px;
+}
+
+.hospitalnetwork-referral-history header p,
+.hospitalnetwork-referral-history-empty {
+    margin: 5px 0 0;
+    color: var(--emergency_alert_text_muted);
+    font-size: 12px;
+}
+
+.hospitalnetwork-referral-history-wrap {
+    overflow-x: auto;
+}
+
+.hospitalnetwork-referral-history table {
+    width: 100%;
+    min-width: 760px;
+    border-collapse: collapse;
+}
+
+.hospitalnetwork-referral-history th,
+.hospitalnetwork-referral-history td {
+    padding: 10px;
+    border-bottom: 1px solid #eee4e1;
+    text-align: left;
+    vertical-align: top;
+    font-size: 12px;
+}
+
+.hospitalnetwork-referral-history th {
+    color: var(--emergency_alert_text_muted);
+    font-size: 10px;
+    text-transform: uppercase;
+}
+
+.hospitalnetwork-referral-history td:first-child a {
+    color: var(--incomingdispatch-maroon);
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.hospitalnetwork-referral-history td:first-child small {
+    display: block;
+    margin-top: 4px;
+    color: var(--emergency_alert_text_muted);
+}
+
+.hospitalnetwork-referral-status {
+    display: inline-flex;
+    padding: 4px 7px;
+    border-radius: 999px;
+    background: #fff3df;
+    color: #885400;
+    font-size: 10px;
+    font-weight: 700;
+}
+
+.hospitalnetwork-referral-status--accepted,
+.hospitalnetwork-referral-status--completed {
+    background: #edf8ef;
+    color: #257447;
+}
+
+.hospitalnetwork-referral-status--declined {
+    background: #fbeaea;
+    color: #8f1d1d;
+}
+
+@media (max-width: 760px) {
+    .hospitalnetwork-main {
+        padding: 24px 16px;
+    }
+
+    .hospitalnetwork-referral-history {
+        padding: 12px;
+    }
+}
+
+@media (max-width: 680px) {
+    body.hospitalnetwork-status-body .hospitalnetwork-status-main {
+        display: none;
     }
 }

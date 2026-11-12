@@ -340,8 +340,7 @@ class VolunteerDetails {
         rating: (json['rating'] as num?)?.toDouble(),
         assistedIncidents: (json['assisted_incidents'] as num?)?.toInt() ?? 0,
         thanksCount: (json['thanks_count'] as num?)?.toInt() ?? 0,
-        thanksThisMonth:
-            (json['thanks_this_month'] as num?)?.toInt() ?? 0,
+        thanksThisMonth: (json['thanks_this_month'] as num?)?.toInt() ?? 0,
         reviews: (json['reviews'] as List).map((review) {
           if (review is! Map<String, dynamic>) {
             throw const FormatException('Invalid volunteer review.');

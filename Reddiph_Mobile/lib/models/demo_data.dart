@@ -18,25 +18,25 @@ class DemoData {
       'En route', 2, 'Barangay ambulance\n4 min away');
 
   static const dispatch = PatientCase('Vehicular collision',
-      'Purok 3, near covered court', '6 min', 'Critical');
+      'Purok 3, near covered court', '6 min', 'Emergent');
 
   static const sosQueue = <QueueItem>[
     QueueItem('Difficulty breathing', 'Brgy. San Isidro · Fidel R.', '0.8 km',
         '1 min ago',
-        severity: 'Critical', patient: 'Fidel R.'),
+        severity: 'Emergent', patient: 'Fidel R.'),
     QueueItem(
         'Fall injury, elderly', 'Purok 7 · Aling Nena', '1.6 km', '4 min ago',
         severity: 'Urgent', patient: 'Aling Nena'),
     QueueItem('Fever, child', 'Purok 2 · Reported by volunteer', '2.1 km',
         '9 min ago',
-        severity: 'Stable', patient: 'Child', reportedBy: 'Volunteer'),
+        severity: 'Non-Urgent', patient: 'Child', reportedBy: 'Volunteer'),
   ];
 
   static const incomingPatients = <PatientCase>[
     PatientCase('Vehicular collision — Patient 1',
-        'Purok 3, near covered court', '6 min', 'Critical',
+        'Purok 3, near covered court', '6 min', 'Emergent',
         pulse: '102', spo2: '92%', bp: '90/60'),
-    PatientCase('Fall injury — Aling Nena', 'Purok 7', '14 mins', 'Stable'),
+    PatientCase('Fall injury — Aling Nena', 'Purok 7', '14 mins', 'Non-Urgent'),
   ];
 
   static const reviewCases = <ReviewCase>[

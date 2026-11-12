@@ -85,9 +85,10 @@ class _NurseHomeState extends State<NurseHome> {
         : now.hour < 18
             ? 'Good afternoon,'
             : 'Good evening,';
-    final incoming = data.cases
-        .where((item) => item.status == 'en_route' || item.status == 'notified')
-        .toList(growable: false);
+    final enRouteCount =
+        data.cases.where((item) => item.status == 'en_route').length;
+    final arrivedCount =
+        data.cases.where((item) => item.status == 'arrived').length;
 
     return RefreshIndicator(
       onRefresh: _load,
@@ -173,7 +174,7 @@ class _NurseHomeState extends State<NurseHome> {
                   ),
                 ),
                 Text(
-                  '${data.summary['incoming'] ?? incoming.length} incoming',
+                  '${data.cases.length} notified',
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 10,
@@ -183,26 +184,26 @@ class _NurseHomeState extends State<NurseHome> {
               ],
             ),
           ),
-          const Section('Preparation overview'),
+          const Section('Case overview'),
           Box(
             Row(
               children: [
                 _summaryValue(
-                  '${data.summary['prep_complete'] ?? 0}/${data.summary['prep_total'] ?? 0}',
-                  'Cases prepared',
+                  '${data.cases.length}',
+                  'Active cases',
                 ),
                 _summaryValue(
-                  '${data.summary['free_er_beds'] ?? 0}',
-                  'ER beds ready',
+                  '$enRouteCount',
+                  'En route',
                 ),
                 _summaryValue(
-                  '${data.summary['free_pediatric_beds'] ?? 0}',
-                  'Pediatric beds',
+                  '$arrivedCount',
+                  'Arrived',
                 ),
               ],
             ),
           ),
-          const Section('Incoming patients'),
+          const Section('Notified cases'),
           if (data.cases.isEmpty)
             const Box(
               Text(
@@ -293,8 +294,8 @@ class _NurseHomeState extends State<NurseHome> {
     final statusText = switch (item.status) {
       'en_route' => 'En route · ${item.etaMinutes ?? '—'} min',
       'arrived' => 'Arrived',
-      'handed_off' => 'Handed off',
-      _ => 'Awaiting transport',
+      'notified' => 'Notified',
+      _ => item.status.replaceAll('_', ' '),
     };
     return Card(
       margin: const EdgeInsets.fromLTRB(20, 0, 20, 8),
@@ -318,7 +319,7 @@ class _NurseHomeState extends State<NurseHome> {
                     ),
                   ),
                   Text(
-                    item.priority,
+                    item.triageCategoryLabel,
                     style: const TextStyle(
                       color: kSos,
                       fontSize: 9,
@@ -331,17 +332,6 @@ class _NurseHomeState extends State<NurseHome> {
               Text(
                 '${item.location} · $statusText',
                 style: const TextStyle(fontSize: 9, color: Colors.black54),
-              ),
-              const SizedBox(height: 7),
-              LinearProgressIndicator(
-                value: item.prepTotal == 0 ? 0 : item.prepDone / item.prepTotal,
-                color: kNurse,
-                backgroundColor: Colors.black12,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                '${item.prepDone} of ${item.prepTotal} preparation steps complete',
-                style: const TextStyle(fontSize: 8, color: Colors.black54),
               ),
             ],
           ),

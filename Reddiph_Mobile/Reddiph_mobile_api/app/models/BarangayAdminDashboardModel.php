@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../../config/config.php';
+require_once __DIR__ . '/../services/AuditLogService.php';
 
 final class BarangayAdminDashboardModel
 {
@@ -288,6 +289,14 @@ final class BarangayAdminDashboardModel
                  SET approval_status = ?, reviewed_at = NOW(), reviewed_by_user_id = ?
                  WHERE id = ?'
             )->execute([$nextStatus, $reviewerId, $accountId]);
+            AuditLogService::record(
+                $pdo,
+                $reviewerId,
+                'account.approval_updated',
+                'user',
+                (string) $accountId,
+                ['approval_status' => $nextStatus]
+            );
             $pdo->commit();
             return true;
         } catch (Throwable $e) {

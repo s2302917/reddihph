@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../../config/config.php';
+require_once __DIR__ . '/../services/AuditLogService.php';
 require_once __DIR__ . '/DispatchModel.php';
 require_once __DIR__ . '/RoadRoutingModel.php';
 
@@ -77,89 +78,141 @@ final class VolunteerModel
 
     public static function updateLocation(int $userId, float $latitude, float $longitude): void
     {
-        $profile = Database::connection()->prepare(
-            "SELECT p.is_available
+        $pdo = Database::connection();
+        $profile = $pdo->prepare(
+            "SELECT p.is_available,
+                    EXISTS (
+                        SELECT 1 FROM volunteer_assistances va
+                        WHERE va.volunteer_user_id = p.user_id
+                          AND va.status = 'accepted'
+                    ) AS has_active_assignment
              FROM volunteer_profiles p
              JOIN user_type u ON u.id = p.user_id AND u.role = 'volunteer'
              WHERE p.user_id = ? LIMIT 1"
         );
         $profile->execute([$userId]);
-        $available = $profile->fetchColumn();
-        if ($available === false) {
+        $volunteer = $profile->fetch(PDO::FETCH_ASSOC);
+        if ($volunteer === false) {
             throw new RuntimeException('Volunteer profile is not available.');
         }
-        if ((int) $available !== 1) {
+        if ((int) $volunteer['is_available'] !== 1
+            && (int) $volunteer['has_active_assignment'] !== 1) {
             throw new InvalidArgumentException(
-                'Set your volunteer availability to available to share your location.'
+                'Accept an assistance request or set your availability to share your location.'
             );
         }
 
-        $stmt = Database::connection()->prepare(
+        $stmt = $pdo->prepare(
             "UPDATE volunteer_profiles p
              JOIN user_type u ON u.id = p.user_id AND u.role = 'volunteer'
              SET p.latitude = ?, p.longitude = ?, p.location_updated_at = NOW()
-             WHERE p.user_id = ? AND p.is_available = 1"
+             WHERE p.user_id = ?
+               AND (
+                   p.is_available = 1
+                   OR EXISTS (
+                       SELECT 1 FROM volunteer_assistances va
+                       WHERE va.volunteer_user_id = p.user_id
+                         AND va.status = 'accepted'
+                   )
+               )"
         );
         $stmt->execute([$latitude, $longitude, $userId]);
     }
 
     public static function setAvailability(int $userId, bool $available): void
     {
-        if ($available) {
-            $active = Database::connection()->prepare(
-                "SELECT 1 FROM volunteer_assistances
-                 WHERE volunteer_user_id = ? AND status = 'accepted'
-                 LIMIT 1"
-            );
-            $active->execute([$userId]);
-            if ($active->fetchColumn() !== false) {
-                throw new InvalidArgumentException(
-                    'Complete your accepted request before becoming available.'
+        $pdo = Database::connection();
+        $pdo->beginTransaction();
+        try {
+            if ($available) {
+                $active = $pdo->prepare(
+                    "SELECT 1 FROM volunteer_assistances
+                     WHERE volunteer_user_id = ? AND status = 'accepted'
+                     LIMIT 1"
                 );
+                $active->execute([$userId]);
+                if ($active->fetchColumn() !== false) {
+                    throw new InvalidArgumentException(
+                        'Complete your accepted request before becoming available.'
+                    );
+                }
             }
-        }
 
-        $stmt = Database::connection()->prepare(
-            "UPDATE volunteer_profiles p
-             JOIN user_type u ON u.id = p.user_id AND u.role = 'volunteer'
-             SET p.is_available = ?
-             WHERE p.user_id = ?"
-        );
-        $stmt->execute([$available ? 1 : 0, $userId]);
-        if ($stmt->rowCount() === 0) {
-            $check = Database::connection()->prepare(
-                "SELECT 1 FROM volunteer_profiles p
+            $stmt = $pdo->prepare(
+                "UPDATE volunteer_profiles p
                  JOIN user_type u ON u.id = p.user_id AND u.role = 'volunteer'
-                 WHERE p.user_id = ? LIMIT 1"
+                 SET p.is_available = ?
+                 WHERE p.user_id = ?"
             );
-            $check->execute([$userId]);
-            if ($check->fetchColumn() !== false) {
-                return;
+            $stmt->execute([$available ? 1 : 0, $userId]);
+            if ($stmt->rowCount() === 0) {
+                $check = $pdo->prepare(
+                    "SELECT 1 FROM volunteer_profiles p
+                     JOIN user_type u ON u.id = p.user_id AND u.role = 'volunteer'
+                     WHERE p.user_id = ? LIMIT 1"
+                );
+                $check->execute([$userId]);
+                if ($check->fetchColumn() !== false) {
+                    $pdo->commit();
+                    return;
+                }
+                throw new RuntimeException('Volunteer profile is not available.');
             }
-            throw new RuntimeException('Volunteer profile is not available.');
+            AuditLogService::record(
+                $pdo,
+                $userId,
+                'volunteer.availability_updated',
+                'volunteer',
+                (string) $userId,
+                ['is_available' => $available]
+            );
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
         }
     }
 
     public static function updateVehicle(int $userId, ?string $vehicleType): void
     {
-        $stmt = Database::connection()->prepare(
-            "UPDATE volunteer_profiles p
-             JOIN user_type u ON u.id = p.user_id AND u.role = 'volunteer'
-             SET p.vehicle_type = ?
-             WHERE p.user_id = ?"
-        );
-        $stmt->execute([$vehicleType, $userId]);
-        if ($stmt->rowCount() === 0) {
-            $check = Database::connection()->prepare(
-                "SELECT 1 FROM volunteer_profiles p
+        $pdo = Database::connection();
+        $pdo->beginTransaction();
+        try {
+            $stmt = $pdo->prepare(
+                "UPDATE volunteer_profiles p
                  JOIN user_type u ON u.id = p.user_id AND u.role = 'volunteer'
-                 WHERE p.user_id = ? LIMIT 1"
+                 SET p.vehicle_type = ?
+                 WHERE p.user_id = ?"
             );
-            $check->execute([$userId]);
-            if ($check->fetchColumn() !== false) {
-                return;
+            $stmt->execute([$vehicleType, $userId]);
+            if ($stmt->rowCount() === 0) {
+                $check = $pdo->prepare(
+                    "SELECT 1 FROM volunteer_profiles p
+                     JOIN user_type u ON u.id = p.user_id AND u.role = 'volunteer'
+                     WHERE p.user_id = ? LIMIT 1"
+                );
+                $check->execute([$userId]);
+                if ($check->fetchColumn() !== false) {
+                    $pdo->commit();
+                    return;
+                }
+                throw new RuntimeException('Volunteer profile is not available.');
             }
-            throw new RuntimeException('Volunteer profile is not available.');
+            AuditLogService::record(
+                $pdo,
+                $userId,
+                'profile.updated',
+                'volunteer',
+                (string) $userId
+            );
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
         }
     }
 
@@ -190,6 +243,13 @@ final class VolunteerModel
              VALUES (?, ?, ?, 'requested')"
         );
         $insert->execute([$incidentId, $volunteerUserId, $requesterUserId]);
+        AuditLogService::record(
+            $pdo,
+            $requesterUserId,
+            'volunteer.requested',
+            'incident',
+            (string) $incidentId
+        );
     }
 
     public static function requests(int $volunteerUserId): array
@@ -206,7 +266,15 @@ final class VolunteerModel
              FROM volunteer_assistances a
              JOIN incidents i ON i.incident_id = a.incident_id
              LEFT JOIN user_type requester ON requester.id = a.requested_by_user_id
-             LEFT JOIN hospitals hospital ON hospital.id = i.hospital_id
+             LEFT JOIN referrals active_referral ON active_referral.id = (
+                SELECT r.id
+                FROM referrals r
+                WHERE r.incident_id = i.incident_id
+                ORDER BY r.created_at DESC, r.id DESC
+                LIMIT 1
+             ) AND active_referral.status IN ('pending', 'accepted')
+             LEFT JOIN hospitals hospital
+                ON hospital.id = COALESCE(active_referral.receiving_hospital_id, i.hospital_id)
              LEFT JOIN responder_presence presence
                 ON presence.user_id = i.assigned_responder_user_id
                AND presence.last_seen_at >= NOW() - INTERVAL 90 SECOND
@@ -485,7 +553,15 @@ final class VolunteerModel
                     presence.longitude AS responder_longitude
              FROM volunteer_assistances a
              JOIN incidents i ON i.incident_id = a.incident_id
-             LEFT JOIN hospitals hospital ON hospital.id = i.hospital_id
+             LEFT JOIN referrals active_referral ON active_referral.id = (
+                SELECT r.id
+                FROM referrals r
+                WHERE r.incident_id = i.incident_id
+                ORDER BY r.created_at DESC, r.id DESC
+                LIMIT 1
+             ) AND active_referral.status IN ('pending', 'accepted')
+             LEFT JOIN hospitals hospital
+                ON hospital.id = COALESCE(active_referral.receiving_hospital_id, i.hospital_id)
              LEFT JOIN user_type responder ON responder.id = i.assigned_responder_user_id
              LEFT JOIN responder_presence presence
                 ON presence.user_id = i.assigned_responder_user_id
@@ -590,6 +666,14 @@ final class VolunteerModel
                     'UPDATE volunteer_profiles SET is_available = ? WHERE user_id = ?'
                 )->execute([$availability, $volunteerUserId]);
             }
+            AuditLogService::record(
+                $pdo,
+                $volunteerUserId,
+                'volunteer.response_updated',
+                'volunteer_assistance',
+                (string) $assistanceId,
+                ['status' => $nextStatus]
+            );
             $pdo->commit();
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) {
@@ -634,6 +718,14 @@ final class VolunteerModel
                 $rating,
                 $review,
             ]);
+            AuditLogService::record(
+                $pdo,
+                $residentUserId,
+                'volunteer.review_saved',
+                'incident',
+                (string) $incidentId,
+                ['rating' => $rating]
+            );
             $pdo->commit();
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) {

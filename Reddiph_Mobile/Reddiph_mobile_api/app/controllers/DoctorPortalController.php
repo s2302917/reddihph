@@ -98,11 +98,18 @@ final class DoctorPortalController extends ApiController
                     $scheduleId = isset($data['schedule_id'])
                         ? self::positiveId($data['schedule_id'])
                         : null;
-                    $savedId = DoctorPortalModel::saveSchedule(
-                        $doctorId,
-                        $scheduleId,
-                        $schedule
-                    );
+                    if ($scheduleId === null) {
+                        $dates = self::scheduleDates($data, $schedule['date']);
+                        $created = DoctorPortalModel::saveSchedules($doctorId, $dates, $schedule);
+                        self::respond(200, [
+                            'success' => true,
+                            'created' => $created,
+                            'message' => $created > 0
+                                ? 'Schedule dates saved. Existing dates were left unchanged.'
+                                : 'No schedules added; all selected dates already have schedules.',
+                        ]);
+                    }
+                    $savedId = DoctorPortalModel::saveSchedule($doctorId, $scheduleId, $schedule);
                     if ($savedId === false) {
                         self::respond(404, [
                             'success' => false,
@@ -230,5 +237,28 @@ final class DoctorPortalController extends ApiController
         }
 
         return ['date' => $date, 'type' => $type, 'start' => $start, 'end' => $end];
+    }
+
+    private static function scheduleDates(array $data, string $singleDate): array
+    {
+        $dates = $data['dates'] ?? [$singleDate];
+        if (!is_array($dates) || $dates === [] || count($dates) > 366) {
+            throw new InvalidArgumentException('Choose between 1 and 366 schedule dates.');
+        }
+        foreach ($dates as $date) {
+            $parsed = is_string($date)
+                ? DateTimeImmutable::createFromFormat('!Y-m-d', $date)
+                : false;
+            if (!is_string($date)
+                || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)
+                || $parsed === false
+                || $parsed->format('Y-m-d') !== $date) {
+                throw new InvalidArgumentException('Choose valid schedule dates.');
+            }
+        }
+        $dates = array_values(array_unique($dates));
+        sort($dates);
+
+        return $dates;
     }
 }

@@ -2,6 +2,8 @@
 
 require_once __DIR__ . '/../../config/config.php';
 
+require_once __DIR__ . '/AuditLogModel.php';
+
 class NurseScheduleModel
 {
     private static function connection(): PDO
@@ -75,9 +77,52 @@ class NurseScheduleModel
                 'shift_end' => $data['end'] !== '' ? $data['end'] : null,
             ]);
             $id = (int) $connection->lastInsertId();
+            AuditLogModel::record($connection, $nurseId, 'schedule.created', 'staff_shift', (string) $id, [
+                'fields' => ['date', 'type', 'start', 'end'],
+            ]);
             $connection->commit();
 
             return $id;
+        } catch (Throwable $exception) {
+            if ($connection->inTransaction()) {
+                $connection->rollBack();
+            }
+            throw $exception;
+        }
+    }
+
+    public static function createMany(int $nurseId, array $dates, array $data): int
+    {
+        $connection = self::connection();
+        $connection->beginTransaction();
+        try {
+            $staffId = self::ensureStaffId($connection, $nurseId);
+            $statement = $connection->prepare(
+                "INSERT IGNORE INTO staff_shifts
+                    (staff_id, shift_date, shift_type, shift_start, shift_end)
+                VALUES
+                    (:staff_id, :shift_date, :shift_type, :shift_start, :shift_end)"
+            );
+            $created = 0;
+            foreach ($dates as $date) {
+                $statement->execute([
+                    'staff_id' => $staffId,
+                    'shift_date' => $date,
+                    'shift_type' => $data['type'],
+                    'shift_start' => $data['start'] !== '' ? $data['start'] : null,
+                    'shift_end' => $data['end'] !== '' ? $data['end'] : null,
+                ]);
+                if ($statement->rowCount() === 1) {
+                    $id = (string) $connection->lastInsertId();
+                    AuditLogModel::record($connection, $nurseId, 'schedule.created', 'staff_shift', $id, [
+                        'fields' => ['date', 'type', 'start', 'end'],
+                    ]);
+                    $created++;
+                }
+            }
+            $connection->commit();
+
+            return $created;
         } catch (Throwable $exception) {
             if ($connection->inTransaction()) {
                 $connection->rollBack();
@@ -110,7 +155,13 @@ class NurseScheduleModel
             'staff_id' => $staffId,
         ]);
 
-        return $statement->rowCount() > 0 || self::scheduleExists($staffId, $scheduleId);
+        $changed = $statement->rowCount() > 0;
+        if ($changed) {
+            AuditLogModel::record(self::connection(), $nurseId, 'schedule.updated', 'staff_shift', (string) $scheduleId, [
+                'fields' => ['date', 'type', 'start', 'end'],
+            ]);
+        }
+        return $changed || self::scheduleExists($staffId, $scheduleId);
     }
 
     public static function delete(int $nurseId, int $scheduleId): bool
@@ -125,7 +176,11 @@ class NurseScheduleModel
         );
         $statement->execute(['schedule_id' => $scheduleId, 'staff_id' => $staffId]);
 
-        return $statement->rowCount() === 1;
+        $deleted = $statement->rowCount() === 1;
+        if ($deleted) {
+            AuditLogModel::record(self::connection(), $nurseId, 'schedule.deleted', 'staff_shift', (string) $scheduleId);
+        }
+        return $deleted;
     }
 
     public static function label(array $shift): string

@@ -5,10 +5,10 @@ import '../../core/nav.dart';
 import '../../core/theme.dart';
 import '../../models/nurse_portal.dart';
 import '../dashboards/nurse_calendar_tab.dart';
-import '../dashboards/nurse_cases_tab.dart';
+import '../dashboards/nurse_case_history_tab.dart';
 import '../dashboards/nurse_home.dart';
+import '../dashboards/nurse_notified_cases_tab.dart';
 import '../dashboards/nurse_profile_tab.dart';
-import '../dashboards/nurse_reports_tab.dart';
 import '../widgets/common.dart';
 import '../widgets/nurse_widgets.dart';
 import 'portal_screen.dart';
@@ -26,11 +26,11 @@ class _NurseShellState extends State<NurseShell> {
   late int tab = widget.initialTab;
 
   static const _items = <(IconData, String)>[
-    (Icons.checklist, 'Prep'),
-    (Icons.hotel_outlined, 'Beds'),
-    (Icons.swap_horiz, 'Handoff'),
+    (Icons.home, 'Home'),
+    (Icons.notifications_active_outlined, 'Notified'),
     (Icons.calendar_today, 'Schedule'),
-    (Icons.settings_outlined, 'Settings'),
+    (Icons.history, 'History'),
+    (Icons.account_circle_outlined, 'Profile'),
   ];
 
   void _openSos() => Nav.push(context, SosScreen(role: AuthController.I.role!));
@@ -51,11 +51,11 @@ class _NurseShellState extends State<NurseShell> {
   Widget _body() {
     switch (tab) {
       case 1:
-        return const NurseCasesTab();
+        return const NurseNotifiedCasesTab();
       case 2:
-        return const NurseReportsTab();
-      case 3:
         return const NurseCalendarTab();
+      case 3:
+        return const NurseCaseHistoryTab();
       case 4:
         return NurseProfileTab(onBack: () => _select(0), onLogout: _logout);
       default:

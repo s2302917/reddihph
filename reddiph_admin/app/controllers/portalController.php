@@ -1,6 +1,17 @@
 <?php
 
 require_once __DIR__ . '/../../config/config.php';
+$loginNotice = null;
+$portalRole = $_GET['role'] ?? null;
+if (
+    is_string($portalRole) &&
+    in_array($portalRole, ['hospital_admin', 'doctor', 'nurse'], true)
+) {
+    startApplicationSession($portalRole);
+    $loginNotice = $_SESSION['login_notice'] ?? null;
+    unset($_SESSION['login_notice']);
+}
+
 function getPortalRoles(): array
 {
     return [

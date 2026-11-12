@@ -66,7 +66,7 @@
 
         <section class="history-stats">
             <div><span><?= htmlspecialchars($filter === 'all' ? 'Cases received' : ($filter === 'week' ? 'Cases received this week' : 'Cases received this month')) ?></span><strong><?= (int) $stats['received'] ?></strong></div>
-            <div><span>Total notified cases</span><strong><?= (int) $stats['totalNotified'] ?></strong></div>
+            <div><span>Active notified cases</span><strong><?= (int) $stats['totalNotified'] ?></strong></div>
             <div>
                 <span>Cases resolved</span>
                 <strong class="green-text"><?= (int) $stats['resolved'] ?></strong>
@@ -80,10 +80,9 @@
             <a class="<?= $filter === 'month' ? 'active' : '' ?>" href="<?= htmlspecialchars(assetUrl('app/controllers/DoctorCaseHistoryController.php?filter=month')) ?>">This month</a>
         </div>
 
-        <p class="history-status-feedback" id="history-status-feedback" role="status" aria-live="polite"></p>
         <div class="history-table-wrap">
             <table class="history-table">
-                <thead><tr><th>DATE RECEIVED</th><th>INCIDENT</th><th>PATIENT</th><th>STATUS</th><th>OUTCOME</th></tr></thead>
+                <thead><tr><th>DATE NOTIFIED</th><th>INCIDENT</th><th>PATIENT</th><th>CATEGORY</th><th>INCIDENT LIFECYCLE</th></tr></thead>
                 <tbody>
                 <?php foreach ($visibleCases as $index => $case): ?>
                     <?php $statusLabel = ucfirst($case['status']); ?>
@@ -92,19 +91,13 @@
                         <td><?= htmlspecialchars($case['case']) ?></td>
                         <td><?= htmlspecialchars($case['patient']) ?></td>
                         <td>
-                            <select class="history-status-select status-<?= htmlspecialchars($case['status']) ?>" data-incident-id="<?= (int) $case['id'] ?>"
-                                aria-label="Change status for <?= htmlspecialchars($case['case'], ENT_QUOTES) ?>">
-                                <?php if (in_array($case['status'], ['dispatched', 'urgent'], true)): ?>
-                                    <option value="<?= htmlspecialchars($case['status']) ?>" selected disabled>
-                                        <?= htmlspecialchars(ucfirst($case['status'])) ?> (current)
-                                    </option>
-                                <?php endif; ?>
-                                <?php foreach (['critical' => 'Critical', 'stable' => 'Stable', 'resolved' => 'Resolved'] as $statusValue => $statusText): ?>
-                                    <option value="<?= $statusValue ?>" <?= $case['status'] === $statusValue ? 'selected' : '' ?>><?= $statusText ?></option>
-                                <?php endforeach; ?>
-                            </select>
+                            <span class="history-category-value category-<?= htmlspecialchars($case['triageCategory'] ?? 'unclassified') ?>">
+                                <?= htmlspecialchars($case['triageCategoryLabel']) ?>
+                            </span>
                         </td>
-                        <td><span class="history-outcome status-<?= htmlspecialchars($case['status']) ?>"><?= htmlspecialchars($statusLabel) ?></span></td>
+                        <td>
+                            <span class="history-outcome status-<?= htmlspecialchars($case['status']) ?>"><?= htmlspecialchars($statusLabel) ?></span>
+                        </td>
                     </tr>
                 <?php endforeach; ?>
                 </tbody>
@@ -122,9 +115,7 @@
 </div>
 <?php $staffAlertRole = 'doctor'; require __DIR__ . '/partials/staffIncomingAlertView.php'; ?>
 <script>
-    window.doctorHistoryEndpoint = <?= json_encode(assetUrl('app/controllers/DoctorCaseHistoryController.php?action=update_status')) ?>;
     window.doctorHistoryRefreshEndpoint = <?= json_encode(assetUrl('app/controllers/DoctorCaseHistoryController.php?action=refresh&filter=' . rawurlencode($filter))) ?>;
-    window.doctorHistoryCsrfToken = <?= json_encode($_SESSION['doctor_history_csrf_token']) ?>;
 </script>
 <script src="<?= htmlspecialchars(assetUrl('public/js/script.js')) ?>?v=<?= filemtime(__DIR__ . '/../../public/js/script.js') ?>"></script>
 </body>

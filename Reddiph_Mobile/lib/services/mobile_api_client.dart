@@ -52,6 +52,32 @@ class SignupOptions {
   final List<String> genders;
 }
 
+class ResponderHospitalOption {
+  const ResponderHospitalOption({
+    required this.id,
+    required this.name,
+    required this.canRoute,
+  });
+
+  final int id;
+  final String name;
+  final bool canRoute;
+
+  factory ResponderHospitalOption.fromJson(Map<String, dynamic> json) {
+    final id = json['id'];
+    final name = json['name'];
+    final canRoute = json['can_route'];
+    if (id is! num || name is! String || canRoute is! bool) {
+      throw const FormatException('Invalid reroute hospital.');
+    }
+    return ResponderHospitalOption(
+      id: id.toInt(),
+      name: name,
+      canRoute: canRoute,
+    );
+  }
+}
+
 class MobileApiClient {
   MobileApiClient({
     http.Client? client,
@@ -64,7 +90,25 @@ class MobileApiClient {
             );
 
   static final MobileApiClient I = MobileApiClient();
-  static void Function()? onSessionInvalid;
+  static void Function(String message)? onSessionInvalid;
+  static const Set<String> responderVehicleTypes = {'Ambulance', 'PTV'};
+
+  static String normalizeResponderVehicleType(String? input) {
+    final trimmed = input?.trim();
+    if (trimmed == null || trimmed.isEmpty) {
+      throw const FormatException('Vehicle type is required.');
+    }
+    for (final allowed in responderVehicleTypes) {
+      if (allowed.toLowerCase() == trimmed.toLowerCase()) {
+        return allowed;
+      }
+    }
+    throw ArgumentError.value(
+      input,
+      'vehicleType',
+      'Choose Ambulance or PTV.',
+    );
+  }
 
   final http.Client _client;
   final String _baseUrl;
@@ -141,6 +185,18 @@ class MobileApiClient {
     );
   }
 
+  Future<List<NurseCaseHistoryRecord>> nurseCaseHistory({
+    required String token,
+  }) async {
+    final response = await _nursePortal(token: token, action: 'case_history');
+    return _nurseRecords<NurseCaseHistoryRecord>(
+      response,
+      'history',
+      NurseCaseHistoryRecord.fromJson,
+      'nurse case history',
+    );
+  }
+
   Future<NurseCaseRecord> nurseCaseDetails({
     required String token,
     required int incidentId,
@@ -168,18 +224,6 @@ class MobileApiClient {
     }
   }
 
-  Future<NurseCaseRecord> toggleNursePrepTask({
-    required String token,
-    required int incidentId,
-    required int taskId,
-    required bool done,
-  }) =>
-      _nurseCaseAction(token, 'toggle_task', {
-        'incident_id': incidentId,
-        'task_id': taskId,
-        'done': done,
-      });
-
   Future<NurseCaseRecord> saveNurseNote({
     required String token,
     required int incidentId,
@@ -189,22 +233,6 @@ class MobileApiClient {
         'incident_id': incidentId,
         'note': note,
       });
-
-  Future<NurseCaseRecord> assignNurseBed({
-    required String token,
-    required int incidentId,
-    required int bedId,
-  }) =>
-      _nurseCaseAction(token, 'assign_bed', {
-        'incident_id': incidentId,
-        'bed_id': bedId,
-      });
-
-  Future<NurseCaseRecord> confirmNurseArrival({
-    required String token,
-    required int incidentId,
-  }) =>
-      _nurseCaseAction(token, 'confirm_arrival', {'incident_id': incidentId});
 
   Future<NurseCaseRecord> _nurseCaseAction(
     String token,
@@ -232,76 +260,6 @@ class MobileApiClient {
       throw const MobileApiException(
           'The server returned invalid nurse case data.');
     }
-  }
-
-  Future<List<NurseBed>> nurseBeds({required String token}) async {
-    final response = await _nursePortal(token: token, action: 'beds');
-    return _nurseRecords<NurseBed>(
-      response,
-      'beds',
-      NurseBed.fromJson,
-      'nurse bed inventory',
-    );
-  }
-
-  Future<List<NurseBed>> nurseBedAction({
-    required String token,
-    required int bedId,
-    required String action,
-    int? incidentId,
-  }) async {
-    final response = await _nursePortal(
-      token: token,
-      action: 'bed_action',
-      fields: {
-        'bed_id': bedId,
-        'bed_action': action,
-        if (incidentId != null) 'incident_id': incidentId,
-      },
-    );
-    return _nurseRecords<NurseBed>(
-      response,
-      'beds',
-      NurseBed.fromJson,
-      'nurse bed inventory',
-    );
-  }
-
-  Future<List<NurseHandoff>> nurseHandoffs({required String token}) async {
-    final response = await _nursePortal(token: token, action: 'handoffs');
-    return _nurseRecords<NurseHandoff>(
-      response,
-      'handoffs',
-      NurseHandoff.fromJson,
-      'nurse handoffs',
-    );
-  }
-
-  Future<List<NurseHandoff>> createNurseHandoff({
-    required String token,
-    required int incidentId,
-    required String pulse,
-    required String spo2,
-    required String bloodPressure,
-    required String notes,
-  }) async {
-    final response = await _nursePortal(
-      token: token,
-      action: 'create_handoff',
-      fields: {
-        'incident_id': incidentId,
-        'pulse': pulse,
-        'spo2': spo2,
-        'blood_pressure': bloodPressure,
-        'notes': notes,
-      },
-    );
-    return _nurseRecords<NurseHandoff>(
-      response,
-      'handoffs',
-      NurseHandoff.fromJson,
-      'nurse handoffs',
-    );
   }
 
   Future<List<NurseShift>> nurseSchedule({
@@ -339,6 +297,52 @@ class MobileApiClient {
     if (response['success'] != true) {
       throw MobileApiException(
         response['message'] as String? ?? 'Shift change request failed.',
+      );
+    }
+  }
+
+  Future<void> saveNurseSchedule({
+    required String token,
+    int? scheduleId,
+    required List<DateTime> dates,
+    required String type,
+    required String start,
+    required String end,
+  }) async {
+    if (dates.isEmpty) {
+      throw const MobileApiException('Choose at least one schedule date.');
+    }
+    final response = await _nursePortal(
+      token: token,
+      action: 'save_schedule',
+      fields: {
+        if (scheduleId != null) 'schedule_id': scheduleId,
+        'date': _scheduleDateValue(dates.first),
+        'dates': dates.map(_scheduleDateValue).toList(growable: false),
+        'type': type,
+        'start': start,
+        'end': end,
+      },
+    );
+    if (response['success'] != true) {
+      throw MobileApiException(
+        response['message'] as String? ?? 'The schedule could not be saved.',
+      );
+    }
+  }
+
+  Future<void> deleteNurseSchedule({
+    required String token,
+    required int scheduleId,
+  }) async {
+    final response = await _nursePortal(
+      token: token,
+      action: 'delete_schedule',
+      fields: {'schedule_id': scheduleId},
+    );
+    if (response['success'] != true) {
+      throw MobileApiException(
+        response['message'] as String? ?? 'The schedule could not be removed.',
       );
     }
   }
@@ -601,6 +605,7 @@ class MobileApiClient {
     required String token,
     int? scheduleId,
     required DateTime date,
+    List<DateTime>? dates,
     required String type,
     required String start,
     required String end,
@@ -613,6 +618,8 @@ class MobileApiClient {
         'date': '${date.year.toString().padLeft(4, '0')}-'
             '${date.month.toString().padLeft(2, '0')}-'
             '${date.day.toString().padLeft(2, '0')}',
+        'dates':
+            (dates ?? [date]).map(_scheduleDateValue).toList(growable: false),
         'type': type,
         'start': start,
         'end': end,
@@ -640,6 +647,11 @@ class MobileApiClient {
       );
     }
   }
+
+  String _scheduleDateValue(DateTime date) =>
+      '${date.year.toString().padLeft(4, '0')}-'
+      '${date.month.toString().padLeft(2, '0')}-'
+      '${date.day.toString().padLeft(2, '0')}';
 
   /// Loads hospitals, their barangays and the gender choices from the database.
   Future<SignupOptions> signupOptions() async {
@@ -791,8 +803,13 @@ class MobileApiClient {
       );
     }
 
+    final user = {
+      ...(response['user'] as Map<String, dynamic>),
+      'token': token
+    };
+
     // The signed token rides along with the user so later requests can prove who they are.
-    return {...(response['user'] as Map<String, dynamic>), 'token': token};
+    return user;
   }
 
   Future<void> validateSession({required String token}) async {
@@ -940,7 +957,7 @@ class MobileApiClient {
     required double latitude,
     required double longitude,
     required String incidentType,
-    required String status,
+    required String triageCategory,
     required String patientName,
     required int patientAge,
     required String patientGender,
@@ -975,7 +992,7 @@ class MobileApiClient {
       'latitude': latitude.toString(),
       'longitude': longitude.toString(),
       'incident_type': incidentType.trim(),
-      'status': status,
+      'triage_category': triageCategory,
       'reported_by': reportedBy,
       'request_another_vehicle': requestAnotherVehicle ? '1' : '0',
       if (volunteerUserId != null)
@@ -1540,6 +1557,138 @@ class MobileApiClient {
     return ResponderDashboard.fromJson(response);
   }
 
+  Future<ResponderProfileSettings> responderProfile({
+    required String token,
+  }) =>
+      _responderProfileAction(token: token);
+
+  String? resolveResponderProfileImageUrl(String? value) {
+    final imageUri = Uri.tryParse(value?.trim() ?? '');
+    if (imageUri == null || value?.trim().isEmpty != false) return null;
+    if (imageUri.hasScheme) return imageUri.toString();
+
+    final baseUri = Uri.tryParse(_baseUrl);
+    return baseUri?.resolveUri(imageUri).toString();
+  }
+
+  Future<String> uploadResponderProfileImage({
+    required String token,
+    required XFile photo,
+  }) async {
+    final response = await _sendMultipart(
+      'api/responder/profile.php',
+      fields: {'token': token, 'action': 'upload_profile_image'},
+      photo: photo,
+    );
+    if (response['success'] != true) {
+      throw MobileApiException(
+        response['message'] as String? ??
+            'The profile photo could not be saved.',
+      );
+    }
+
+    final imageUrl = resolveResponderProfileImageUrl(
+      response['profile_image_url'] as String?,
+    );
+    if (imageUrl == null) {
+      throw const MobileApiException(
+        'The server returned invalid profile image data.',
+      );
+    }
+    return imageUrl;
+  }
+
+  Future<ResponderProfileSettings> resetResponderProfileImage({
+    required String token,
+  }) =>
+      _responderProfileAction(
+        token: token,
+        action: 'reset_profile_image',
+      );
+
+  Future<ResponderProfileSettings> saveResponderVehicle({
+    required String token,
+    required bool enabled,
+    String? vehicleType,
+    String? callSign,
+    String? plateNumber,
+  }) {
+    final hasVehicleData =
+        vehicleType != null || callSign != null || plateNumber != null;
+    if (enabled || hasVehicleData) {
+      String normalized;
+      try {
+        normalized = normalizeResponderVehicleType(vehicleType);
+      } on FormatException {
+        throw const MobileApiException('Choose Ambulance or PTV.');
+      } on ArgumentError {
+        throw const MobileApiException('Choose Ambulance or PTV.');
+      }
+
+      return _responderProfileAction(
+        token: token,
+        action: 'save_vehicle',
+        fields: {
+          'driver_responder_enabled': enabled,
+          'vehicle_type': normalized,
+          'call_sign': callSign,
+          'plate_number': plateNumber,
+        },
+      );
+    }
+
+    return _responderProfileAction(
+      token: token,
+      action: 'save_vehicle',
+      fields: {
+        'driver_responder_enabled': enabled,
+      },
+    );
+  }
+
+  Future<ResponderProfileSettings> saveResponderSchedule({
+    required String token,
+    required bool availabilityEnabled,
+    required List<ResponderDutyPeriod> schedules,
+  }) =>
+      _responderProfileAction(
+        token: token,
+        action: 'save_schedule',
+        fields: {
+          'availability_enabled': availabilityEnabled,
+          'schedules': schedules.map((period) => period.toJson()).toList(),
+        },
+      );
+
+  Future<ResponderProfileSettings> _responderProfileAction({
+    required String token,
+    String action = 'profile',
+    Map<String, Object?> fields = const {},
+  }) async {
+    final response = await _send(
+      'POST',
+      'api/responder/profile.php',
+      body: {'token': token, 'action': action, ...fields},
+    );
+    if (response['success'] != true) {
+      throw MobileApiException(
+        response['message'] as String? ??
+            'The responder profile could not be loaded.',
+      );
+    }
+    try {
+      return ResponderProfileSettings.fromJson(response);
+    } on FormatException {
+      throw const MobileApiException(
+        'The server returned invalid responder profile data.',
+      );
+    } on TypeError {
+      throw const MobileApiException(
+        'The server returned invalid responder profile data.',
+      );
+    }
+  }
+
   Future<void> updateResponderPresence({
     required String token,
     required double latitude,
@@ -1563,10 +1712,10 @@ class MobileApiClient {
     }
   }
 
-  /// Loads one page of the SOS queue for a status filter ('all', 'critical', ...).
+  /// Loads one page of the SOS queue filtered by emergency category.
   Future<ResponderQueue> responderQueue({
     required String token,
-    required String status,
+    required String triageCategory,
     int page = 1,
     double? latitude,
     double? longitude,
@@ -1576,7 +1725,7 @@ class MobileApiClient {
       'api/responder/queue.php',
       body: {
         'token': token,
-        'status': status,
+        'triage_category': triageCategory,
         'page': page,
         if (latitude != null && longitude != null) ...{
           'latitude': latitude,
@@ -1655,7 +1804,7 @@ class MobileApiClient {
   Future<int> createResponderReport({
     required String token,
     required String incidentType,
-    required String status,
+    required String triageCategory,
     required String reportedBy,
     required String location,
     required double latitude,
@@ -1667,7 +1816,7 @@ class MobileApiClient {
     final fields = <String, String>{
       'token': token,
       'incident_type': incidentType,
-      'status': status,
+      'triage_category': triageCategory,
       'reported_by': reportedBy,
       'location': location,
       'latitude': latitude.toString(),
@@ -1798,10 +1947,11 @@ class MobileApiClient {
     double? longitude,
     String? notes,
     String? incidentType,
-    String? status,
+    String? triageCategory,
     int? volunteerUserId,
     int? rating,
     String? review,
+    int? hospitalId,
   }) async {
     final response = await _send(
       'POST',
@@ -1814,10 +1964,11 @@ class MobileApiClient {
         if (longitude != null) 'longitude': longitude,
         if (notes != null) 'notes': notes,
         if (incidentType != null) 'incident_type': incidentType,
-        if (status != null) 'status': status,
+        if (triageCategory != null) 'triage_category': triageCategory,
         if (volunteerUserId != null) 'volunteer_user_id': volunteerUserId,
         if (rating != null) 'rating': rating,
         if (review != null) 'review': review,
+        if (hospitalId != null) 'hospital_id': hospitalId,
       },
     );
     if (response['success'] != true) {
@@ -1828,6 +1979,48 @@ class MobileApiClient {
     }
     return response;
   }
+
+  Future<List<ResponderHospitalOption>> responderRerouteHospitals({
+    required String token,
+    required int incidentId,
+  }) async {
+    final response = await responderIncidentAction(
+      token: token,
+      incidentId: incidentId,
+      action: 'list_reroute_hospitals',
+    );
+    final hospitals = response['hospitals'];
+    if (hospitals is! List) {
+      throw const MobileApiException(
+        'The server returned an invalid hospital list.',
+      );
+    }
+    try {
+      return [
+        for (final hospital in hospitals)
+          if (hospital is Map<String, dynamic>)
+            ResponderHospitalOption.fromJson(hospital)
+          else
+            throw const FormatException('Invalid reroute hospital.'),
+      ];
+    } on FormatException {
+      throw const MobileApiException(
+        'The server returned an invalid hospital list.',
+      );
+    }
+  }
+
+  Future<Map<String, dynamic>> rerouteResponderIncident({
+    required String token,
+    required int incidentId,
+    required int hospitalId,
+  }) =>
+      responderIncidentAction(
+        token: token,
+        incidentId: incidentId,
+        action: 'reroute_to_hospital',
+        hospitalId: hospitalId,
+      );
 
   Future<DrivingRoute> incidentDirections({
     required String token,
@@ -1972,6 +2165,7 @@ class MobileApiClient {
     String method,
     String path, {
     Map<String, Object?>? body,
+    bool notifySessionInvalid = true,
   }) async {
     final baseUrl = _baseUrl.trim();
     final baseUri = Uri.tryParse(baseUrl);
@@ -2019,14 +2213,25 @@ class MobileApiClient {
         );
       }
       if (response.statusCode < 200 || response.statusCode >= 300) {
-        if (response.statusCode == 401 &&
-            body != null &&
-            body['token'] is String) {
-          onSessionInvalid?.call();
+        final responseMessage = decoded['message'];
+        var invalidSessionMessage = responseMessage is String
+            ? responseMessage
+            : 'Your session is no longer active. Please sign in again.';
+        final token = body?['token'];
+        if (notifySessionInvalid &&
+            response.statusCode == 401 &&
+            token is String) {
+          invalidSessionMessage = await _sessionInvalidMessage(
+            token,
+            path,
+            invalidSessionMessage,
+          );
+          onSessionInvalid?.call(invalidSessionMessage);
         }
-        final message = decoded['message'];
         throw MobileApiException(
-          message is String ? message : 'The request failed. Please try again.',
+          responseMessage is String
+              ? responseMessage
+              : 'The request failed. Please try again.',
         );
       }
       return decoded;
@@ -2096,12 +2301,23 @@ class MobileApiClient {
         );
       }
       if (response.statusCode < 200 || response.statusCode >= 300) {
-        if (response.statusCode == 401 && fields['token'] != null) {
-          onSessionInvalid?.call();
+        final responseMessage = decoded['message'];
+        var invalidSessionMessage = responseMessage is String
+            ? responseMessage
+            : 'Your session is no longer active. Please sign in again.';
+        final token = fields['token'];
+        if (response.statusCode == 401 && token is String) {
+          invalidSessionMessage = await _sessionInvalidMessage(
+            token,
+            path,
+            invalidSessionMessage,
+          );
+          onSessionInvalid?.call(invalidSessionMessage);
         }
         throw MobileApiException(
-          decoded['message'] as String? ??
-              'The request failed. Please try again.',
+          responseMessage is String
+              ? responseMessage
+              : 'The request failed. Please try again.',
         );
       }
       return decoded;
@@ -2120,5 +2336,30 @@ class MobileApiClient {
         'Could not reach the server. Check your connection and try again.',
       );
     }
+  }
+
+  Future<String> _sessionInvalidMessage(
+    String token,
+    String path,
+    String fallback,
+  ) async {
+    if (path == 'api/auth/session.php') {
+      return fallback;
+    }
+    try {
+      final response = await _send(
+        'POST',
+        'api/auth/session.php',
+        body: {'token': token},
+        notifySessionInvalid: false,
+      );
+      if (response['success'] != true) {
+        final message = response['message'];
+        return message is String ? message : fallback;
+      }
+    } on MobileApiException catch (error) {
+      return error.message;
+    }
+    return fallback;
   }
 }

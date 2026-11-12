@@ -10,6 +10,7 @@ import 'package:reddiph/views/screens/resident_report_history_screen.dart';
 Map<String, dynamic> _incident({
   required int id,
   required String status,
+  String? triageCategory,
   required String patient,
   required String reportedBy,
   String? hospitalArrivedAt,
@@ -21,6 +22,7 @@ Map<String, dynamic> _incident({
       'incident_type': 'Medical emergency',
       'reported_by': reportedBy,
       'status': status,
+      'triage_category': triageCategory,
       'location': 'Barangay San Isidro',
       'reported_at': '2026-10-18 09:30:00',
       'resolved_at': status == 'resolved' ? '2026-10-18 10:30:00' : null,
@@ -59,25 +61,29 @@ void main() {
             'incidents': [
               _incident(
                 id: 8,
-                status: 'critical',
+                status: 'open',
+                triageCategory: 'emergent',
                 patient: 'Jordan Lee',
                 reportedBy: 'on_scene',
               ),
               _incident(
                 id: 10,
-                status: 'urgent',
+                status: 'dispatched',
+                triageCategory: 'urgent',
                 patient: 'Morgan Ellis',
                 reportedBy: 'on_scene',
               ),
               _incident(
                 id: 9,
-                status: 'stable',
+                status: 'referred',
+                triageCategory: 'non_urgent',
                 patient: 'Avery Santos',
                 reportedBy: 'on_scene',
               ),
               _incident(
                 id: 7,
                 status: 'resolved',
+                triageCategory: 'expectant',
                 patient: 'Riley Morgan',
                 reportedBy: 'resident_sos',
                 falseReportId: 3,
@@ -107,34 +113,35 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    Color? categoryBadgeColor(String label) {
+      final badge = find
+          .ancestor(
+            of: find.text(label),
+            matching: find.byType(Container),
+          )
+          .first;
+      return (tester.widget<Container>(badge).decoration as BoxDecoration)
+          .color;
+    }
+
     expect(request.url.path, '/Reddiph_mobile_api/api/incidents/history.php');
     expect(request.method, 'POST');
     expect(jsonDecode(request.body), {'token': 'resident-token'});
     expect(find.text('Total reports'), findsOneWidget);
     expect(find.text('Medical emergency — Jordan Lee'), findsOneWidget);
     expect(find.text('Medical emergency — Riley Morgan'), findsOneWidget);
-    expect(find.text('Critical'), findsOneWidget);
+    expect(find.text('Emergent'), findsOneWidget);
     expect(find.text('Urgent'), findsOneWidget);
-    expect(find.text('Stable'), findsOneWidget);
-    expect(
-      (tester.widget<Text>(find.text('Critical')).style?.color),
-      const Color(0xFFC62828),
-    );
-    expect(
-      (tester.widget<Text>(find.text('Urgent')).style?.color),
-      const Color(0xFFEF6C00),
-    );
-    expect(
-      (tester.widget<Text>(find.text('Stable')).style?.color),
-      const Color(0xFF2E7D32),
-    );
+    expect(find.text('Non-Urgent'), findsOneWidget);
+    expect(find.text('Expectant'), findsOneWidget);
+    expect(categoryBadgeColor('Emergent'), const Color(0xFFDC2626));
+    expect(categoryBadgeColor('Urgent'), const Color(0xFFEAB308));
+    expect(categoryBadgeColor('Non-Urgent'), const Color(0xFF16A34A));
+    expect(categoryBadgeColor('Expectant'), const Color(0xFF000000));
     await tester.tap(find.text('Medical emergency — Jordan Lee'));
     await tester.pumpAndSettle();
-    expect(find.text('Critical'), findsOneWidget);
-    expect(
-      tester.widget<Text>(find.text('Critical')).style?.color,
-      const Color(0xFFC62828),
-    );
+    expect(find.text('Emergent'), findsOneWidget);
+    expect(categoryBadgeColor('Emergent'), const Color(0xFFDC2626));
     await tester.tap(find.byTooltip('Back to report history'));
     await tester.pumpAndSettle();
     expect(
@@ -154,9 +161,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Medical emergency — Jordan Lee'), findsOneWidget);
     expect(find.text('Medical emergency — Riley Morgan'), findsNothing);
-    expect(find.text('Critical'), findsOneWidget);
+    expect(find.text('Emergent'), findsOneWidget);
     expect(find.text('Urgent'), findsOneWidget);
-    expect(find.text('Stable'), findsOneWidget);
+    expect(find.text('Non-Urgent'), findsOneWidget);
 
     await tester.tap(find.widgetWithText(ChoiceChip, 'Closed'));
     await tester.pumpAndSettle();

@@ -21,8 +21,6 @@ class NurseCaseDetail extends StatefulWidget {
 class _NurseCaseDetailState extends State<NurseCaseDetail> {
   final _note = TextEditingController();
   NurseCaseRecord? _case;
-  List<NurseBed> _beds = const [];
-  int? _selectedBedId;
   String? _error;
   bool _loading = true;
   bool _saving = false;
@@ -57,22 +55,14 @@ class _NurseCaseDetailState extends State<NurseCaseDetail> {
       _error = null;
     });
     try {
-      final results = await Future.wait<Object>([
-        MobileApiClient.I.nurseCaseDetails(
-          token: token,
-          incidentId: widget.item.id,
-        ),
-        MobileApiClient.I.nurseBeds(token: token),
-      ]);
+      final record = await MobileApiClient.I.nurseCaseDetails(
+        token: token,
+        incidentId: widget.item.id,
+      );
       if (!mounted) return;
-      final record = results[0] as NurseCaseRecord;
-      final beds = results[1] as List<NurseBed>;
       NursePortalCache.saveCase(token, record);
-      NursePortalCache.saveBeds(token, beds);
       setState(() {
         _case = record;
-        _beds = beds;
-        _selectedBedId = record.bedId;
         _note.text = record.note;
         _loading = false;
       });
@@ -85,13 +75,11 @@ class _NurseCaseDetailState extends State<NurseCaseDetail> {
           break;
         }
       }
-      final cachedBeds = NursePortalCache.beds(token);
       setState(() {
         if (cachedCase != null) {
           _case = cachedCase;
           _note.text = cachedCase.note;
         }
-        _beds = cachedBeds ?? _beds;
         _error = error.message;
         _loading = false;
       });
@@ -112,7 +100,6 @@ class _NurseCaseDetailState extends State<NurseCaseDetail> {
         _note.text = updated.note;
         _saving = false;
       });
-      await _loadBeds(token);
     } on MobileApiException catch (error) {
       if (!mounted) return;
       setState(() {
@@ -123,48 +110,12 @@ class _NurseCaseDetailState extends State<NurseCaseDetail> {
     }
   }
 
-  Future<void> _loadBeds(String token) async {
-    try {
-      final beds = await MobileApiClient.I.nurseBeds(token: token);
-      NursePortalCache.saveBeds(token, beds);
-      if (mounted) setState(() => _beds = beds);
-    } on MobileApiException catch (error) {
-      if (mounted) setState(() => _error = error.message);
-    }
-  }
-
   Future<void> _saveNote() async {
     await _run((token) => MobileApiClient.I.saveNurseNote(
           token: token,
           incidentId: _record.id,
           note: _note.text,
         ));
-  }
-
-  Future<void> _assignBed() async {
-    if (_selectedBedId == null) return;
-    await _run((token) => MobileApiClient.I.assignNurseBed(
-          token: token,
-          incidentId: _record.id,
-          bedId: _selectedBedId!,
-        ));
-  }
-
-  Future<void> _toggleTask(NursePrepTask task, bool done) async {
-    await _run((token) => MobileApiClient.I.toggleNursePrepTask(
-          token: token,
-          incidentId: _record.id,
-          taskId: task.id,
-          done: done,
-        ));
-  }
-
-  Future<void> _confirmArrival() async {
-    await _run((token) => MobileApiClient.I.confirmNurseArrival(
-          token: token,
-          incidentId: _record.id,
-        ));
-    if (_error == null && mounted) _message('Patient arrival confirmed.');
   }
 
   void _message(String value) {
@@ -206,7 +157,7 @@ class _NurseCaseDetailState extends State<NurseCaseDetail> {
                         ),
                         const SizedBox(height: 5),
                         Text(
-                          '${item.priority} · ${item.patientAge ?? 'Age unknown'} · ${item.patientGender}',
+                          '${item.triageCategoryLabel} · ${item.patientAge ?? 'Age unknown'} · ${item.patientGender}',
                           style: const TextStyle(
                             color: Colors.white70,
                             fontSize: 10,
@@ -214,6 +165,13 @@ class _NurseCaseDetailState extends State<NurseCaseDetail> {
                         ),
                         Text(
                           item.location,
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 10,
+                          ),
+                        ),
+                        Text(
+                          '${item.hospitalName} · ${item.incidentStatus}',
                           style: const TextStyle(
                             color: Colors.white70,
                             fontSize: 10,
@@ -239,73 +197,41 @@ class _NurseCaseDetailState extends State<NurseCaseDetail> {
                       ],
                     ),
                   ),
-                  const Section('Preparation checklist'),
+                  const Section('Patient assessment'),
                   Box(
                     Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        for (final task in item.tasks)
-                          CheckboxListTile(
-                            value: task.done,
-                            dense: true,
-                            contentPadding: EdgeInsets.zero,
-                            controlAffinity: ListTileControlAffinity.leading,
-                            title: Text(
-                              task.name,
-                              style: const TextStyle(fontSize: 10),
-                            ),
-                            onChanged: _readOnly || _saving
-                                ? null
-                                : (done) {
-                                    if (done != null) _toggleTask(task, done);
-                                  },
-                          ),
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            '${item.prepDone} of ${item.prepTotal} steps completed',
-                            style: const TextStyle(
+                        Text(
+                          'Heart rate: ${item.heartRate == null ? 'N/A' : '${item.heartRate} bpm'}',
+                          style: const TextStyle(fontSize: 10),
+                        ),
+                        Text(
+                          'SpO2: ${item.spo2 == null ? 'N/A' : '${item.spo2}%'}',
+                          style: const TextStyle(fontSize: 10),
+                        ),
+                        Text(
+                          'Blood pressure: ${item.bloodPressure ?? 'N/A'}',
+                          style: const TextStyle(fontSize: 10),
+                        ),
+                        Text(
+                          'Consciousness (GCS): ${item.gcs ?? 'N/A'}',
+                          style: const TextStyle(fontSize: 10),
+                        ),
+                        if (item.responderNotes.trim().isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Incident notes',
+                            style: TextStyle(
                               fontSize: 9,
-                              color: Colors.black54,
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Section('Bed assignment'),
-                  Box(
-                    Column(
-                      children: [
-                        DropdownButtonFormField<int>(
-                          initialValue: _selectedBedId,
-                          isExpanded: true,
-                          decoration: const InputDecoration(
-                            labelText: 'Available hospital bed',
-                            labelStyle: TextStyle(fontSize: 10),
+                          Text(
+                            item.responderNotes,
+                            style: const TextStyle(fontSize: 10),
                           ),
-                          items: [
-                            for (final bed in _beds)
-                              if (bed.status == 'ready' || bed.id == item.bedId)
-                                DropdownMenuItem(
-                                  value: bed.id,
-                                  child: Text(
-                                    '${bed.label} · ${bed.status}',
-                                    style: const TextStyle(fontSize: 10),
-                                  ),
-                                ),
-                          ],
-                          onChanged: _readOnly || _saving
-                              ? null
-                              : (value) =>
-                                  setState(() => _selectedBedId = value),
-                        ),
-                        const SizedBox(height: 10),
-                        NurseButton(
-                          item.bedId == null ? 'RESERVE BED' : 'UPDATE BED',
-                          onTap: _readOnly || _saving || _selectedBedId == null
-                              ? null
-                              : _assignBed,
-                        ),
+                        ],
                       ],
                     ),
                   ),
@@ -329,30 +255,6 @@ class _NurseCaseDetailState extends State<NurseCaseDetail> {
                     _saving ? 'SAVING...' : 'SAVE CLINICAL NOTE',
                     onTap: _readOnly || _saving ? null : _saveNote,
                   ),
-                  const Section('Arrival'),
-                  NurseButton(
-                    item.arrivalConfirmed || item.status == 'handed_off'
-                        ? 'ARRIVAL CONFIRMED'
-                        : 'CONFIRM PATIENT ARRIVAL',
-                    onTap: _readOnly ||
-                            _saving ||
-                            item.bedId == null ||
-                            item.status != 'arrived' ||
-                            item.arrivalConfirmed ||
-                            item.status == 'handed_off'
-                        ? null
-                        : _confirmArrival,
-                  ),
-                  if (!item.arrivalConfirmed &&
-                      item.status != 'arrived' &&
-                      item.status != 'handed_off')
-                    const Padding(
-                      padding: EdgeInsets.only(top: 6),
-                      child: Text(
-                        'Confirm arrival after the transport status changes to arrived.',
-                        style: TextStyle(fontSize: 8, color: Colors.black54),
-                      ),
-                    ),
                 ],
               ),
             ),

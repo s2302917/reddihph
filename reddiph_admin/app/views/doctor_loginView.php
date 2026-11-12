@@ -55,6 +55,14 @@
                     <h2 class="doctor-login-main-title">Log in to your account</h2>
                 </header>
 
+                <?php if (!empty($errors)): ?>
+                    <div class="doctor-login-errors" role="alert">
+                        <?php foreach ($errors as $error): ?>
+                            <p><?php echo htmlspecialchars($error, ENT_QUOTES, 'UTF-8'); ?></p>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
+
                 <form class="doctor-login-form" id="doctorLoginForm" action="../controllers/doctor_loginController.php"
                     method="POST" autocomplete="off">
                     <input type="hidden" name="action" value="doctor_login">
@@ -67,7 +75,7 @@
                     <div class="doctor-form-group">
                         <label class="doctor-form-label" for="doctor-password">Password</label>
                         <input type="password" id="doctor-password" name="password" class="doctor-form-input"
-                            placeholder="Enter your password" required autocomplete="new-password">
+                            placeholder="Enter your password" required autocomplete="current-password">
                     </div>
 
                     <button type="submit" class="doctor-login-submit-btn">Log in</button>
@@ -78,10 +86,6 @@
                     </div>
                 </form>
 
-                <footer class="doctor-login-footer">
-                    <span>Not registered? </span><a href="doctor_signupController.php" class="doctor-signup-link">Sign
-                        up here</a>
-                </footer>
             </div>
         </main>
     </div>

@@ -1,0 +1,16 @@
+Options -Indexes
+DirectoryIndex index.php
+RewriteEngine On
+
+RewriteRule ^(?:app|config)(?:/|$) - [F,NC,L]
+RewriteRule ^\. - [F,NC,L]
+RewriteRule ^README\.md$ - [F,NC,L]
+RewriteRule ^(?!index\.php$).+\.php$ - [F,NC,L]
+RewriteRule ^$ index.php [QSA,L]
+RewriteRule ^assets/(.*)$ public/assets/$1 [L]
+
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+RewriteRule ^ index.php [QSA,L]

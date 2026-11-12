@@ -31,7 +31,10 @@
             <div class="nurse-schedule-controls">
                 <a class="nurse-calendar-nav" href="<?= htmlspecialchars(assetUrl('app/controllers/NurseScheduleController.php?month=' . $calendar['previous'])) ?>" aria-label="Previous month">‹</a>
                 <a class="nurse-calendar-nav" href="<?= htmlspecialchars(assetUrl('app/controllers/NurseScheduleController.php?month=' . $calendar['next'])) ?>" aria-label="Next month">›</a>
-                <button class="nurse-add-schedule-btn" id="nurseAddScheduleMode" type="button" aria-pressed="false">+ Add schedule</button>
+                <div class="schedule-action-buttons">
+                    <button class="schedule-action-button schedule-action-button--secondary nurse-type-date-btn" id="nurseTypeScheduleDate" type="button">Type Date</button>
+                    <button class="schedule-action-button schedule-action-button--primary nurse-add-schedule-btn" id="nurseAddScheduleMode" type="button" aria-pressed="false">+ Add Schedule</button>
+                </div>
             </div>
         </div>
 
@@ -133,7 +136,52 @@
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['nurse_schedule_csrf_token']) ?>">
             <input type="hidden" name="action" id="nurseScheduleAction" value="add">
             <input type="hidden" name="id" id="nurseScheduleId" value="">
-            <input type="hidden" name="date" id="nurseScheduleDate" required>
+            <input type="hidden" name="schedule_dates" id="nurseScheduleDates">
+
+            <fieldset class="nurse-schedule-date-modes" data-schedule-date-modes>
+                <legend>Apply schedule to</legend>
+                <label><input type="radio" name="date_mode" value="single" checked> Single date</label>
+                <label><input type="radio" name="date_mode" value="range"> Date range</label>
+                <label><input type="radio" name="date_mode" value="repeat"> Repeat schedule</label>
+            </fieldset>
+
+            <label data-schedule-single-fields>
+                <span data-schedule-date-label>Schedule date</span>
+                <input type="date" name="date" id="nurseScheduleDate" required>
+            </label>
+
+            <div class="nurse-schedule-date-range-fields" data-schedule-range-fields hidden>
+                <label>
+                    Start date
+                    <input type="date" data-schedule-range-start>
+                </label>
+                <label>
+                    End date
+                    <input type="date" data-schedule-range-end>
+                </label>
+            </div>
+
+            <div class="nurse-schedule-repeat-fields" data-schedule-repeat-fields hidden>
+                <label>
+                    Repeat
+                    <select data-schedule-repeat-pattern>
+                        <option value="daily">Every day</option>
+                        <option value="weekly">Every week</option>
+                        <option value="weekdays">Selected days of the week</option>
+                        <option value="custom">Custom date range</option>
+                    </select>
+                </label>
+                <div class="nurse-schedule-weekday-options" data-schedule-weekdays hidden>
+                    <?php foreach (['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as $weekday): ?>
+                        <label><input type="checkbox" value="<?= strtolower($weekday) ?>" data-schedule-weekday> <?= $weekday ?></label>
+                    <?php endforeach; ?>
+                </div>
+                <label>
+                    Repeat until
+                    <input type="date" data-schedule-repeat-until>
+                </label>
+            </div>
+            <p class="nurse-schedule-date-preview" data-schedule-date-preview aria-live="polite"></p>
 
             <label>
                 Schedule type

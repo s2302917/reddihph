@@ -9,6 +9,7 @@ import '../../core/nav.dart';
 import '../../core/theme.dart';
 import '../../models/incident_patient.dart';
 import '../../models/responder_report_preview.dart';
+import '../../models/triage_category.dart';
 import '../../models/volunteer.dart';
 import '../../services/mobile_api_client.dart';
 import '../widgets/responder_widgets.dart';
@@ -22,6 +23,7 @@ class ReportNextScreen extends StatefulWidget {
   final int? existingIncidentId;
   final MobileApiClient? apiClient;
   final VolunteerProfile? selectedVolunteer;
+  final bool alreadySentToHospital;
 
   const ReportNextScreen({
     super.key,
@@ -29,6 +31,7 @@ class ReportNextScreen extends StatefulWidget {
     this.existingIncidentId,
     this.apiClient,
     this.selectedVolunteer,
+    this.alreadySentToHospital = false,
   });
 
   @override
@@ -289,6 +292,13 @@ class _ReportNextScreenState extends State<ReportNextScreen> {
       return;
     }
     if (_existingIncident) {
+      if (widget.alreadySentToHospital) {
+        final summary = _hospitalUpdateSummary();
+        if (summary.length > 2000) {
+          _message('Reduce the patient details before sending this update.');
+          return;
+        }
+      }
       setState(() => _working = true);
       try {
         for (final patient in _patients) {
@@ -308,11 +318,27 @@ class _ReportNextScreenState extends State<ReportNextScreen> {
           );
           _savedPatientClientIds.add(patient.clientId);
         }
+        if (widget.alreadySentToHospital) {
+          await _api.responderIncidentAction(
+            token: _token,
+            incidentId: widget.existingIncidentId!,
+            action: 'update_incident_details',
+            incidentType: widget.draft.incidentType,
+            triageCategory: widget.draft.triageCategory,
+          );
+          await _api.updateIncidentNotes(
+            token: _token,
+            incidentId: widget.existingIncidentId!,
+            notes: _hospitalUpdateSummary(),
+          );
+          if (mounted) Navigator.of(context).pop(true);
+          return;
+        }
         final sent = await _api.responderIncidentAction(
           token: _token,
           incidentId: widget.existingIncidentId!,
           action: 'send_to_hospital',
-          status: widget.draft.status,
+          triageCategory: widget.draft.triageCategory,
           volunteerUserId: _selectedVolunteer?.id,
         );
         if (!mounted) return;
@@ -358,7 +384,7 @@ class _ReportNextScreenState extends State<ReportNextScreen> {
       final id = await _api.createResponderReport(
         token: _token,
         incidentType: widget.draft.incidentType,
-        status: widget.draft.status,
+        triageCategory: widget.draft.triageCategory,
         reportedBy: widget.draft.reportedBy,
         location: widget.draft.location,
         latitude: widget.draft.latitude,
@@ -384,6 +410,20 @@ class _ReportNextScreenState extends State<ReportNextScreen> {
     } finally {
       if (mounted) setState(() => _working = false);
     }
+  }
+
+  String _hospitalUpdateSummary() {
+    final patients = _patients
+        .map((patient) =>
+            '${patient.name}, age ${patient.age} (${patient.gender})')
+        .join('; ');
+    return [
+      'Updated incident details for incident #${widget.existingIncidentId}.',
+      'Incident: ${widget.draft.incidentType}',
+      'Category: ${EmergencyCategory.fromValue(widget.draft.triageCategory)?.label ?? 'Unclassified'}',
+      'Patients: $patients',
+      'Review the patient records for recorded vital signs, scene conditions, notes, and photos.',
+    ].join('\n');
   }
 
   void _message(String message) {
@@ -631,7 +671,7 @@ class _ReportNextScreenState extends State<ReportNextScreen> {
                   ],
                   const SizedBox(height: 14),
                   SizedBox(
-                    height: 48,
+                    height: 56,
                     child: FilledButton(
                       onPressed: _working || _incidentId != null
                           ? null
@@ -686,7 +726,9 @@ class _ReportNextScreenState extends State<ReportNextScreen> {
           const SizedBox(height: 2),
           Text(
             _existingIncident
-                ? 'This sends the patient details to the assigned hospital and opens the route there.'
+                ? widget.alreadySentToHospital
+                    ? 'The hospital has already been notified. Review the incident and patient updates before sending them.'
+                    : 'This sends the patient details to the assigned hospital and opens the route there.'
                 : 'This is exactly what the hospital will get.',
             style: const TextStyle(fontSize: 12, color: Colors.black54),
           ),
@@ -701,7 +743,12 @@ class _ReportNextScreenState extends State<ReportNextScreen> {
             title: 'Incident',
             rows: [
               ('Type', widget.draft.incidentType),
-              ('Condition', widget.draft.status.toUpperCase()),
+              (
+                'Emergency category',
+                EmergencyCategory.fromValue(widget.draft.triageCategory)
+                        ?.label ??
+                    'Unclassified'
+              ),
               ('Location', widget.draft.location),
               (
                 'Coordinates',
@@ -787,18 +834,25 @@ class _ReportNextScreenState extends State<ReportNextScreen> {
                       child: CircularProgressIndicator(
                           strokeWidth: 2, color: Colors.white),
                     )
-                  : const Text(
-                      'SEND TO HOSPITAL',
-                      style:
-                          TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                  : Text(
+                      widget.alreadySentToHospital
+                          ? 'SEND UPDATED INCIDENT DETAILS'
+                          : 'SEND TO HOSPITAL',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
             ),
           ),
           const SizedBox(height: 8),
-          const Text(
-            'The hospital and barangay admin will receive this report.',
+          Text(
+            widget.alreadySentToHospital
+                ? 'Hospital staff will be notified with the updated details.'
+                : 'The hospital and barangay admin will receive this report.',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 11, color: Colors.black54),
+            style: const TextStyle(fontSize: 11, color: Colors.black54),
           ),
         ],
       );

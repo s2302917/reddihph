@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../../config/config.php';
+require_once __DIR__ . '/../services/AuditLogService.php';
+require_once __DIR__ . '/../services/IncidentTriageCategory.php';
 
 final class DoctorPortalModel
 {
@@ -58,13 +60,14 @@ final class DoctorPortalModel
     public static function cases(int $doctorId, string $filter = 'all'): array
     {
         $statusSql = match ($filter) {
-            'incoming' => "AND i.status IN ('critical', 'urgent', 'dispatched')",
-            'in_er' => "AND i.status = 'stable'",
+            'incoming' => "AND i.status IN ('open', 'dispatched', 'referred')
+                AND i.hospital_arrived_at IS NULL",
+            'in_er' => 'AND i.hospital_arrived_at IS NOT NULL AND i.status <> \'resolved\'',
             'done' => "AND i.status = 'resolved'",
             default => '',
         };
         $stmt = self::db()->prepare(
-            "SELECT i.incident_id, i.incident_type, i.status, i.location,
+            "SELECT i.incident_id, i.incident_type, i.status, i.triage_category, i.location,
                     i.latitude, i.longitude,
                     i.patient_name, i.patient_gender, i.patient_age, i.eta_minutes,
                     i.responder_name, i.reported_at, i.resolved_at, i.notes,
@@ -104,16 +107,12 @@ final class DoctorPortalModel
                   AND alert.recipient_role = 'doctor'
                   AND alert.channel = 'admin'
              )
-             AND EXISTS (
-                SELECT 1 FROM incident_patients submitted
-                WHERE submitted.incident_id = i.incident_id
-             )
              {$statusSql}
-             ORDER BY CASE i.status
-                WHEN 'critical' THEN 1
+             ORDER BY CASE i.triage_category
+                WHEN 'emergent' THEN 1
                 WHEN 'urgent' THEN 2
-                WHEN 'dispatched' THEN 2
-                WHEN 'stable' THEN 3
+                WHEN 'non_urgent' THEN 3
+                WHEN 'expectant' THEN 4
                 ELSE 4
              END, i.reported_at DESC, i.incident_id DESC"
         );
@@ -125,7 +124,7 @@ final class DoctorPortalModel
     public static function caseDetails(int $doctorId, int $incidentId): ?array
     {
         $cases = self::db()->prepare(
-            "SELECT i.incident_id, i.incident_type, i.status, i.location,
+            "SELECT i.incident_id, i.incident_type, i.status, i.triage_category, i.location,
                     i.latitude, i.longitude,
                     i.patient_name, i.patient_gender, i.patient_age, i.eta_minutes,
                     i.responder_name, i.reported_at, i.notes, i.resolved_at,
@@ -198,6 +197,8 @@ final class DoctorPortalModel
             'incident_id' => $case['incident_id'],
             'incident_type' => $case['incident_type'],
             'status' => $case['status'],
+            'triage_category' => $case['triage_category'],
+            'hospital_arrived_at' => $case['hospital_arrived_at'],
             'location' => $case['location'],
             'latitude' => $case['latitude'],
             'longitude' => $case['longitude'],
@@ -283,6 +284,13 @@ final class DoctorPortalModel
                         ->format('Y-m-d H:i:s')
                     : null,
             ]);
+            AuditLogService::record(
+                    $pdo,
+                    $doctorId,
+                    'doctor.review_saved',
+                    'incident',
+                    (string) $incidentId
+            );
             $pdo->commit();
 
             return self::caseDetails($doctorId, $incidentId);
@@ -318,7 +326,7 @@ final class DoctorPortalModel
             ];
         }
         $stmt = self::db()->prepare(
-            "SELECT i.incident_id, i.incident_type, i.status, i.patient_name,
+            "SELECT i.incident_id, i.incident_type, i.status, i.triage_category, i.patient_name,
                     i.reported_at, i.resolved_at, review.confirmed_at
              FROM incidents i
              INNER JOIN user_type doctor
@@ -351,6 +359,7 @@ final class DoctorPortalModel
                 'id' => (int) $row['incident_id'],
                 'title' => (string) $row['incident_type'],
                 'status' => (string) $row['status'],
+                'triage_category' => $row['triage_category'],
                 'patient' => $row['patient_name'] !== null
                     ? (string) $row['patient_name']
                     : 'Patient name unavailable',
@@ -363,12 +372,12 @@ final class DoctorPortalModel
         }, $rows);
 
         $week = array_fill(0, 7, 0);
-        $critical = 0;
+        $emergent = 0;
         $totalMinutes = 0;
         $durationCount = 0;
         foreach ($cases as $case) {
-            if ($case['status'] === 'critical') {
-                $critical++;
+            if ($case['triage_category'] === 'emergent') {
+                $emergent++;
             }
             if ($case['confirmed_at'] !== null) {
                 $minutes = (strtotime($case['confirmed_at']) - strtotime($case['reported_at'])) / 60;
@@ -388,7 +397,7 @@ final class DoctorPortalModel
             'cases' => $cases,
             'stats' => [
                 'total' => count($cases),
-                'critical' => $critical,
+                'emergent' => $emergent,
                 'average_minutes' => $durationCount > 0
                     ? (int) round($totalMinutes / $durationCount)
                     : null,
@@ -435,40 +444,117 @@ final class DoctorPortalModel
         $pdo = self::db();
         $staffId = self::ensureStaffId($pdo, $doctorId);
         if ($scheduleId === null) {
+            $pdo->beginTransaction();
+            try {
+                $stmt = $pdo->prepare(
+                    "INSERT INTO staff_shifts
+                        (staff_id, shift_date, shift_type, shift_start, shift_end)
+                     VALUES (?, ?, ?, ?, ?)"
+                );
+                $stmt->execute([
+                    $staffId,
+                    $data['date'],
+                    $data['type'],
+                    $data['start'] !== '' ? $data['start'] : null,
+                    $data['end'] !== '' ? $data['end'] : null,
+                ]);
+                $newId = (int) $pdo->lastInsertId();
+                AuditLogService::record(
+                    $pdo,
+                    $doctorId,
+                    'schedule.created',
+                    'staff_shift',
+                    (string) $newId
+                );
+                $pdo->commit();
+                return $newId;
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) {
+                    $pdo->rollBack();
+                }
+                throw $e;
+            }
+        }
+        $pdo->beginTransaction();
+        try {
             $stmt = $pdo->prepare(
-                "INSERT INTO staff_shifts
-                    (staff_id, shift_date, shift_type, shift_start, shift_end)
-                 VALUES (?, ?, ?, ?, ?)"
+                "UPDATE staff_shifts
+                 SET shift_date = ?, shift_type = ?, shift_start = ?, shift_end = ?
+                 WHERE id = ? AND staff_id = ?"
             );
             $stmt->execute([
-                $staffId,
                 $data['date'],
                 $data['type'],
                 $data['start'] !== '' ? $data['start'] : null,
                 $data['end'] !== '' ? $data['end'] : null,
+                $scheduleId,
+                $staffId,
             ]);
-            return (int) $pdo->lastInsertId();
+            if ($stmt->rowCount() > 0) {
+                AuditLogService::record(
+                    $pdo,
+                    $doctorId,
+                    'schedule.updated',
+                    'staff_shift',
+                    (string) $scheduleId
+                );
+                $pdo->commit();
+                return $scheduleId;
+            }
+            $exists = $pdo->prepare('SELECT 1 FROM staff_shifts WHERE id = ? AND staff_id = ?');
+            $exists->execute([$scheduleId, $staffId]);
+            $found = $exists->fetchColumn() !== false;
+            $pdo->commit();
+            return $found ? $scheduleId : false;
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
         }
-        $stmt = $pdo->prepare(
-            "UPDATE staff_shifts
-             SET shift_date = ?, shift_type = ?, shift_start = ?, shift_end = ?
-             WHERE id = ? AND staff_id = ?"
-        );
-        $stmt->execute([
-            $data['date'],
-            $data['type'],
-            $data['start'] !== '' ? $data['start'] : null,
-            $data['end'] !== '' ? $data['end'] : null,
-            $scheduleId,
-            $staffId,
-        ]);
-        if ($stmt->rowCount() > 0) {
-            return $scheduleId;
-        }
-        $exists = $pdo->prepare('SELECT 1 FROM staff_shifts WHERE id = ? AND staff_id = ?');
-        $exists->execute([$scheduleId, $staffId]);
+    }
 
-        return $exists->fetchColumn() !== false ? $scheduleId : false;
+    public static function saveSchedules(int $doctorId, array $dates, array $data): int
+    {
+        $pdo = self::db();
+        $pdo->beginTransaction();
+        try {
+            $staffId = self::ensureStaffId($pdo, $doctorId);
+            $statement = $pdo->prepare(
+                "INSERT IGNORE INTO staff_shifts
+                    (staff_id, shift_date, shift_type, shift_start, shift_end)
+                 VALUES (?, ?, ?, ?, ?)"
+            );
+            $created = 0;
+            foreach ($dates as $date) {
+                $statement->execute([
+                    $staffId,
+                    $date,
+                    $data['type'],
+                    $data['start'] !== '' ? $data['start'] : null,
+                    $data['end'] !== '' ? $data['end'] : null,
+                ]);
+                if ($statement->rowCount() === 1) {
+                    $scheduleId = (string) $pdo->lastInsertId();
+                    AuditLogService::record(
+                        $pdo,
+                        $doctorId,
+                        'schedule.created',
+                        'staff_shift',
+                        $scheduleId
+                    );
+                    $created++;
+                }
+            }
+            $pdo->commit();
+
+            return $created;
+        } catch (Throwable $error) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $error;
+        }
     }
 
     public static function deleteSchedule(int $doctorId, int $scheduleId): bool
@@ -477,10 +563,29 @@ final class DoctorPortalModel
         if ($staffId === null) {
             return false;
         }
-        $stmt = self::db()->prepare('DELETE FROM staff_shifts WHERE id = ? AND staff_id = ?');
-        $stmt->execute([$scheduleId, $staffId]);
-
-        return $stmt->rowCount() === 1;
+        $pdo = self::db();
+        $pdo->beginTransaction();
+        try {
+            $stmt = $pdo->prepare('DELETE FROM staff_shifts WHERE id = ? AND staff_id = ?');
+            $stmt->execute([$scheduleId, $staffId]);
+            $deleted = $stmt->rowCount() === 1;
+            if ($deleted) {
+                AuditLogService::record(
+                    $pdo,
+                    $doctorId,
+                    'schedule.deleted',
+                    'staff_shift',
+                    (string) $scheduleId
+                );
+            }
+            $pdo->commit();
+            return $deleted;
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
+        }
     }
 
     private static function findStaffId(int $doctorId): ?int
@@ -551,12 +656,19 @@ final class DoctorPortalModel
             }
         }
         $status = (string) $row['status'];
+        $triageCategory = $row['triage_category'] !== null
+            ? (string) $row['triage_category']
+            : null;
 
         return [
             'id' => (int) $row['incident_id'],
             'title' => (string) $row['incident_type'],
             'status' => $status,
-            'status_label' => $status === 'dispatched' ? 'Urgent' : ucfirst($status),
+            'triage_category' => $triageCategory,
+            'triage_category_label' => IncidentTriageCategory::label($triageCategory),
+            'hospital_arrived_at' => $row['hospital_arrived_at'] !== null
+                ? (string) $row['hospital_arrived_at']
+                : null,
             'location' => (string) $row['location'],
             'latitude' => $row['latitude'] !== null ? (float) $row['latitude'] : null,
             'longitude' => $row['longitude'] !== null ? (float) $row['longitude'] : null,

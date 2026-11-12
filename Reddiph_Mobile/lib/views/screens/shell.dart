@@ -2,13 +2,15 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../controllers/auth_controller.dart';
+import '../../controllers/dashboard_controller.dart';
 import '../../controllers/sos_controller.dart';
 import '../../core/nav.dart';
 import '../../core/theme.dart';
-import '../../models/emergency.dart';
+import '../../models/responder_dashboard.dart';
 import '../../services/location_service.dart';
 import '../../services/mobile_api_client.dart';
 import '../dashboards/doctor_home.dart';
@@ -19,6 +21,7 @@ import '../dashboards/volunteer_home.dart';
 import '../dashboards/barangay_admin_home.dart';
 import '../widgets/common.dart';
 import '../widgets/open_street_map.dart';
+import '../widgets/responder_avatar.dart';
 import '../../services/open_street_map_api.dart';
 import 'portal_screen.dart';
 import 'sos_screen.dart';
@@ -57,6 +60,7 @@ class _ShellState extends State<Shell> {
     super.initState();
     unawaited(SosController.I.loadActiveIncident());
     if (role.name == 'Responder') {
+      unawaited(_loadResponderProfileImage());
       unawaited(_pollResponderAlerts());
       _responderAlertTimer = Timer.periodic(
         const Duration(seconds: 20),
@@ -69,6 +73,23 @@ class _ShellState extends State<Shell> {
   void dispose() {
     _responderAlertTimer?.cancel();
     super.dispose();
+  }
+
+  Future<void> _loadResponderProfileImage() async {
+    final token = AuthController.I.user?['token'] as String?;
+    if (token == null) return;
+    try {
+      final settings = await MobileApiClient.I.responderProfile(token: token);
+      if (AuthController.I.user?['token'] != token) return;
+      AuthController.I.updateResponderProfileImage(
+        MobileApiClient.I.resolveResponderProfileImageUrl(
+          settings.profileImageUrl,
+        ),
+      );
+    } on MobileApiException catch (error) {
+      debugPrint(
+          'Responder profile image could not be loaded: ${error.message}');
+    }
   }
 
   Future<void> _pollResponderAlerts() async {
@@ -160,12 +181,25 @@ class _ShellState extends State<Shell> {
   }
 
   // Role never changes while the shell is alive, so build these once.
-  static const _responderDestinations = <Widget>[
-    NavigationDestination(icon: Icon(Icons.home), label: 'Home'),
-    NavigationDestination(icon: Icon(Icons.update), label: 'Incoming'),
-    NavigationDestination(icon: Icon(Icons.map_outlined), label: 'Map'),
-    NavigationDestination(icon: Icon(Icons.account_circle), label: 'Profile'),
-  ];
+  List<Widget> get _responderDestinations => [
+        const NavigationDestination(icon: Icon(Icons.home), label: 'Home'),
+        const NavigationDestination(
+            icon: Icon(Icons.update), label: 'Incoming'),
+        const NavigationDestination(
+            icon: Icon(Icons.map_outlined), label: 'Map'),
+        NavigationDestination(
+          icon: ResponderAvatar(
+            initials: initialsOf(
+              (AuthController.I.user?['full_name'] ??
+                      AuthController.I.user?['name'] ??
+                      'Responder')
+                  .toString(),
+            ),
+            radius: 12,
+          ),
+          label: 'Profile',
+        ),
+      ];
 
   late final List<Widget> _destinations = role.name == 'Responder'
       ? _responderDestinations
@@ -256,14 +290,9 @@ class _ShellState extends State<Shell> {
       case 2:
         return const ResponderMapTab();
       case 3:
-        return Center(
-          child: Pressable(
-            child: RoleColorButton(
-              color: role.color,
-              onPressed: _logout,
-              child: const Text('Log out'),
-            ),
-          ),
+        return ResponderProfileTab(
+          onBack: () => _selectTab(0),
+          onLogout: _logout,
         );
       default:
         return const ResponderHome();
@@ -312,8 +341,8 @@ class _ShellState extends State<Shell> {
     if (role.name == 'Nurse') return const NurseShell();
     if (role.name == 'Volunteer') return const VolunteerShell();
 
-    // Responders keep SOS on Home and Incoming only; the Map and Profile tabs hide it.
-    final showFab = _isResident ? tab == 2 : tab < 2;
+    final showFab =
+        _isResident ? tab == 2 : role.name == 'Responder' || tab < 2;
 
     return Scaffold(
       body: SafeArea(
@@ -350,13 +379,1039 @@ class _ShellState extends State<Shell> {
           ),
         ),
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: tab,
-        animationDuration: const Duration(milliseconds: 300),
-        onDestinationSelected: _selectTab,
-        destinations: _destinations,
+      bottomNavigationBar: SafeArea(
+        top: false,
+        minimum: const EdgeInsets.only(bottom: 10),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Material(
+            color: Colors.white,
+            elevation: 2,
+            borderRadius: BorderRadius.circular(28),
+            clipBehavior: Clip.antiAlias,
+            child: NavigationBar(
+              height: 68,
+              backgroundColor: Colors.transparent,
+              surfaceTintColor: Colors.transparent,
+              elevation: 0,
+              indicatorColor: kResponderBrand.withAlpha(26),
+              shadowColor: Colors.transparent,
+              selectedIndex: tab,
+              animationDuration: const Duration(milliseconds: 300),
+              onDestinationSelected: _selectTab,
+              destinations: _destinations,
+            ),
+          ),
+        ),
       ),
     );
+  }
+}
+
+class _VehicleEditorSheet extends StatefulWidget {
+  const _VehicleEditorSheet({
+    required this.token,
+    required this.driverResponderEnabled,
+    required this.initialVehicleType,
+    required this.initialCallSign,
+    required this.initialPlateNumber,
+    required this.onSaved,
+  });
+
+  final String token;
+  final bool driverResponderEnabled;
+  final String initialVehicleType;
+  final String initialCallSign;
+  final String initialPlateNumber;
+  final ValueChanged<ResponderProfileSettings> onSaved;
+
+  @override
+  State<_VehicleEditorSheet> createState() => _VehicleEditorSheetState();
+}
+
+class _VehicleEditorSheetState extends State<_VehicleEditorSheet> {
+  final _formKey = GlobalKey<FormState>();
+  late String _vehicleType = widget.initialVehicleType;
+  late final TextEditingController _callSignController;
+  late final TextEditingController _plateNumberController;
+  bool _saving = false;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _callSignController = TextEditingController(text: widget.initialCallSign);
+    _plateNumberController =
+        TextEditingController(text: widget.initialPlateNumber);
+  }
+
+  @override
+  void dispose() {
+    _callSignController.dispose();
+    _plateNumberController.dispose();
+    super.dispose();
+  }
+
+  String? _validateVehicleType(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Choose Ambulance or PTV.';
+    }
+    try {
+      MobileApiClient.normalizeResponderVehicleType(value);
+      return null;
+    } on FormatException {
+      return 'Choose Ambulance or PTV.';
+    } on ArgumentError {
+      return 'Choose Ambulance or PTV.';
+    }
+  }
+
+  Future<void> _save() async {
+    if (!(_formKey.currentState?.validate() ?? false)) {
+      return;
+    }
+
+    final vehicleType =
+        MobileApiClient.normalizeResponderVehicleType(_vehicleType);
+    setState(() {
+      _saving = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final settings = await MobileApiClient.I.saveResponderVehicle(
+        token: widget.token,
+        enabled: widget.driverResponderEnabled,
+        vehicleType: vehicleType,
+        callSign: _callSignController.text.trim(),
+        plateNumber: _plateNumberController.text.trim(),
+      );
+      if (!mounted) return;
+      widget.onSaved(settings);
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _saving = false;
+        _errorMessage = error is MobileApiException
+            ? error.message
+            : 'Vehicle details could not be saved.';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const options = ['Ambulance', 'PTV'];
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 20,
+        right: 20,
+        top: 16,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+      ),
+      child: SingleChildScrollView(
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Vehicle Details',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed:
+                        _saving ? null : () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue:
+                    options.contains(_vehicleType) ? _vehicleType : 'Ambulance',
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'Vehicle Type',
+                  border: OutlineInputBorder(),
+                ),
+                items: options
+                    .map(
+                      (type) => DropdownMenuItem<String>(
+                        value: type,
+                        child: Text(type),
+                      ),
+                    )
+                    .toList(),
+                onChanged: _saving
+                    ? null
+                    : (value) {
+                        if (value != null) {
+                          setState(() => _vehicleType = value);
+                        }
+                      },
+                validator: _validateVehicleType,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _callSignController,
+                maxLength: 30,
+                textCapitalization: TextCapitalization.characters,
+                decoration: const InputDecoration(
+                  labelText: 'Call Sign',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (value) => value?.trim().isNotEmpty == true
+                    ? null
+                    : 'Please enter the call sign.',
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _plateNumberController,
+                maxLength: 30,
+                textCapitalization: TextCapitalization.characters,
+                decoration: const InputDecoration(
+                  labelText: 'Plate Number',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (value) => value?.trim().isNotEmpty == true
+                    ? null
+                    : 'Please enter the plate number.',
+              ),
+              if (_errorMessage != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  _errorMessage!,
+                  style: const TextStyle(color: Colors.red),
+                ),
+              ],
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed:
+                          _saving ? null : () => Navigator.of(context).pop(),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: _saving ? null : _save,
+                      child: _saving
+                          ? const SizedBox.square(
+                              dimension: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text('Save Changes'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class ResponderProfileTab extends StatefulWidget {
+  final VoidCallback onBack;
+  final VoidCallback onLogout;
+
+  const ResponderProfileTab({
+    super.key,
+    required this.onBack,
+    required this.onLogout,
+  });
+
+  @override
+  State<ResponderProfileTab> createState() => _ResponderProfileTabState();
+}
+
+class _ResponderProfileTabState extends State<ResponderProfileTab> {
+  String? _profileImageUrl;
+  ResponderProfileSettings? _profileSettings;
+  bool _profileLoading = true;
+  bool _profileImageSaving = false;
+  bool _driverSaving = false;
+  String? _profileError;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_refreshProfileData());
+  }
+
+  Future<void> _refreshProfileData() async {
+    final token = AuthController.I.user?['token'] as String?;
+    if (token == null) {
+      setState(() {
+        _profileLoading = false;
+        _profileError = 'Sign in again to load your profile.';
+      });
+      return;
+    }
+    try {
+      final settings = await MobileApiClient.I.responderProfile(token: token);
+      final imageUrl = MobileApiClient.I.resolveResponderProfileImageUrl(
+        settings.profileImageUrl,
+      );
+      final user = AuthController.I.user;
+      if (user != null) {
+        user['driver_responder'] = settings.driverResponderEnabled;
+        user['vehicle_type'] = settings.vehicleType;
+        user['call_sign'] = settings.callSign;
+        user['plate_number'] = settings.plateNumber;
+        user['monthly_dispatch_count'] = settings.monthlyDispatchCount;
+      }
+      if (AuthController.I.user?['token'] == token) {
+        AuthController.I.updateResponderProfileImage(imageUrl);
+      }
+      if (!mounted) return;
+      setState(() {
+        _profileSettings = settings;
+        _profileImageUrl = imageUrl;
+        _profileLoading = false;
+        _profileError = null;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _profileLoading = false;
+        _profileError = error is MobileApiException
+            ? error.message
+            : 'Unable to load your profile right now.';
+      });
+    }
+  }
+
+  Future<void> _pickProfileImage() async {
+    try {
+      final picker = ImagePicker();
+      final file = await picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 85,
+        maxWidth: 512,
+        maxHeight: 512,
+        requestFullMetadata: false,
+      );
+      if (file == null || !mounted) return;
+      if (await file.length() > 5 * 1024 * 1024) {
+        _showProfileMessage('Choose an image smaller than 5 MB.');
+        return;
+      }
+      final token = AuthController.I.user?['token'] as String?;
+      if (token == null) {
+        _showProfileMessage('Sign in again to update your profile photo.');
+        return;
+      }
+      setState(() => _profileImageSaving = true);
+      final imageUrl = await MobileApiClient.I.uploadResponderProfileImage(
+        token: token,
+        photo: file,
+      );
+      if (AuthController.I.user?['token'] != token) return;
+      AuthController.I.updateResponderProfileImage(imageUrl);
+      if (mounted) setState(() => _profileImageUrl = imageUrl);
+    } on MobileApiException catch (error) {
+      _showProfileMessage(error.message);
+    } on PlatformException {
+      _showProfileMessage('Unable to access the selected photo.');
+    } on Exception {
+      _showProfileMessage('The profile photo could not be saved.');
+    } finally {
+      if (mounted) setState(() => _profileImageSaving = false);
+    }
+  }
+
+  Future<void> _resetProfileImage() async {
+    final token = AuthController.I.user?['token'] as String?;
+    if (token == null) {
+      _showProfileMessage('Sign in again to update your profile photo.');
+      return;
+    }
+    setState(() => _profileImageSaving = true);
+    try {
+      await MobileApiClient.I.resetResponderProfileImage(token: token);
+      if (AuthController.I.user?['token'] != token) return;
+      AuthController.I.updateResponderProfileImage(null);
+      if (mounted) setState(() => _profileImageUrl = null);
+    } on MobileApiException catch (error) {
+      _showProfileMessage(error.message);
+    } finally {
+      if (mounted) setState(() => _profileImageSaving = false);
+    }
+  }
+
+  void _showProfileMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  void _acceptProfileSettings(ResponderProfileSettings settings) {
+    final imageUrl = MobileApiClient.I.resolveResponderProfileImageUrl(
+      settings.profileImageUrl,
+    );
+    final user = AuthController.I.user;
+    if (user != null) {
+      user['driver_responder'] = settings.driverResponderEnabled;
+      user['vehicle_type'] = settings.vehicleType;
+      user['call_sign'] = settings.callSign;
+      user['plate_number'] = settings.plateNumber;
+      user['monthly_dispatch_count'] = settings.monthlyDispatchCount;
+    }
+    AuthController.I.updateResponderProfileImage(imageUrl);
+    if (mounted) {
+      setState(() {
+        _profileSettings = settings;
+        _profileImageUrl = imageUrl;
+        _profileError = null;
+      });
+    }
+  }
+
+  Future<void> _handleDriverResponderToggle(bool enabled) async {
+    if (enabled) {
+      await _showVehicleEditor(driverResponderEnabled: true);
+      return;
+    }
+    final token = AuthController.I.user?['token'] as String?;
+    if (token == null) {
+      _showProfileMessage('Sign in again to update Driver Responder.');
+      return;
+    }
+    setState(() => _driverSaving = true);
+    try {
+      final settings = await MobileApiClient.I.saveResponderVehicle(
+        token: token,
+        enabled: false,
+      );
+      _acceptProfileSettings(settings);
+    } catch (error) {
+      _showProfileMessage(
+        error is MobileApiException
+            ? error.message
+            : 'Driver Responder could not be updated.',
+      );
+    } finally {
+      if (mounted) setState(() => _driverSaving = false);
+    }
+  }
+
+  Future<void> _showVehicleEditor({
+    required bool driverResponderEnabled,
+  }) async {
+    final token = AuthController.I.user?['token'] as String?;
+    if (token == null) return;
+
+    String initialVehicleType = 'Ambulance';
+    try {
+      initialVehicleType = MobileApiClient.normalizeResponderVehicleType(
+        _profileSettings?.vehicleType,
+      );
+    } on ArgumentError {
+      initialVehicleType = 'Ambulance';
+    } on FormatException {
+      initialVehicleType = 'Ambulance';
+    }
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) => _VehicleEditorSheet(
+        token: token,
+        driverResponderEnabled: driverResponderEnabled,
+        initialVehicleType: initialVehicleType,
+        initialCallSign: _profileSettings?.callSign ?? '',
+        initialPlateNumber: _profileSettings?.plateNumber ?? '',
+        onSaved: (settings) {
+          _acceptProfileSettings(settings);
+        },
+      ),
+    );
+  }
+
+  Future<void> _showScheduleEditor() async {
+    final token = AuthController.I.user?['token'] as String?;
+    if (token == null) return;
+    final periods = List<ResponderDutyPeriod>.from(
+      _profileSettings?.schedules ?? const <ResponderDutyPeriod>[],
+    );
+    final profileSettings = _profileSettings;
+    var availabilityEnabled = profileSettings == null ||
+        !profileSettings.scheduleConfigured ||
+        profileSettings.availabilityEnabled;
+    var saving = false;
+    String? errorMessage;
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, setSheetState) {
+          Future<void> pickTime(int index, bool isStart) async {
+            final period = periods[index];
+            final selected = await showTimePicker(
+              context: sheetContext,
+              initialTime: _timeFromString(
+                isStart ? period.startTime : period.endTime,
+              ),
+            );
+            if (selected == null) return;
+            final value = _timeToString(selected);
+            setSheetState(() {
+              periods[index] = ResponderDutyPeriod(
+                dayOfWeek: period.dayOfWeek,
+                startTime: isStart ? value : period.startTime,
+                endTime: isStart ? period.endTime : value,
+              );
+            });
+          }
+
+          return Padding(
+            padding: EdgeInsets.only(
+              left: 20,
+              right: 20,
+              top: 16,
+              bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 16,
+            ),
+            child: SizedBox(
+              height: MediaQuery.sizeOf(sheetContext).height * 0.78,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Duty Schedule',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: saving
+                            ? null
+                            : () => Navigator.of(sheetContext).pop(),
+                        icon: const Icon(Icons.close),
+                      ),
+                    ],
+                  ),
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Available during this schedule'),
+                    value: availabilityEnabled,
+                    onChanged: saving
+                        ? null
+                        : (value) => setSheetState(
+                              () => availabilityEnabled = value,
+                            ),
+                  ),
+                  const Divider(height: 1),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: ListView.separated(
+                      itemCount: periods.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (context, index) {
+                        final period = periods[index];
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: DropdownButton<int>(
+                                      value: period.dayOfWeek,
+                                      isExpanded: true,
+                                      items: List.generate(
+                                        days.length,
+                                        (dayIndex) => DropdownMenuItem(
+                                          value: dayIndex + 1,
+                                          child: Text(days[dayIndex]),
+                                        ),
+                                      ),
+                                      onChanged: saving
+                                          ? null
+                                          : (value) {
+                                              if (value == null) return;
+                                              setSheetState(() {
+                                                periods[index] =
+                                                    ResponderDutyPeriod(
+                                                  dayOfWeek: value,
+                                                  startTime: period.startTime,
+                                                  endTime: period.endTime,
+                                                );
+                                              });
+                                            },
+                                    ),
+                                  ),
+                                  IconButton(
+                                    tooltip: 'Remove period',
+                                    onPressed: saving
+                                        ? null
+                                        : () => setSheetState(
+                                              () => periods.removeAt(index),
+                                            ),
+                                    icon: const Icon(Icons.delete_outline),
+                                  ),
+                                ],
+                              ),
+                              Wrap(
+                                spacing: 8,
+                                children: [
+                                  OutlinedButton.icon(
+                                    onPressed: saving
+                                        ? null
+                                        : () => pickTime(index, true),
+                                    icon: const Icon(Icons.access_time),
+                                    label: Text(
+                                      'Start ${_formatTime(period.startTime)}',
+                                    ),
+                                  ),
+                                  OutlinedButton.icon(
+                                    onPressed: saving
+                                        ? null
+                                        : () => pickTime(index, false),
+                                    icon: const Icon(Icons.access_time),
+                                    label: Text(
+                                      'End ${_formatTime(period.endTime)}',
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: saving
+                        ? null
+                        : () => setSheetState(() {
+                              periods.add(const ResponderDutyPeriod(
+                                dayOfWeek: 1,
+                                startTime: '07:00:00',
+                                endTime: '19:00:00',
+                              ));
+                              errorMessage = null;
+                            }),
+                    icon: const Icon(Icons.add),
+                    label: const Text('Add period'),
+                  ),
+                  if (errorMessage != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Text(
+                        errorMessage!,
+                        style: const TextStyle(color: Colors.red),
+                      ),
+                    ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: saving
+                              ? null
+                              : () => Navigator.of(sheetContext).pop(),
+                          child: const Text('Cancel'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: saving
+                              ? null
+                              : () async {
+                                  if (periods.isEmpty && availabilityEnabled) {
+                                    setSheetState(() => errorMessage =
+                                        'Add at least one duty period.');
+                                    return;
+                                  }
+                                  setSheetState(() {
+                                    saving = true;
+                                    errorMessage = null;
+                                  });
+                                  try {
+                                    final settings = await MobileApiClient.I
+                                        .saveResponderSchedule(
+                                      token: token,
+                                      availabilityEnabled: availabilityEnabled,
+                                      schedules: periods,
+                                    );
+                                    _acceptProfileSettings(settings);
+                                    if (sheetContext.mounted) {
+                                      Navigator.of(sheetContext).pop();
+                                    }
+                                  } catch (error) {
+                                    setSheetState(() {
+                                      saving = false;
+                                      errorMessage = error is MobileApiException
+                                          ? error.message
+                                          : 'The schedule could not be saved.';
+                                    });
+                                  }
+                                },
+                          child: saving
+                              ? const SizedBox.square(
+                                  dimension: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Text('Save'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  TimeOfDay _timeFromString(String value) {
+    final parts = value.split(':');
+    return TimeOfDay(
+      hour: int.parse(parts[0]),
+      minute: int.parse(parts[1]),
+    );
+  }
+
+  String _timeToString(TimeOfDay value) =>
+      '${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}:00';
+
+  String _formatTime(String value) => _timeFromString(value).format(context);
+
+  @override
+  Widget build(BuildContext context) {
+    final user = AuthController.I.user;
+    final profile = DashboardController.I.profileFor('Responder');
+    final settings = _profileSettings;
+    final fullName = settings?.fullName ??
+        (user?['full_name'] ?? user?['name'] ?? 'Responder').toString();
+    final hasVehicleDetails =
+        settings?.vehicleType?.trim().isNotEmpty == true &&
+            settings?.callSign?.trim().isNotEmpty == true &&
+            settings?.plateNumber?.trim().isNotEmpty == true;
+    final dispatchCount = _profileLoading
+        ? '—'
+        : settings?.monthlyDispatchCount.toString() ?? '—';
+    final isOnDuty = settings?.isOnDuty ?? false;
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 6, 20, 110),
+      children: [
+        Align(
+          alignment: Alignment.centerLeft,
+          child: IconButton(
+            visualDensity: VisualDensity.compact,
+            padding: EdgeInsets.zero,
+            onPressed: widget.onBack,
+            icon: const Icon(Icons.arrow_back_ios_new, size: 18),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Profile',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '$fullName · Responder',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: Colors.black.withValues(alpha: 0.6),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            PopupMenuButton<String>(
+              tooltip: 'Profile image options',
+              onSelected: _profileImageSaving
+                  ? null
+                  : (value) async {
+                      if (value == 'choose') {
+                        await _pickProfileImage();
+                      } else if (value == 'remove') {
+                        await _resetProfileImage();
+                      }
+                    },
+              itemBuilder: (context) => [
+                const PopupMenuItem(
+                  value: 'choose',
+                  child: Text('Choose photo'),
+                ),
+                if (_profileImageUrl != null)
+                  const PopupMenuItem(
+                    value: 'remove',
+                    child: Text('Remove photo'),
+                  ),
+              ],
+              child: ResponderAvatar(
+                initials: profile.initial,
+                radius: 22,
+                backgroundColor: kResponderBrand,
+              ),
+            ),
+          ],
+        ),
+        if (_profileError != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            _profileError!,
+            style: const TextStyle(fontSize: 12, color: Colors.red),
+          ),
+        ],
+        const SizedBox(height: 20),
+        Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: const Color(0xFFE2E2E2)),
+          ),
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'This month',
+                style: TextStyle(fontSize: 10, color: Colors.black54),
+              ),
+              Text(
+                dispatchCount,
+                style: const TextStyle(
+                  fontSize: 18,
+                  height: 1.15,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.black,
+                ),
+              ),
+              const SizedBox(height: 2),
+              const Text(
+                'Dispatches handled',
+                style: TextStyle(fontSize: 10, color: Colors.black54),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 18),
+        const Text(
+          'Vehicle',
+          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 6),
+        InkWell(
+          onTap: _profileLoading
+              ? null
+              : () => _showVehicleEditor(
+                    driverResponderEnabled:
+                        settings?.driverResponderEnabled ?? false,
+                  ),
+          borderRadius: BorderRadius.circular(6),
+          child: Container(
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: const Color(0xFFE2E2E2)),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            child: hasVehicleDetails
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${settings!.vehicleType} — ${settings.callSign}',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Plate ${settings.plateNumber}',
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: Colors.black54,
+                        ),
+                      ),
+                    ],
+                  )
+                : Text(
+                    settings?.driverResponderEnabled == true
+                        ? 'Vehicle information unavailable'
+                        : 'No vehicle registered',
+                    style: const TextStyle(fontSize: 11, color: Colors.black54),
+                  ),
+          ),
+        ),
+        SwitchListTile.adaptive(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 2),
+          title: const Text(
+            'Driver Responder',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+          ),
+          value: settings?.driverResponderEnabled ?? false,
+          onChanged: _driverSaving ? null : _handleDriverResponderToggle,
+        ),
+        const SizedBox(height: 14),
+        const Text(
+          'Settings',
+          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 6),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: const Color(0xFFE2E2E2)),
+          ),
+          child: Column(
+            children: [
+              InkWell(
+                onTap: _showScheduleEditor,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 10,
+                    horizontal: 14,
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Duty Schedule',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              _scheduleSummary(settings),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 9,
+                                color: Colors.black54,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Icon(
+                        Icons.circle,
+                        size: 7,
+                        color: isOnDuty ? Colors.green : Colors.black38,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        isOnDuty ? 'On Duty' : 'Off Duty',
+                        style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const Divider(height: 1, thickness: 1),
+              InkWell(
+                onTap: widget.onLogout,
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 11, horizontal: 14),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Log out',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: kSos,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+      ],
+    );
+  }
+
+  String _scheduleSummary(ResponderProfileSettings? settings) {
+    if (settings == null || !settings.scheduleConfigured) {
+      return 'Schedule not set';
+    }
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    final selectedDays = settings.schedules
+        .map((period) => period.dayOfWeek)
+        .toSet()
+        .toList()
+      ..sort();
+    if (selectedDays.isEmpty) return 'No available periods';
+    final daySummary = selectedDays.map((day) => days[day - 1]).join(', ');
+    final ranges = settings.schedules
+        .map((period) =>
+            '${_formatTime(period.startTime)}–${_formatTime(period.endTime)}')
+        .toSet();
+    final rangeSummary = ranges.length == 1
+        ? ranges.single
+        : '${settings.schedules.length} time periods';
+    return '$daySummary · $rangeSummary';
   }
 }
 

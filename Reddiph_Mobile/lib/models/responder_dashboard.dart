@@ -1,6 +1,7 @@
 import 'package:latlong2/latlong.dart';
 
 import 'emergency.dart';
+import 'triage_category.dart';
 
 bool shouldShowUpcomingResponderCases({
   required bool sentToHospital,
@@ -20,6 +21,7 @@ String initialsOf(String fullName) {
 class ResponderIncident {
   final int id;
   final String type, status, location;
+  final String? triageCategory;
   final String reportedBy;
   final bool hasReporterAccount;
   final bool sentToHospital;
@@ -37,6 +39,7 @@ class ResponderIncident {
     required this.status,
     required this.location,
     required this.minutesAgo,
+    this.triageCategory,
     this.reportedBy = 'resident_sos',
     this.hasReporterAccount = false,
     this.sentToHospital = false,
@@ -55,9 +58,10 @@ class ResponderIncident {
     final latitude = (json['latitude'] as num?)?.toDouble();
     final longitude = (json['longitude'] as num?)?.toDouble();
     return ResponderIncident(
-      id: (json['incident_id'] as num).toInt(),
+      id: (json['incident_id'] as num?)?.toInt() ?? 0,
       type: json['incident_type'] as String? ?? 'SOS emergency alert',
-      status: json['status'] as String? ?? 'critical',
+      status: json['status'] as String? ?? 'open',
+      triageCategory: json['triage_category'] as String?,
       reportedBy: json['reported_by'] as String? ?? 'resident_sos',
       hasReporterAccount: json['has_reporter_account'] as bool? ?? false,
       sentToHospital: json['sent_to_hospital'] as bool? ?? false,
@@ -80,12 +84,8 @@ class ResponderIncident {
     );
   }
 
-  String get severity => switch (status) {
-        'critical' => 'Critical',
-        'urgent' => 'Urgent',
-        'dispatched' => 'Dispatched',
-        _ => 'Stable',
-      };
+  String get severity =>
+      EmergencyCategory.fromValue(triageCategory)?.label ?? 'Unclassified';
 
   String get distanceLabel =>
       distanceKm == null ? '—' : '${distanceKm!.toStringAsFixed(1)} km';
@@ -131,15 +131,23 @@ class IncidentPage {
     this.total = 0,
   });
 
-  factory IncidentPage.fromJson(Map<String, dynamic> json) => IncidentPage(
-        items: [
-          for (final item in json['items'] as List<dynamic>)
-            ResponderIncident.fromJson(item as Map<String, dynamic>),
-        ],
-        page: (json['page'] as num).toInt(),
-        pages: (json['pages'] as num).toInt(),
-        total: (json['total'] as num).toInt(),
-      );
+  factory IncidentPage.fromJson(Map<String, dynamic> json) {
+    final itemsJson = json['items'];
+    final items = <ResponderIncident>[];
+    if (itemsJson is List) {
+      for (final item in itemsJson) {
+        if (item is Map<String, dynamic>) {
+          items.add(ResponderIncident.fromJson(item));
+        }
+      }
+    }
+    return IncidentPage(
+      items: items,
+      page: (json['page'] as num?)?.toInt() ?? 1,
+      pages: (json['pages'] as num?)?.toInt() ?? 1,
+      total: (json['total'] as num?)?.toInt() ?? items.length,
+    );
+  }
 
   bool get hasPrevious => page > 1;
   bool get hasNext => page < pages;
@@ -149,6 +157,8 @@ class IncidentPage {
 class ResponderDashboard {
   final String fullName;
   final String? vehicleType, callSign, plateNumber;
+  final int monthlyDispatchCount;
+  final int hospitalArrivalsThisMonth;
   final ResponderIncident? activeCase;
   final IncidentPage queue;
 
@@ -158,20 +168,42 @@ class ResponderDashboard {
     this.vehicleType,
     this.callSign,
     this.plateNumber,
+    this.monthlyDispatchCount = 0,
+    this.hospitalArrivalsThisMonth = 0,
     this.activeCase,
   });
 
   factory ResponderDashboard.fromJson(Map<String, dynamic> json) {
-    final responder = json['responder'] as Map<String, dynamic>;
-    final vehicle = responder['vehicle'] as Map<String, dynamic>?;
-    final active = json['active_case'] as Map<String, dynamic>?;
+    final responderRaw = json['responder'];
+    final responder = responderRaw is Map<String, dynamic>
+        ? responderRaw
+        : <String, dynamic>{};
+    final vehicleRaw = responder['vehicle'];
+    final vehicle = vehicleRaw is Map<String, dynamic> ? vehicleRaw : null;
+    final activeRaw = json['active_case'];
+    final active = activeRaw is Map<String, dynamic> ? activeRaw : null;
+    final queueRaw = json['queue'];
+    final queue = queueRaw is Map<String, dynamic>
+        ? IncidentPage.fromJson(queueRaw)
+        : const IncidentPage();
+
     return ResponderDashboard(
-      fullName: responder['full_name'] as String,
+      fullName: responder['full_name'] as String? ?? 'Responder',
       vehicleType: vehicle?['vehicle_type'] as String?,
       callSign: vehicle?['call_sign'] as String?,
       plateNumber: vehicle?['plate_number'] as String?,
+      monthlyDispatchCount: ((responder['monthly_dispatch_count'] ??
+                  responder['dispatches_this_month'] ??
+                  json['monthly_dispatch_count'] ??
+                  json['dispatches_this_month']) as num?)
+              ?.toInt() ??
+          0,
+      hospitalArrivalsThisMonth: ((responder['hospital_arrivals_this_month'] ??
+                  json['hospital_arrivals_this_month']) as num?)
+              ?.toInt() ??
+          0,
       activeCase: active == null ? null : ResponderIncident.fromJson(active),
-      queue: IncidentPage.fromJson(json['queue'] as Map<String, dynamic>),
+      queue: queue,
     );
   }
 
@@ -204,13 +236,126 @@ class ResponderQueue {
     required this.page,
   });
 
-  factory ResponderQueue.fromJson(Map<String, dynamic> json) => ResponderQueue(
-        fullName:
-            (json['responder'] as Map<String, dynamic>)['full_name'] as String,
-        counts: (json['counts'] as Map<String, dynamic>)
-            .map((key, value) => MapEntry(key, (value as num).toInt())),
-        page: IncidentPage.fromJson(json['queue'] as Map<String, dynamic>),
-      );
+  factory ResponderQueue.fromJson(Map<String, dynamic> json) {
+    final responderRaw = json['responder'];
+    final responder = responderRaw is Map<String, dynamic>
+        ? responderRaw
+        : <String, dynamic>{};
+    final countsJson = json['counts'];
+    final counts = <String, int>{};
+    if (countsJson is Map) {
+      for (final entry in countsJson.entries) {
+        final value = entry.value;
+        if (value is num) {
+          counts[entry.key.toString()] = value.toInt();
+        }
+      }
+    }
+    final queueRaw = json['queue'];
+    final queue = queueRaw is Map<String, dynamic>
+        ? IncidentPage.fromJson(queueRaw)
+        : const IncidentPage();
+
+    return ResponderQueue(
+      fullName: responder['full_name'] as String? ?? 'Responder',
+      counts: counts,
+      page: queue,
+    );
+  }
 
   String get initials => initialsOf(fullName);
+}
+
+class ResponderDutyPeriod {
+  const ResponderDutyPeriod({
+    required this.dayOfWeek,
+    required this.startTime,
+    required this.endTime,
+  });
+
+  final int dayOfWeek;
+  final String startTime;
+  final String endTime;
+
+  Map<String, Object> toJson() => {
+        'day_of_week': dayOfWeek,
+        'start_time': startTime,
+        'end_time': endTime,
+      };
+
+  factory ResponderDutyPeriod.fromJson(Map<String, dynamic> json) =>
+      ResponderDutyPeriod(
+        dayOfWeek: (json['day_of_week'] as num).toInt(),
+        startTime: json['start_time'] as String,
+        endTime: json['end_time'] as String,
+      );
+}
+
+class ResponderProfileSettings {
+  const ResponderProfileSettings({
+    required this.fullName,
+    required this.driverResponderEnabled,
+    required this.scheduleConfigured,
+    required this.availabilityEnabled,
+    required this.isOnDuty,
+    required this.schedules,
+    required this.monthlyDispatchCount,
+    required this.hospitalArrivalsThisMonth,
+    this.profileImageUrl,
+    this.vehicleType,
+    this.callSign,
+    this.plateNumber,
+  });
+
+  final String fullName;
+  final String? profileImageUrl;
+  final bool driverResponderEnabled;
+  final String? vehicleType;
+  final String? callSign;
+  final String? plateNumber;
+  final bool scheduleConfigured;
+  final bool availabilityEnabled;
+  final bool isOnDuty;
+  final List<ResponderDutyPeriod> schedules;
+  final int monthlyDispatchCount;
+  final int hospitalArrivalsThisMonth;
+
+  factory ResponderProfileSettings.fromJson(Map<String, dynamic> json) {
+    final rawProfile = json['profile'];
+    if (rawProfile is! Map<String, dynamic>) {
+      throw const FormatException('Invalid responder profile.');
+    }
+    final rawVehicle = rawProfile['vehicle'];
+    final vehicle = rawVehicle is Map<String, dynamic> ? rawVehicle : null;
+    final rawSchedules = rawProfile['schedules'];
+    final schedules = rawSchedules is List
+        ? rawSchedules
+            .whereType<Map<String, dynamic>>()
+            .map(ResponderDutyPeriod.fromJson)
+            .toList(growable: false)
+        : const <ResponderDutyPeriod>[];
+
+    bool readBool(String key) =>
+        rawProfile[key] == true ||
+        rawProfile[key] == 1 ||
+        rawProfile[key] == '1';
+
+    return ResponderProfileSettings(
+      fullName: rawProfile['full_name'] as String? ?? 'Responder',
+      profileImageUrl: (rawProfile['profile_image_url'] ??
+          rawProfile['profile_image']) as String?,
+      driverResponderEnabled: readBool('driver_responder_enabled'),
+      vehicleType: vehicle?['vehicle_type'] as String?,
+      callSign: vehicle?['call_sign'] as String?,
+      plateNumber: vehicle?['plate_number'] as String?,
+      scheduleConfigured: readBool('schedule_configured'),
+      availabilityEnabled: readBool('availability_enabled'),
+      isOnDuty: readBool('is_on_duty'),
+      schedules: schedules,
+      monthlyDispatchCount:
+          (json['monthly_dispatch_count'] as num?)?.toInt() ?? 0,
+      hospitalArrivalsThisMonth:
+          (json['hospital_arrivals_this_month'] as num?)?.toInt() ?? 0,
+    );
+  }
 }

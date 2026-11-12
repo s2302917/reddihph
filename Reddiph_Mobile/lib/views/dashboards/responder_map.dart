@@ -8,6 +8,7 @@ import '../../controllers/auth_controller.dart';
 import '../../core/theme.dart';
 import '../../models/driving_route.dart';
 import '../../models/responder_dashboard.dart';
+import '../../models/triage_category.dart';
 import '../../services/location_service.dart';
 import '../../services/mobile_api_client.dart';
 import '../screens/case_detail_screen.dart';
@@ -39,6 +40,11 @@ class _ResponderMapTabState extends State<ResponderMapTab> {
   int? _routedIncidentId;
   bool? _routedToHospital;
   DateTime? _routeUpdatedAt;
+  bool _showRerouteOptions = false;
+  bool _loadingRerouteHospitals = false;
+  bool _rerouting = false;
+  List<ResponderHospitalOption> _rerouteHospitals = [];
+  int? _selectedHospitalId;
 
   @override
   void initState() {
@@ -138,6 +144,181 @@ class _ResponderMapTabState extends State<ResponderMapTab> {
     }
   }
 
+  Future<void> _toggleRerouteOptions() async {
+    if (_showRerouteOptions) {
+      setState(() => _showRerouteOptions = false);
+      return;
+    }
+
+    final incident = _activeCase;
+    final token = AuthController.I.user?['token'] as String?;
+    if (incident == null || token == null || token.isEmpty) {
+      setState(() => _routeError = 'Sign in again to reroute this incident.');
+      return;
+    }
+
+    setState(() {
+      _showRerouteOptions = true;
+      _loadingRerouteHospitals = true;
+      _routeError = null;
+    });
+    try {
+      final hospitals = await MobileApiClient.I.responderRerouteHospitals(
+        token: token,
+        incidentId: incident.id,
+      );
+      if (!mounted) return;
+      setState(() {
+        _rerouteHospitals = hospitals;
+        if (hospitals.isEmpty) {
+          _routeError = 'No registered hospitals are available.';
+        }
+      });
+    } on MobileApiException catch (error) {
+      if (mounted) setState(() => _routeError = error.message);
+    } finally {
+      if (mounted) setState(() => _loadingRerouteHospitals = false);
+    }
+  }
+
+  Future<void> _rerouteToHospital(int hospitalId) async {
+    final incident = _activeCase;
+    final token = AuthController.I.user?['token'] as String?;
+    if (incident == null || token == null || token.isEmpty || _rerouting) {
+      return;
+    }
+
+    setState(() {
+      _rerouting = true;
+      _routeError = null;
+    });
+    try {
+      final response = await MobileApiClient.I.rerouteResponderIncident(
+        token: token,
+        incidentId: incident.id,
+        hospitalId: hospitalId,
+      );
+      final hospital = response['hospital'];
+      if (hospital is! Map<String, dynamic> ||
+          hospital['id'] is! num ||
+          hospital['name'] is! String) {
+        throw const MobileApiException(
+          'The server returned an invalid hospital destination.',
+        );
+      }
+
+      _routedIncidentId = null;
+      _routedToHospital = null;
+      _routeUpdatedAt = null;
+      if (mounted) {
+        setState(() {
+          _activeRoute = null;
+          _showRerouteOptions = false;
+          _selectedHospitalId = (hospital['id'] as num).toInt();
+        });
+      }
+
+      final position = _me;
+      if (position != null) {
+        final route = await MobileApiClient.I.incidentDirections(
+          token: token,
+          incidentId: incident.id,
+          latitude: position.latitude,
+          longitude: position.longitude,
+        );
+        if (mounted && _activeCase?.id == incident.id) {
+          setState(() {
+            _activeRoute = route;
+            _routeError = null;
+          });
+          _routedIncidentId = incident.id;
+          _routedToHospital = true;
+          _routeUpdatedAt = DateTime.now();
+        }
+      } else if (mounted) {
+        setState(
+          () => _routeError =
+              'Hospital changed. Directions will refresh when GPS is available.',
+        );
+      }
+
+      unawaited(_load());
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Rerouted to ${hospital['name'] as String}.'),
+          ),
+        );
+      }
+    } on MobileApiException catch (error) {
+      if (mounted) setState(() => _routeError = error.message);
+    } finally {
+      if (mounted) setState(() => _rerouting = false);
+    }
+  }
+
+  Widget _rerouteControl() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        OutlinedButton.icon(
+          onPressed: _rerouting || _loadingRerouteHospitals
+              ? null
+              : _toggleRerouteOptions,
+          icon: _rerouting || _loadingRerouteHospitals
+              ? const SizedBox(
+                  width: 17,
+                  height: 17,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.alt_route),
+          label: Text(
+            _showRerouteOptions ? 'CLOSE HOSPITAL LIST' : 'RE-ROUTE',
+          ),
+        ),
+        if (_showRerouteOptions) ...[
+          const SizedBox(height: 6),
+          if (_loadingRerouteHospitals)
+            const LinearProgressIndicator(minHeight: 2)
+          else if (_rerouteHospitals.isNotEmpty)
+            DropdownButtonFormField<int>(
+              initialValue: _rerouteHospitals.any(
+                (hospital) => hospital.id == _selectedHospitalId,
+              )
+                  ? _selectedHospitalId
+                  : null,
+              decoration: const InputDecoration(
+                labelText: 'Registered hospital',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+              items: [
+                for (final hospital in _rerouteHospitals)
+                  DropdownMenuItem<int>(
+                    value: hospital.id,
+                    enabled: hospital.canRoute && !_rerouting,
+                    child: Text(
+                      hospital.canRoute
+                          ? hospital.name
+                          : '${hospital.name} · routing unavailable',
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+              ],
+              onChanged: _rerouting
+                  ? null
+                  : (hospitalId) {
+                      if (hospitalId != null) {
+                        setState(() => _selectedHospitalId = hospitalId);
+                        unawaited(_rerouteToHospital(hospitalId));
+                      }
+                    },
+            ),
+        ],
+      ],
+    );
+  }
+
   @override
   void dispose() {
     _timer?.cancel();
@@ -154,11 +335,9 @@ class _ResponderMapTabState extends State<ResponderMapTab> {
     return null;
   }
 
-  Color _pinColor(ResponderIncident incident) => switch (incident.status) {
-        'critical' => const Color(0xFFD9382B),
-        'urgent' => const Color(0xFFE0A100),
-        _ => const Color(0xFF2F6FB5),
-      };
+  Color _pinColor(ResponderIncident incident) =>
+      EmergencyCategory.fromValue(incident.triageCategory)?.color ??
+      const Color(0xFF6B7280);
 
   @override
   Widget build(BuildContext context) {
@@ -191,7 +370,11 @@ class _ResponderMapTabState extends State<ResponderMapTab> {
         Expanded(
           child: OpenStreetMapView(
             // The map only redraws when the set of incidents changes.
-            key: ValueKey(incidents.map((i) => '${i.id}${i.status}').join(',')),
+            key: ValueKey(
+              incidents
+                  .map((i) => '${i.id}${i.status}${i.triageCategory}')
+                  .join(','),
+            ),
             radius: 10,
             center: center,
             zoom: 14,
@@ -244,6 +427,10 @@ class _ResponderMapTabState extends State<ResponderMapTab> {
               style: const TextStyle(fontSize: 10, color: Colors.red),
             ),
           ),
+        if (_activeCase?.sentToHospital == true) ...[
+          const SizedBox(height: 6),
+          _rerouteControl(),
+        ],
         if (upcomingIsVisible)
           const Padding(
             padding: EdgeInsets.only(top: 6),

@@ -144,7 +144,7 @@ class _DoctorCaseDetailState extends State<DoctorCaseDetail> {
               ),
       );
     }
-    final severity = doctorSeverity(item.statusLabel);
+    final severity = doctorSeverity(item.triageCategoryLabel);
     return Scaffold(
       appBar: AppBar(),
       body: _loading
@@ -176,7 +176,7 @@ class _DoctorCaseDetailState extends State<DoctorCaseDetail> {
                                 ),
                               ),
                             ),
-                            SmallPill(item.statusLabel, severity),
+                            SmallPill(item.triageCategoryLabel, severity),
                           ],
                         ),
                         Text(

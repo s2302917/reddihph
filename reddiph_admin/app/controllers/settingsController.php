@@ -349,6 +349,14 @@ class settingsController
 
     private function redirectWithMessage(string $message, string $type): void
     {
+        if (stripos((string) ($_SERVER['HTTP_ACCEPT'] ?? ''), 'application/json') !== false) {
+            $isSuccess = $type === 'success';
+            $this->jsonResponse(
+                ['success' => $isSuccess, 'message' => $message],
+                $isSuccess ? 200 : 422
+            );
+        }
+
         $_SESSION['settings_message'] = $message;
         $_SESSION['settings_message_type'] = $type;
         header('Location: ' . assetUrl('app/controllers/settingsController.php'), true, 303);

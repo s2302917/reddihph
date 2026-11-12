@@ -1,12 +1,136 @@
 (() => {
-  const passwordToggle = document.querySelector('.toggle');
-  if (passwordToggle) {
-    passwordToggle.addEventListener('click', () => {
-      const input = document.getElementById(passwordToggle.getAttribute('aria-controls'));
+  const sessionTimeout = Number(document.body.dataset.sessionIdleTimeout);
+  const activityUrl = document.body.dataset.sessionActivityUrl;
+  const logoutUrl = document.body.dataset.sessionLogoutUrl;
+  const loginUrl = document.body.dataset.sessionLoginUrl;
+  const logoutForm = document.querySelector('.sidebar-footer form');
+  const csrfInput = logoutForm?.querySelector('input[name="csrf"]');
+  const bindDebouncedSearch = (form, input) => {
+    let searchTimer;
+    input.addEventListener('input', () => {
+      window.clearTimeout(searchTimer);
+      searchTimer = window.setTimeout(() => form.requestSubmit(), 350);
+    });
+    form.addEventListener('submit', () => window.clearTimeout(searchTimer));
+  };
+
+  if (
+    Number.isFinite(sessionTimeout) &&
+    sessionTimeout > 0 &&
+    activityUrl &&
+    logoutUrl &&
+    loginUrl &&
+    csrfInput instanceof HTMLInputElement
+  ) {
+    const timeoutMs = sessionTimeout * 1000;
+    const heartbeatIntervalMs = 60_000;
+    let idleTimer;
+    let lastHeartbeat = Date.now();
+    let navigationExpected = false;
+    let logoutStarted = false;
+
+    const csrfBody = () => new URLSearchParams({ csrf: csrfInput.value });
+    const redirectToLogin = () => window.location.assign(loginUrl);
+
+    const logOut = async () => {
+      if (logoutStarted) return;
+      logoutStarted = true;
+      try {
+        await fetch(logoutUrl, {
+          method: 'POST',
+          credentials: 'same-origin',
+          keepalive: true,
+          body: csrfBody(),
+        });
+      } catch (error) {
+        console.error('Could not confirm Super Admin logout with the server.', error);
+      }
+      redirectToLogin();
+    };
+
+    const refreshSession = async () => {
+      try {
+        const response = await fetch(activityUrl, {
+          method: 'POST',
+          credentials: 'same-origin',
+          body: csrfBody(),
+        });
+        if (!response.ok || response.redirected) redirectToLogin();
+      } catch (error) {
+        console.error('Could not refresh the Super Admin session.', error);
+      }
+    };
+
+    const markActivity = () => {
+      if (logoutStarted) return;
+      window.clearTimeout(idleTimer);
+      idleTimer = window.setTimeout(logOut, timeoutMs);
+
+      const now = Date.now();
+      if (now - lastHeartbeat >= heartbeatIntervalMs) {
+        lastHeartbeat = now;
+        void refreshSession();
+      }
+    };
+
+    ['pointerdown', 'pointermove', 'keydown', 'scroll', 'touchstart'].forEach((eventName) => {
+      document.addEventListener(eventName, markActivity, { passive: true });
+    });
+    idleTimer = window.setTimeout(logOut, timeoutMs);
+
+    document.addEventListener('click', (event) => {
+      if (!(event.target instanceof Element)) return;
+      const link = event.target.closest('a[href]');
+      if (!(link instanceof HTMLAnchorElement) || link.target === '_blank' || link.hasAttribute('download')) return;
+      if (event instanceof MouseEvent && (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)) return;
+      if (new URL(link.href, window.location.href).origin === window.location.origin) {
+        navigationExpected = true;
+      }
+    });
+
+    document.addEventListener('submit', (event) => {
+      if (!(event.target instanceof HTMLFormElement)) return;
+      const destination = new URL(event.target.action, window.location.href);
+      if (destination.origin === window.location.origin) navigationExpected = true;
+    });
+
+    window.addEventListener('pagehide', (event) => {
+      if (navigationExpected || event.persisted || logoutStarted) return;
+      const sent = navigator.sendBeacon(logoutUrl, csrfBody());
+      if (!sent) {
+        console.warn('The browser could not send the Super Admin tab-close logout request.');
+      }
+    });
+  }
+
+  const loginForm = document.querySelector('[data-login-form]');
+  loginForm?.addEventListener('submit', () => {
+    const submitButton = loginForm.querySelector('[data-login-submit]');
+    if (!(submitButton instanceof HTMLButtonElement)) return;
+
+    submitButton.disabled = true;
+    submitButton.textContent = 'Signing in...';
+    loginForm.setAttribute('aria-busy', 'true');
+  });
+
+  const passwordToggle = document.querySelector('[data-password-toggle]');
+  const loginPasswordToggle = document.querySelector('.toggle');
+  const activePasswordToggle = passwordToggle || loginPasswordToggle;
+  if (activePasswordToggle instanceof HTMLButtonElement) {
+    activePasswordToggle.addEventListener('click', () => {
+      const inputId = activePasswordToggle.getAttribute('aria-controls');
+      const input = inputId ? document.getElementById(inputId) : null;
+      if (!(input instanceof HTMLInputElement)) return;
       const show = input.type === 'password';
       input.type = show ? 'text' : 'password';
-      passwordToggle.textContent = show ? 'Hide' : 'Show';
-      passwordToggle.setAttribute('aria-pressed', String(show));
+      const label = activePasswordToggle.querySelector('span');
+      if (label) {
+        label.textContent = show ? 'Hide' : 'Show';
+      } else {
+        activePasswordToggle.textContent = show ? 'Hide' : 'Show';
+      }
+      activePasswordToggle.setAttribute('aria-pressed', String(show));
+      activePasswordToggle.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
     });
   }
 
@@ -15,7 +139,10 @@
     if (!tooltip) return;
 
     const show = () => {
-      tooltip.textContent = `${point.dataset.chartLabel}: ${point.dataset.chartCount} incident reports`;
+      const date = point.dataset.chartDate || point.dataset.chartLabel || 'Day';
+      const count = Number(point.dataset.chartCount);
+      const safeCount = Number.isFinite(count) ? count : 0;
+      tooltip.textContent = `${date}: ${safeCount.toLocaleString()} incident ${safeCount === 1 ? 'report' : 'reports'}`;
     };
     const clear = () => {
       tooltip.textContent = '';
@@ -26,199 +153,277 @@
     point.addEventListener('mouseleave', clear);
   });
 
-  const userSearch = document.querySelector('[data-user-search]');
-  if (userSearch) {
-    const rows = [...document.querySelectorAll('[data-user-row]')];
-    const noResults = document.querySelector('.users-no-results');
-
-    userSearch.addEventListener('input', () => {
-      const query = userSearch.value.trim().toLowerCase();
-      let visibleCount = 0;
-      rows.forEach((row) => {
-        const visible = row.dataset.search.includes(query);
-        row.hidden = !visible;
-        if (visible) visibleCount += 1;
-      });
-      if (noResults) noResults.hidden = visibleCount !== 0;
-    });
-  }
-
-  const roleButtons = document.querySelectorAll('[data-role-select]');
-  const roleCells = document.querySelectorAll('[data-role-column]');
-  roleButtons.forEach((button) => {
-    button.addEventListener('click', () => {
-      const selectedRole = button.dataset.roleSelect;
-      roleButtons.forEach((item) => item.setAttribute('aria-pressed', String(item === button)));
-      roleCells.forEach((cell) => {
-        cell.dataset.selected = String(cell.dataset.roleColumn === selectedRole);
-      });
-    });
-  });
-
-  document.querySelectorAll('[data-facility-group]').forEach((group) => {
-    const search = group.querySelector('[data-barangay-search]');
-    if (!search) return;
-    const cards = [...group.querySelectorAll('[data-barangay-card]')];
-    const noResults = group.querySelector('.barangay-no-results');
-
-    search.addEventListener('input', () => {
-      const query = search.value.trim().toLowerCase();
-      let visibleCount = 0;
-      cards.forEach((card) => {
-        const visible = card.dataset.search.includes(query);
-        card.hidden = !visible;
-        if (visible) visibleCount += 1;
-      });
-      if (noResults) noResults.hidden = visibleCount !== 0;
-    });
-  });
-
-  const brandingPreview = document.querySelector('[data-branding-preview-base]');
-  const websitePreview = document.querySelector('[data-branding-website-preview]');
-  const websitePreviewPage = document.querySelector('[data-branding-preview-page]');
-  const primaryColor = document.querySelector('[data-primary-color]');
-  const secondaryColor = document.querySelector('[data-secondary-color]');
-  const nameInput = document.querySelector('[data-brand-name-input]');
-  const logoInput = document.querySelector('[data-brand-logo-input]');
-  const faviconInput = document.querySelector('[data-brand-favicon-input]');
-  const originalWebsiteBranding = {};
-  const resetPreviewFields = new Set();
-  let websiteBrandingReady = false;
-
-  const previewAssetUrl = (path) => {
-    if (!path) return null;
-    if (/^(https?:)?\/\//i.test(path) || path.startsWith('/')) return path;
-    if (/^[a-z][a-z\d+.-]*:/i.test(path)) return null;
-    return new URL(path.replace(/^\/+/, ''), new URL(brandingPreview.dataset.brandingPreviewBase, window.location.origin)).href;
-  };
-
-  const updateWebsitePreview = () => {
-    if (!websitePreview || !brandingPreview || !websiteBrandingReady) return;
-
-    const previewDocument = websitePreview.contentDocument;
-    const previewWindow = websitePreview.contentWindow;
-    const scope = brandingPreview.dataset.brandingScope;
-    if (!previewDocument || !previewWindow || scope === 'mobile') return;
-
-    const inputs = {
-      app_name: nameInput,
-      logo_path: logoInput,
-      favicon_path: faviconInput,
-      primary_color: primaryColor,
-      secondary_color: secondaryColor,
-    };
-    const values = {};
-    Object.entries(inputs).forEach(([key, input]) => {
-      const editedValue = input?.value.trim() ?? '';
-      if (resetPreviewFields.has(key)) {
-        values[key] = editedValue;
+  const addAccountToggle = document.querySelector('[data-toggle-create-account]');
+  const addAccountCard = document.getElementById('create-account-card');
+  const closeAddAccount = document.querySelector('[data-close-create-account]');
+  if (
+    addAccountToggle instanceof HTMLButtonElement &&
+    addAccountCard instanceof HTMLElement
+  ) {
+    const setAddAccountVisible = (visible) => {
+      addAccountCard.hidden = !visible;
+      addAccountToggle.setAttribute('aria-expanded', String(visible));
+      if (visible) {
+        addAccountCard.querySelector('input[name="name"]')?.focus();
       } else {
-        values[key] = editedValue || originalWebsiteBranding[key];
+        addAccountToggle.focus();
       }
+    };
+    addAccountToggle.addEventListener('click', () => {
+      setAddAccountVisible(addAccountCard.hidden);
     });
-
-    const appName = values.app_name || originalWebsiteBranding.app_name;
-    const logo = previewDocument.querySelector('.brand-logo img, .application-brand-logo');
-    if (logo) {
-      logo.src = previewAssetUrl(values.logo_path) || originalWebsiteBranding.logo_path;
-      logo.alt = appName;
-    }
-
-    previewDocument.title = `${originalWebsiteBranding.titlePrefix} — ${appName}`;
-    previewDocument.documentElement.style.setProperty('--brand-primary-color', values.primary_color || originalWebsiteBranding.primary_color);
-    previewDocument.documentElement.style.setProperty('--brand-secondary-color', values.secondary_color || originalWebsiteBranding.secondary_color);
-
-    let favicon = previewDocument.querySelector('link[rel~="icon"]');
-    const faviconUrl = previewAssetUrl(values.favicon_path);
-    if (faviconUrl) {
-      if (!favicon) {
-        favicon = previewDocument.createElement('link');
-        favicon.rel = 'icon';
-        previewDocument.head.appendChild(favicon);
-      }
-      favicon.href = faviconUrl;
-    } else if (favicon && originalWebsiteBranding.favicon_path) {
-      favicon.href = originalWebsiteBranding.favicon_path;
-    } else if (favicon) {
-      favicon.remove();
-    }
-  };
-
-  websitePreview?.addEventListener('load', () => {
-    const previewDocument = websitePreview.contentDocument;
-    if (!previewDocument) return;
-
-    const logo = previewDocument.querySelector('.brand-logo img, .application-brand-logo');
-    const favicon = previewDocument.querySelector('link[rel~="icon"]');
-    const titleParts = previewDocument.title.split(' — ');
-    originalWebsiteBranding.app_name = titleParts.slice(1).join(' — ') || 'Reddiph';
-    originalWebsiteBranding.titlePrefix = titleParts[0] || 'Reddiph';
-    originalWebsiteBranding.logo_path = logo?.getAttribute('src') ?? '';
-    originalWebsiteBranding.favicon_path = favicon?.getAttribute('href') ?? '';
-    originalWebsiteBranding.primary_color = previewWindowColor(previewDocument, '--brand-primary-color', '#8d1018');
-    originalWebsiteBranding.secondary_color = previewWindowColor(previewDocument, '--brand-secondary-color', '#d4803a');
-    websiteBrandingReady = true;
-    updateWebsitePreview();
-  });
-
-  function previewWindowColor(previewDocument, property, fallback) {
-    return previewDocument.defaultView.getComputedStyle(previewDocument.documentElement).getPropertyValue(property).trim() || fallback;
+    closeAddAccount?.addEventListener('click', () => {
+      setAddAccountVisible(false);
+    });
   }
 
-  websitePreviewPage?.addEventListener('change', () => {
-    if (!websitePreview || !brandingPreview) return;
-    const previewUrl = new URL(
-      `app/controllers/${websitePreviewPage.value}`,
-      new URL(brandingPreview.dataset.brandingPreviewBase, window.location.origin)
-    );
-    websitePreview.src = previewUrl.href;
-  });
-
-  const brandingInputs = {
-    app_name: nameInput,
-    logo_path: logoInput,
-    favicon_path: faviconInput,
-    primary_color: primaryColor,
-    secondary_color: secondaryColor,
-  };
-
-  Object.entries(brandingInputs).forEach(([key, input]) => {
-    const updateFieldPreview = () => {
-      resetPreviewFields.delete(key);
-      updateWebsitePreview();
+  const createAccountForm = document.querySelector('.create-account-form');
+  const accountHospitalSelect = createAccountForm?.querySelector('[data-account-hospital]');
+  const accountBarangaySelect = createAccountForm?.querySelector('[data-account-barangay]');
+  const accountBarangayStatus = createAccountForm?.querySelector('[data-account-barangay-status]');
+  const accountRoleSelect = createAccountForm?.querySelector('select[name="role"]');
+  if (
+    createAccountForm instanceof HTMLFormElement &&
+    accountHospitalSelect instanceof HTMLSelectElement &&
+    accountBarangaySelect instanceof HTMLSelectElement &&
+    accountBarangayStatus instanceof HTMLElement
+  ) {
+    let barangayRequest = 0;
+    const setBarangayStatus = (message) => {
+      accountBarangayStatus.textContent = message;
     };
-    input?.addEventListener('input', updateFieldPreview);
-    input?.addEventListener('change', updateFieldPreview);
-  });
-
-  document.querySelector('[data-reset-branding]')?.addEventListener('click', () => {
-    const defaults = {
-      app_name: brandingPreview.dataset.defaultAppName,
-      logo_path: brandingPreview.dataset.defaultLogoPath,
-      favicon_path: brandingPreview.dataset.defaultFaviconPath,
-      primary_color: brandingPreview.dataset.defaultPrimaryColor,
-      secondary_color: brandingPreview.dataset.defaultSecondaryColor,
+    const resetBarangays = (placeholder) => {
+      accountBarangaySelect.replaceChildren(new Option(placeholder, ''));
+      accountBarangaySelect.disabled = true;
+    };
+    const updateBarangayRequirement = () => {
+      if (accountRoleSelect instanceof HTMLSelectElement) {
+        accountBarangaySelect.required = accountRoleSelect.value === 'barangay_admin';
+      }
     };
 
-    Object.entries(brandingInputs).forEach(([key, input]) => {
-      if (input) input.value = defaults[key];
-      resetPreviewFields.add(key);
+    const loadAccountBarangays = async () => {
+      const requestId = ++barangayRequest;
+      const hospitalId = accountHospitalSelect.value;
+      resetBarangays(hospitalId ? 'Loading barangays…' : 'Select a hospital first');
+      updateBarangayRequirement();
+
+      if (!hospitalId) {
+        setBarangayStatus('Choose a hospital to load its barangays.');
+        return;
+      }
+
+      setBarangayStatus('Loading barangays…');
+      let failureMessage = 'Barangays could not be loaded. Change the hospital and select it again to retry.';
+      try {
+        const url = new URL(createAccountForm.dataset.barangaysUrl, window.location.href);
+        url.searchParams.set('action', 'barangays');
+        url.searchParams.set('hospital_id', hospitalId);
+        const response = await fetch(url, {
+          headers: { Accept: 'application/json' },
+          credentials: 'same-origin',
+          cache: 'no-store',
+        });
+        let result;
+        try {
+          result = await response.json();
+        } catch {
+          failureMessage = 'The barangay service returned an invalid response. Refresh the page and try again.';
+          throw new Error(failureMessage);
+        }
+        if (!response.ok || !result.success || !Array.isArray(result.barangays)) {
+          failureMessage = result.message || failureMessage;
+          throw new Error(failureMessage);
+        }
+        if (requestId !== barangayRequest || hospitalId !== accountHospitalSelect.value) return;
+
+        resetBarangays('Not assigned');
+        result.barangays.forEach((barangay) => {
+          const id = Number(barangay.id);
+          if (!Number.isSafeInteger(id) || id < 1 || typeof barangay.name !== 'string') return;
+          accountBarangaySelect.add(new Option(barangay.name, String(id)));
+        });
+        accountBarangaySelect.disabled = false;
+        const barangayCount = accountBarangaySelect.options.length - 1;
+        setBarangayStatus(
+          barangayCount === 0
+            ? 'No barangays available for this hospital.'
+            : `${barangayCount} barangay${barangayCount === 1 ? '' : 's'} available.`
+        );
+      } catch (error) {
+        if (requestId !== barangayRequest) return;
+        resetBarangays('Barangays unavailable');
+        setBarangayStatus(failureMessage);
+        console.error('Could not load barangays for the selected hospital.', error);
+      }
+    };
+
+    accountHospitalSelect.addEventListener('change', loadAccountBarangays);
+    accountRoleSelect?.addEventListener('change', updateBarangayRequirement);
+    updateBarangayRequirement();
+  }
+
+  const userSearchForm = document.querySelector('[data-user-search-form]');
+  const userSearchInput = userSearchForm?.querySelector('[data-user-search]');
+  const userStatusInput = userSearchForm?.querySelector('[data-user-status]');
+  const userFilters = document.querySelector('.user-filters');
+  if (userFilters instanceof HTMLElement) {
+    let dragStartX = 0;
+    let dragStartScrollLeft = 0;
+    let activePointerId = null;
+    let dragged = false;
+    let suppressNextClick = false;
+    let suppressClickTimer;
+
+    userFilters.addEventListener('pointerdown', (event) => {
+      if (event.pointerType !== 'mouse' || event.button !== 0) return;
+      activePointerId = event.pointerId;
+      dragStartX = event.clientX;
+      dragStartScrollLeft = userFilters.scrollLeft;
+      dragged = false;
     });
-    updateWebsitePreview();
+
+    window.addEventListener('pointermove', (event) => {
+      if (event.pointerId !== activePointerId) return;
+      const distance = event.clientX - dragStartX;
+      if (Math.abs(distance) > 4) {
+        dragged = true;
+        userFilters.classList.add('is-dragging');
+        event.preventDefault();
+      }
+      if (dragged) userFilters.scrollLeft = dragStartScrollLeft - distance;
+    });
+
+    const finishFilterDrag = (event) => {
+      if (event.pointerId !== activePointerId) return;
+      activePointerId = null;
+      userFilters.classList.remove('is-dragging');
+      if (dragged) {
+        suppressNextClick = true;
+        window.clearTimeout(suppressClickTimer);
+        suppressClickTimer = window.setTimeout(() => {
+          suppressNextClick = false;
+        }, 300);
+      }
+    };
+
+    window.addEventListener('pointerup', finishFilterDrag);
+    window.addEventListener('pointercancel', finishFilterDrag);
+    userFilters.addEventListener('click', (event) => {
+      if (!suppressNextClick) return;
+      event.preventDefault();
+      event.stopPropagation();
+      suppressNextClick = false;
+      window.clearTimeout(suppressClickTimer);
+    }, true);
+  }
+  if (
+    userSearchForm instanceof HTMLFormElement &&
+    userSearchInput instanceof HTMLInputElement &&
+    userStatusInput instanceof HTMLInputElement
+  ) {
+    bindDebouncedSearch(userSearchForm, userSearchInput);
+
+    userSearchForm.querySelectorAll('[data-user-status-button]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const status = button.dataset.userStatusButton;
+        if (status !== 'active' && status !== 'archived') return;
+        userStatusInput.value = status;
+        userSearchForm.requestSubmit();
+      });
+    });
+  }
+
+  const userMenuTriggers = [...document.querySelectorAll('[data-user-menu-trigger]')];
+  const positionUserMenu = (trigger, menu) => {
+    const anchor = trigger.getBoundingClientRect();
+    const bounds = menu.getBoundingClientRect();
+    const margin = 8;
+    const left = Math.min(
+      Math.max(margin, anchor.right - bounds.width),
+      window.innerWidth - bounds.width - margin
+    );
+    const below = anchor.bottom + 4;
+    const above = anchor.top - bounds.height - 4;
+    const top = below + bounds.height <= window.innerHeight - margin
+      ? below
+      : above >= margin
+        ? above
+        : Math.max(margin, window.innerHeight - bounds.height - margin);
+    menu.style.left = `${left}px`;
+    menu.style.top = `${top}px`;
+  };
+  const repositionOpenUserMenus = () => {
+    userMenuTriggers.forEach((trigger) => {
+      const menuId = trigger.getAttribute('popovertarget');
+      const menu = menuId ? document.getElementById(menuId) : null;
+      if (menu instanceof HTMLElement && menu.matches(':popover-open')) {
+        positionUserMenu(trigger, menu);
+      }
+    });
+  };
+  userMenuTriggers.forEach((trigger) => {
+    const menuId = trigger.getAttribute('popovertarget');
+    const menu = menuId ? document.getElementById(menuId) : null;
+    if (!(menu instanceof HTMLElement)) return;
+    menu.addEventListener('toggle', (event) => {
+      if (event.newState === 'open') {
+        requestAnimationFrame(() => positionUserMenu(trigger, menu));
+      }
+    });
   });
+  window.addEventListener('resize', repositionOpenUserMenus);
+  window.addEventListener('scroll', repositionOpenUserMenus, true);
+
+  const facilityFilterForm = document.querySelector('[data-facility-filter-form]');
+  const facilitySearch = facilityFilterForm?.querySelector('[data-facility-search]');
+  if (facilityFilterForm instanceof HTMLFormElement) {
+    facilityFilterForm.querySelectorAll('[data-facility-auto-submit]').forEach((control) => {
+      control.addEventListener('change', () => facilityFilterForm.requestSubmit());
+    });
+    if (facilitySearch instanceof HTMLInputElement) {
+      bindDebouncedSearch(facilityFilterForm, facilitySearch);
+    }
+  }
+
+  const auditPlatformFilter = document.querySelector('[data-audit-platform-filter]');
+  if (auditPlatformFilter instanceof HTMLSelectElement) {
+    auditPlatformFilter.addEventListener('change', () => {
+      const form = auditPlatformFilter.closest('form');
+      if (form instanceof HTMLFormElement) form.requestSubmit();
+    });
+  }
+
+  const facilityFormCard = document.getElementById('facility-form-card');
+  const facilityFormToggle = document.querySelector('[data-toggle-facility-form]');
+  const facilityFormClose = document.querySelector('[data-close-facility-form]');
+  const facilityCreateType = document.querySelector('[data-facility-create-type]');
+  const setFacilityFormVisible = (visible) => {
+    if (!(facilityFormCard instanceof HTMLElement)) return;
+    facilityFormCard.hidden = !visible;
+    if (facilityFormToggle instanceof HTMLButtonElement) {
+      facilityFormToggle.setAttribute('aria-expanded', String(visible));
+      facilityFormToggle.textContent = visible ? 'Close form' : 'Add record';
+    }
+  };
+  if (facilityFormToggle instanceof HTMLButtonElement && facilityFormCard instanceof HTMLElement) {
+    facilityFormToggle.addEventListener('click', () => setFacilityFormVisible(facilityFormCard.hidden));
+    facilityFormClose?.addEventListener('click', () => {
+      setFacilityFormVisible(false);
+      facilityFormToggle.focus();
+    });
+  }
+  if (facilityCreateType instanceof HTMLSelectElement) {
+    const facilityForms = [...document.querySelectorAll('[data-facility-record-form]')];
+    const updateFacilityFormType = () => {
+      facilityForms.forEach((form) => {
+        if (!(form instanceof HTMLElement)) return;
+        form.hidden = form.dataset.facilityRecordForm !== facilityCreateType.value;
+      });
+    };
+    facilityCreateType.addEventListener('change', updateFacilityFormType);
+    updateFacilityFormType();
+  }
 
   document.querySelector('[data-recheck-audit]')?.addEventListener('click', () => location.reload());
-
-  document.querySelectorAll('[data-copy-value]').forEach((button) => {
-    button.addEventListener('click', async () => {
-      try {
-        await navigator.clipboard.writeText(button.dataset.copyValue);
-        button.textContent = 'Copied';
-        window.setTimeout(() => { button.textContent = 'Copy'; }, 1500);
-      } catch (error) {
-        button.textContent = 'Copy unavailable';
-        button.setAttribute('aria-label', 'Copy to clipboard is unavailable in this browser context.');
-      }
-    });
-  });
 })();

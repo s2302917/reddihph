@@ -10,7 +10,7 @@ import 'package:reddiph/views/screens/login_screen.dart';
 import 'package:reddiph/views/screens/signup_screen.dart';
 
 void main() {
-  testWidgets('Barangay Admin login exposes the code-gated signup form',
+  testWidgets('Barangay Admin login keeps account creation restricted',
       (tester) async {
     final client = MobileApiClient(
       baseUrl: 'https://example.test/Reddiph_mobile_api/',
@@ -33,8 +33,8 @@ void main() {
     );
 
     await tester.pumpWidget(MaterialApp(home: LoginScreen(role: roles.last)));
-    expect(find.text('New here? Create a Barangay Admin account.'),
-        findsOneWidget);
+    expect(
+        find.text('New here? Create a Barangay Admin account.'), findsNothing);
 
     await tester.pumpWidget(MaterialApp(
       home: SignUpScreen(role: roles.last, apiClient: client),

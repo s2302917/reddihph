@@ -19,6 +19,156 @@
 // GLOBAL PAGE INITIALIZATION
 // =========================================================
 
+function bindScheduleDateOptions(form, initialDate, editing) {
+    if (typeof form.__scheduleDatesRefresh === 'function') {
+        form.__scheduleDatesRefresh(initialDate, editing);
+        return;
+    }
+    var options = form.querySelector('[data-schedule-date-modes]');
+    var dateInput = form.querySelector('input[name="date"]');
+    var rangeFields = form.querySelector('[data-schedule-range-fields]');
+    var rangeStart = form.querySelector('[data-schedule-range-start]');
+    var rangeEnd = form.querySelector('[data-schedule-range-end]');
+    var repeatFields = form.querySelector('[data-schedule-repeat-fields]');
+    var repeatPattern = form.querySelector('[data-schedule-repeat-pattern]');
+    var repeatUntil = form.querySelector('[data-schedule-repeat-until]');
+    var weekdays = Array.prototype.slice.call(form.querySelectorAll('[data-schedule-weekday]'));
+    var weekdayFields = form.querySelector('[data-schedule-weekdays]');
+    var preview = form.querySelector('[data-schedule-date-preview]');
+    var datesField = form.querySelector('input[name="schedule_dates"]');
+    var dateLabel = form.querySelector('[data-schedule-date-label]');
+
+    if (!options || !dateInput || !datesField || !preview) return;
+
+    function selectedMode() {
+        var selected = options.querySelector('input[name="date_mode"]:checked');
+        return editing || !selected ? 'single' : selected.value;
+    }
+
+    function dateValue(value) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(value || '')) return null;
+        var parts = value.split('-').map(Number);
+        var date = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+        return date.getUTCFullYear() === parts[0]
+            && date.getUTCMonth() === parts[1] - 1
+            && date.getUTCDate() === parts[2] ? date : null;
+    }
+
+    function toDateValue(date) {
+        return date.toISOString().slice(0, 10);
+    }
+
+    function refresh() {
+        var mode = selectedMode();
+        var dates = [];
+        var error = '';
+        var startValue = dateInput.value;
+        var endValue = dateInput.value;
+
+        if (rangeFields) rangeFields.hidden = mode !== 'range';
+        if (repeatFields) repeatFields.hidden = mode !== 'repeat';
+        dateInput.required = mode !== 'range';
+        if (dateLabel) {
+            dateLabel.textContent = mode === 'repeat' ? 'First schedule date' : 'Schedule date';
+        }
+
+        if (mode === 'range') {
+            startValue = rangeStart ? rangeStart.value : '';
+            endValue = rangeEnd ? rangeEnd.value : '';
+            dateInput.value = startValue;
+            if (rangeStart && rangeEnd) rangeEnd.min = rangeStart.value;
+        } else if (mode === 'repeat') {
+            startValue = dateInput.value;
+            endValue = repeatUntil ? repeatUntil.value : '';
+            if (repeatUntil) repeatUntil.min = startValue;
+            if (weekdayFields) weekdayFields.hidden = repeatPattern.value !== 'weekdays';
+        }
+
+        var start = dateValue(startValue);
+        var end = dateValue(endValue);
+        if (!start || !end) {
+            error = 'Enter a valid start and end date.';
+        } else if (end < start) {
+            error = 'The end date cannot be earlier than the start date.';
+        } else {
+            var allowedDays = weekdays.filter(function (input) {
+                return input.checked;
+            }).map(function (input) {
+                return ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+                    .indexOf(input.value);
+            });
+            for (var cursor = start, steps = 0; cursor <= end; cursor = new Date(cursor.getTime() + 86400000), steps++) {
+                if (steps > 366) {
+                    error = 'A schedule can include no more than 366 dates.';
+                    break;
+                }
+                var include = mode === 'range'
+                    || mode === 'single'
+                    || (mode === 'repeat' && repeatPattern.value === 'daily')
+                    || (mode === 'repeat' && repeatPattern.value === 'custom')
+                    || (mode === 'repeat' && repeatPattern.value === 'weekly' && steps % 7 === 0)
+                    || (mode === 'repeat' && repeatPattern.value === 'weekdays'
+                        && allowedDays.indexOf(cursor.getUTCDay()) !== -1);
+                if (include) dates.push(toDateValue(cursor));
+            }
+            if (!error && mode === 'repeat' && repeatPattern.value === 'weekdays' && !allowedDays.length) {
+                error = 'Select at least one weekday.';
+            }
+            if (!error && dates.length > 366) error = 'A schedule can include no more than 366 dates.';
+            if (!error && dates.length === 0) error = 'The selected options do not include any dates.';
+        }
+
+        datesField.value = error ? '' : JSON.stringify(dates);
+        if (error) {
+            preview.textContent = error;
+            preview.setAttribute('data-invalid', 'true');
+        } else {
+            var display = dates.slice(0, 6).join(', ');
+            preview.textContent = dates.length + ' date' + (dates.length === 1 ? '' : 's')
+                + ': ' + display + (dates.length > 6 ? ', …' : '');
+            preview.removeAttribute('data-invalid');
+        }
+    }
+
+    form.__scheduleDatesRefresh = function (date, isEditing) {
+        editing = isEditing;
+        dateInput.value = date || dateInput.value;
+        if (rangeStart) rangeStart.value = dateInput.value;
+        if (rangeEnd) rangeEnd.value = dateInput.value;
+        if (repeatUntil) repeatUntil.value = dateInput.value;
+        options.hidden = isEditing;
+        var singleMode = options.querySelector('input[value="single"]');
+        if (singleMode) singleMode.checked = true;
+        weekdays.forEach(function (input) { input.checked = false; });
+        if (weekdayFields) weekdayFields.hidden = true;
+        refresh();
+    };
+    options.addEventListener('change', refresh);
+    form.querySelectorAll('[data-schedule-range-start], [data-schedule-range-end], [data-schedule-repeat-until], [data-schedule-repeat-pattern], [data-schedule-weekday], input[name="date"]').forEach(function (input) {
+        input.addEventListener('input', refresh);
+        input.addEventListener('change', refresh);
+    });
+    form.addEventListener('submit', function (event) {
+        refresh();
+        if (!datesField.value) {
+            event.preventDefault();
+            return;
+        }
+        var action = form.querySelector('input[name="action"]');
+        if (action && action.value !== 'update') {
+            action.value = selectedMode() === 'single' ? 'add' : 'add_many';
+        }
+    });
+    form.__scheduleDatesRefresh(initialDate, editing);
+}
+
+function scheduleLocalDate() {
+    var now = new Date();
+    return now.getFullYear() + '-'
+        + String(now.getMonth() + 1).padStart(2, '0') + '-'
+        + String(now.getDate()).padStart(2, '0');
+}
+
 function isProtectedPage() {
     return !/portalController|loginController|signupController|logoutController/.test(
         window.location.pathname
@@ -171,9 +321,9 @@ function setupPasswordControls() {
         var style = document.createElement('style');
         style.id = 'password-control-styles';
         style.textContent =
-            '.password-field-control{position:relative;width:100%}' +
+            '.password-field-control{display:block;position:relative;width:100%;min-width:0}' +
             '.password-field-control>input{padding-right:3.2rem!important}' +
-            '.password-visibility-toggle{position:absolute;right:.65rem;top:50%;transform:translateY(-50%);border:0;background:transparent;color:#555;padding:.35rem;font:inherit;font-size:.8rem;cursor:pointer}' +
+            '.password-visibility-toggle{position:absolute;z-index:1;right:.65rem;top:50%;transform:translateY(-50%);display:inline-flex;align-items:center;justify-content:center;width:3rem;min-width:3rem;min-height:2.5rem;white-space:nowrap;border:0;background:transparent;color:#555;padding:.35rem;font:inherit;font-size:.8rem;cursor:pointer}' +
             '.password-policy-hint{display:block;margin-top:.35rem;color:#555;font-size:.75rem;line-height:1.4}';
         document.head.appendChild(style);
     }
@@ -216,7 +366,7 @@ function setupPasswordControls() {
             var hint = document.createElement('small');
             hint.className = 'password-policy-hint';
             hint.textContent = '8–72 characters, with an uppercase letter, a lowercase letter, and a special character.';
-            wrapper.appendChild(hint);
+            wrapper.parentNode.insertBefore(hint, wrapper.nextSibling);
             input.addEventListener('input', function () {
                 var valid = input.value.length >= 8 && input.value.length <= 72 &&
                     /[A-Z]/.test(input.value) && /[a-z]/.test(input.value) &&
@@ -951,23 +1101,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
 
     // =====================================================
-    // ANALYTICS
-    // =====================================================
-
-    try {
-
-        if (document.getElementById('analytics-trend-chart')) {
-            analyticsInit();
-        }
-
-    } catch (error) {
-
-        console.error('[PulseAlert] Analytics initialization failed.', error);
-
-    }
-
-
-    // =====================================================
     // DEMOGRAPHICS
     // =====================================================
 
@@ -999,7 +1132,7 @@ function livemappingInit() {
     livemappingBindHeaderControls();
 
     var dataElement = document.getElementById('livemapping-initial-data');
-    var initialData = { ambulances: [], incidents: [], hospitals: [] };
+    var initialData = { ambulances: [], incidents: [], map_people: [], hospitals: [] };
 
     try {
         initialData = JSON.parse(dataElement.textContent || '{}');
@@ -1039,6 +1172,7 @@ function livemappingInit() {
     livemappingBindAlertDrawer(initialData);
     livemappingRender(map, initialData);
     livemappingRefreshRoadRoutes(initialData);
+    livemappingRefreshAssignedPersonRoutes(initialData);
 
     var requestedIncidentId = Number(new URLSearchParams(window.location.search).get('incident_id'));
     if (requestedIncidentId > 0) {
@@ -1084,6 +1218,7 @@ function livemappingInit() {
                 window.livemappingData = response.data;
                 livemappingRender(map, response.data);
                 livemappingRefreshRoadRoutes(response.data);
+                livemappingRefreshAssignedPersonRoutes(response.data);
             })
             .catch(function (error) {
                 console.warn('[Live Mapping] Refresh failed.', error);
@@ -1149,15 +1284,6 @@ function hospitalschedInit() {
     var refreshing = false;
 
     if (input) {
-        input.addEventListener('focus', function () {
-            this.style.transition = 'width 0.2s ease';
-            this.style.width = '340px';
-        });
-
-        input.addEventListener('blur', function () {
-            this.style.width = '300px';
-        });
-
         input.addEventListener('input', hospitalschedFilterRows);
     }
 
@@ -1253,34 +1379,66 @@ function hospitalschedRenderSchedule(schedules) {
     var rows = (schedules || []).map(function (schedule) {
         var row = document.createElement('tr');
         row.dataset.role = String(schedule.role || '').toLowerCase();
-        row.dataset.status = String(schedule.status || 'off_duty');
+        row.dataset.dutyStatus = String(schedule.dutyStatus || (schedule.status === 'on_duty' ? 'on_duty' : 'off_duty'));
 
         var staffCell = document.createElement('td');
-        var initials = document.createElement('span');
-        initials.className = 'hospitalsched-initials';
-        initials.textContent = schedule.initials || '';
+        staffCell.className = 'hospitalsched-staff-cell';
+        staffCell.dataset.label = 'Staff';
+        var staffDetails = document.createElement('span');
+        staffDetails.className = 'hospitalsched-staff-details';
         var name = document.createElement('strong');
-        name.textContent = schedule.name || '';
-        staffCell.appendChild(initials);
-        staffCell.appendChild(name);
+        name.textContent = schedule.displayName || schedule.name || '';
+        var nameLine = document.createElement('span');
+        nameLine.className = 'hospitalsched-staff-name';
+        var profileCircle = document.createElement('span');
+        profileCircle.className = 'hospitalsched-profile-circle';
+        profileCircle.setAttribute('aria-hidden', 'true');
+        profileCircle.textContent = schedule.initials || '';
+        nameLine.appendChild(profileCircle);
+        nameLine.appendChild(name);
+        staffDetails.appendChild(nameLine);
+        if (String(schedule.role || '').toLowerCase() === 'doctor') {
+            var specialization = document.createElement('small');
+            specialization.textContent = schedule.specialization || 'Specialty not recorded';
+            staffDetails.appendChild(specialization);
+        } else if (schedule.role) {
+            var roleLabel = document.createElement('small');
+            roleLabel.textContent = schedule.role;
+            staffDetails.appendChild(roleLabel);
+        }
+        staffCell.appendChild(staffDetails);
 
         var roleCell = document.createElement('td');
+        roleCell.dataset.label = 'Role';
         roleCell.textContent = schedule.role || '';
         var shiftCell = document.createElement('td');
+        shiftCell.dataset.label = 'Shift today';
         shiftCell.textContent = schedule.shift || 'No shift scheduled';
-        var statusCell = document.createElement('td');
-        var status = document.createElement('span');
-        var online = Boolean(schedule.online);
-        status.className = 'hospitalsched-status hospitalsched-status--' + (online ? 'online' : 'offline');
-        status.textContent = schedule.statusLabel || 'Off duty';
-        status.title = online ? 'Online in the system' : 'Offline in the system';
-        status.setAttribute('aria-label', status.textContent + ', ' + (online ? 'online' : 'offline'));
-        statusCell.appendChild(status);
+        var onlineCell = document.createElement('td');
+        onlineCell.dataset.label = 'Online Status';
+        var onlineStatus = document.createElement('span');
+        var isOnline = Boolean(schedule.online);
+        onlineStatus.className = 'hospitalsched-online-status hospitalsched-online-status--' +
+            (isOnline ? 'online' : 'offline');
+        var onlineDot = document.createElement('span');
+        onlineDot.className = 'hospitalsched-online-dot hospitalsched-online-dot--' + (isOnline ? 'online' : 'offline');
+        onlineDot.setAttribute('aria-hidden', 'true');
+        onlineStatus.appendChild(onlineDot);
+        onlineStatus.appendChild(document.createTextNode(schedule.onlineStatus || (isOnline ? 'Online' : 'Offline')));
+        onlineCell.appendChild(onlineStatus);
+
+        var dutyCell = document.createElement('td');
+        dutyCell.dataset.label = 'Duty Status';
+        var dutyStatus = document.createElement('span');
+        dutyStatus.className = 'hospitalsched-indicator hospitalsched-indicator--' + row.dataset.dutyStatus;
+        dutyStatus.textContent = schedule.dutyStatusLabel || (row.dataset.dutyStatus === 'on_duty' ? 'On Duty' : 'Off Duty');
+        dutyCell.appendChild(dutyStatus);
 
         row.appendChild(staffCell);
         row.appendChild(roleCell);
         row.appendChild(shiftCell);
-        row.appendChild(statusCell);
+        row.appendChild(onlineCell);
+        row.appendChild(dutyCell);
         return row;
     });
     tbody.replaceChildren.apply(tbody, rows);
@@ -1296,11 +1454,11 @@ function hospitalschedFilterRows() {
 
     document.querySelectorAll('#hospitalsched-table-body tr').forEach(function (row) {
         var role = row.getAttribute('data-role');
-        var status = row.getAttribute('data-status');
-        var filterMatches = filter === 'all' || (filter === 'on_duty' ? status === 'on_duty' : role === filter);
+        var dutyStatus = row.getAttribute('data-duty-status');
+        var roleMatches = filter === 'all' || (filter === 'on_duty' ? dutyStatus === 'on_duty' : role === filter);
         var searchMatches = query === '' || row.textContent.toLowerCase().indexOf(query) !== -1;
 
-        row.hidden = !(filterMatches && searchMatches);
+        row.hidden = !(roleMatches && searchMatches);
     });
 }
 
@@ -1310,9 +1468,14 @@ function initResourcesPage() {
     var bell = document.getElementById('resources-bell-btn');
     var panel = document.getElementById('resources-notification-panel');
     var resourceWrap = document.querySelector('.emergency_alert_notification_wrap');
-    var filterButtons = document.querySelectorAll('.resources-filter');
-    var cards = document.querySelectorAll('.resources-card');
-    var rows = document.querySelectorAll('#resources-table-body tr');
+    var sections = document.querySelectorAll('[data-resource-section]');
+    var tables = document.querySelectorAll('.resources-table');
+    var bedTiles = document.querySelectorAll('[data-resource-bed-details]');
+    var statusFilter = document.getElementById('resources-status-filter');
+    var selectedSection = document.getElementById('emergency_alert_main')
+        ? document.getElementById('emergency_alert_main').getAttribute('data-resource-selected-section')
+        : 'bed-capacity';
+    var resourcePageSize = 10;
     var toast = document.getElementById('resources-notification-toast');
 
     if (toast) {
@@ -1326,49 +1489,146 @@ function initResourcesPage() {
 
     function applyResourcesFilters() {
         var query = input ? input.value.trim().toLowerCase() : '';
-        var activeFilter = document.querySelector('.resources-filter--active');
-        var filter = activeFilter ? activeFilter.getAttribute('data-resource-filter') : 'all';
+        var status = statusFilter ? statusFilter.value : 'all';
 
-        cards.forEach(function (card) {
-            var name = (card.getAttribute('data-resource-name') || '').toLowerCase();
-            var type = (card.getAttribute('data-resource-type') || '').toLowerCase();
-            var status = (card.getAttribute('data-resource-status') || '').toLowerCase();
-            var matchesFilter = filter === 'all' || status === filter;
-            var matchesQuery = query === '' || name.indexOf(query) !== -1 || type.indexOf(query) !== -1;
-            card.hidden = !(matchesFilter && matchesQuery);
-        });
+        tables.forEach(function (table) {
+            var body = table.tBodies[0];
+            if (!body) return;
 
-        rows.forEach(function (row) {
-            var name = (row.getAttribute('data-resource-name') || '').toLowerCase();
-            var type = (row.getAttribute('data-resource-type') || '').toLowerCase();
-            var status = (row.getAttribute('data-resource-status') || '').toLowerCase();
-            var matchesFilter = filter === 'all' || status === filter;
-            var matchesQuery = query === '' || name.indexOf(query) !== -1 || type.indexOf(query) !== -1;
-            row.hidden = !(matchesFilter && matchesQuery);
+            var dataRows = Array.prototype.slice.call(body.querySelectorAll(
+                'tr:not([data-resource-empty]):not([data-resource-search-empty])'
+            ));
+            var matchingRows = dataRows.filter(function (row) {
+                var rowText = (row.textContent || '').toLowerCase();
+                var rowStatus = row.getAttribute('data-resource-status') || '';
+                return (query === '' || rowText.indexOf(query) !== -1) &&
+                    (status === 'all' || rowStatus === status);
+            });
+
+            var sortColumn = parseInt(table.dataset.sortColumn || '0', 10);
+            var sortDirection = table.dataset.sortDirection === 'desc' ? -1 : 1;
+            matchingRows.sort(function (left, right) {
+                var leftText = left.cells[sortColumn] ? left.cells[sortColumn].textContent.trim() : '';
+                var rightText = right.cells[sortColumn] ? right.cells[sortColumn].textContent.trim() : '';
+                return leftText.localeCompare(rightText, undefined, { numeric: true, sensitivity: 'base' }) *
+                    sortDirection;
+            });
+
+            var pageCount = Math.max(1, Math.ceil(matchingRows.length / resourcePageSize));
+            var page = Math.min(parseInt(table.dataset.page || '0', 10), pageCount - 1);
+            table.dataset.page = String(page);
+            var firstIndex = page * resourcePageSize;
+            var pageRows = matchingRows.slice(firstIndex, firstIndex + resourcePageSize);
+
+            dataRows.forEach(function (row) {
+                row.hidden = pageRows.indexOf(row) === -1;
+            });
+
+            var emptyRow = body.querySelector('[data-resource-empty]');
+            var searchEmptyRow = body.querySelector('[data-resource-search-empty]');
+            if (emptyRow) emptyRow.hidden = dataRows.length > 0;
+            if (searchEmptyRow) {
+                searchEmptyRow.hidden = dataRows.length === 0 || matchingRows.length > 0;
+            }
+
+            var wrapper = table.closest('.resources-table-wrap');
+            var pagination = wrapper ? wrapper.querySelector('[data-resource-pagination]') : null;
+            if (pagination) {
+                pagination.hidden = matchingRows.length <= resourcePageSize;
+                var pageLabel = pagination.querySelector('[data-resource-page-label]');
+                var previous = pagination.querySelector('[data-resource-page-previous]');
+                var next = pagination.querySelector('[data-resource-page-next]');
+                if (pageLabel) {
+                    pageLabel.textContent = matchingRows.length
+                        ? 'Page ' + (page + 1) + ' of ' + pageCount + ' · ' + matchingRows.length + ' records'
+                        : 'No matching records';
+                }
+                if (previous) previous.disabled = page === 0 || matchingRows.length === 0;
+                if (next) next.disabled = page >= pageCount - 1 || matchingRows.length === 0;
+            }
         });
     }
+
+    function updateResourceSortHeader(table) {
+        table.querySelectorAll('thead th').forEach(function (heading) {
+            heading.removeAttribute('aria-sort');
+        });
+        var sortedButton = table.querySelector(
+            '[data-resource-sort="' + table.dataset.sortColumn + '"]'
+        );
+        var sortedHeading = sortedButton ? sortedButton.closest('th') : null;
+        if (sortedHeading) {
+            sortedHeading.setAttribute(
+                'aria-sort',
+                table.dataset.sortDirection === 'desc' ? 'descending' : 'ascending'
+            );
+        }
+    }
+
+    sections.forEach(function (section) {
+        section.hidden = section.getAttribute('data-resource-section') !== selectedSection;
+    });
+
+    tables.forEach(function (table) {
+        table.dataset.page = '0';
+        table.dataset.sortColumn = '0';
+        table.dataset.sortDirection = 'asc';
+        updateResourceSortHeader(table);
+
+        table.querySelectorAll('[data-resource-sort]').forEach(function (button) {
+            button.addEventListener('click', function () {
+                var column = button.getAttribute('data-resource-sort');
+                if (table.dataset.sortColumn === column) {
+                    table.dataset.sortDirection = table.dataset.sortDirection === 'asc' ? 'desc' : 'asc';
+                } else {
+                    table.dataset.sortColumn = column;
+                    table.dataset.sortDirection = 'asc';
+                }
+                table.dataset.page = '0';
+                updateResourceSortHeader(table);
+                applyResourcesFilters();
+            });
+        });
+
+        var wrapper = table.closest('.resources-table-wrap');
+        var pagination = wrapper ? wrapper.querySelector('[data-resource-pagination]') : null;
+        if (pagination) {
+            var previous = pagination.querySelector('[data-resource-page-previous]');
+            var next = pagination.querySelector('[data-resource-page-next]');
+            if (previous) {
+                previous.addEventListener('click', function () {
+                    table.dataset.page = String(Math.max(0, parseInt(table.dataset.page || '0', 10) - 1));
+                    applyResourcesFilters();
+                });
+            }
+            if (next) {
+                next.addEventListener('click', function () {
+                    table.dataset.page = String(parseInt(table.dataset.page || '0', 10) + 1);
+                    applyResourcesFilters();
+                });
+            }
+        }
+    });
 
     if (input) {
-        input.addEventListener('focus', function () {
-            this.style.transition = 'width 0.2s ease';
-            this.style.width = '340px';
-        });
-
-        input.addEventListener('blur', function () {
-            this.style.width = '300px';
-        });
-
-        input.addEventListener('input', applyResourcesFilters);
-    }
-
-    filterButtons.forEach(function (button) {
-        button.addEventListener('click', function () {
-            filterButtons.forEach(function (item) {
-                item.classList.toggle('resources-filter--active', item === button);
+        input.addEventListener('input', function () {
+            tables.forEach(function (table) {
+                table.dataset.page = '0';
             });
             applyResourcesFilters();
         });
-    });
+    }
+
+    if (statusFilter) {
+        statusFilter.addEventListener('change', function () {
+            tables.forEach(function (table) {
+                table.dataset.page = '0';
+            });
+            applyResourcesFilters();
+        });
+    }
+
+    applyResourcesFilters();
 
     if (bell && panel) {
         bell.addEventListener('click', function () {
@@ -1390,34 +1650,44 @@ function initResourcesPage() {
         var plateNumber = document.getElementById('resources-plate-number');
         var driverName = document.getElementById('resources-driver-name');
         var vehicleStatus = document.getElementById('resources-vehicle-status');
+        var vehicleStatusField = document.getElementById('resources-vehicle-status-field');
         var vehicleTitle = document.getElementById('resources-vehicle-dialog-title');
 
-        function openVehicleDialog(vehicle) {
+        function openVehicleDialog(vehicle, defaultType) {
             vehicleForm.reset();
             vehicleId.value = '';
-            vehicleStatus.value = 'available';
+            if (vehicleStatusField) {
+                vehicleStatusField.hidden = !vehicle;
+            }
+            if (vehicleStatus) {
+                vehicleStatus.disabled = !vehicle;
+                vehicleStatus.required = Boolean(vehicle);
+                vehicleStatus.value = 'available';
+            }
             if (vehicle) {
                 vehicleId.value = vehicle.dataset.vehicleId || '';
                 vehicleType.value = vehicle.dataset.vehicleType || 'Ambulance';
                 callSign.value = vehicle.dataset.callSign || '';
                 plateNumber.value = vehicle.dataset.plateNumber || '';
                 driverName.value = vehicle.dataset.driverName || '';
-                vehicleStatus.value = vehicle.dataset.vehicleStatus || 'available';
+                if (vehicleStatus) {
+                    vehicleStatus.value = vehicle.dataset.vehicleStatus || 'available';
+                }
                 vehicleTitle.textContent = 'Edit vehicle';
             } else {
-                vehicleType.value = 'Ambulance';
+                vehicleType.value = defaultType || 'Ambulance';
                 vehicleTitle.textContent = 'Add vehicle';
             }
             vehicleDialog.showModal();
             callSign.focus();
         }
 
-        document.querySelectorAll('[data-resource-vehicle-add]').forEach(function (button) {
-            button.addEventListener('click', function () {
-                openVehicleDialog(null);
-                vehicleType.value = button.dataset.resourceVehicleAdd || 'Ambulance';
+        var addVehicleButton = document.querySelector('[data-resource-vehicle-add]');
+        if (addVehicleButton) {
+            addVehicleButton.addEventListener('click', function () {
+                openVehicleDialog(null, addVehicleButton.dataset.resourceDefaultType);
             });
-        });
+        }
 
         document.querySelectorAll('[data-resource-vehicle-edit]').forEach(function (button) {
             button.addEventListener('click', function () {
@@ -1439,13 +1709,878 @@ function initResourcesPage() {
     }
 
     var bedDialog = document.getElementById('resources-bed-dialog');
-    var bedEditButton = document.getElementById('resources-bed-edit');
-    var bedMaximumInput = document.getElementById('resources-bed-maximum');
-    if (bedDialog && bedEditButton && bedMaximumInput) {
-        bedEditButton.addEventListener('click', function () {
-            bedMaximumInput.value = bedEditButton.dataset.currentMaximum || '0';
+    var bedForm = document.getElementById('resources-bed-form');
+    if (bedDialog && bedForm) {
+        var bedId = document.getElementById('resources-bed-id');
+        var bedType = document.getElementById('resources-bed-type');
+        var bedNumber = document.getElementById('resources-bed-number');
+        var roomNumber = document.getElementById('resources-room-number');
+        var bedDoctor = document.getElementById('resources-bed-doctor');
+        var bedNurse = document.getElementById('resources-bed-nurse');
+        var bedStatus = document.getElementById('resources-bed-status');
+        var bedTitle = document.getElementById('resources-bed-dialog-title');
+        var bedDetails = document.getElementById('resources-bed-details');
+        var bedEditFields = bedForm.querySelector('[data-bed-edit-fields]');
+        var bedSaveButton = bedForm.querySelector('[data-bed-save]');
+        var bedSwitchEditButton = bedForm.querySelector('[data-bed-switch-edit]');
+        var bedCancelButton = bedForm.querySelector('.resources-vehicle-dialog-actions [data-resource-bed-close]');
+
+        var staffPickerStates = {};
+
+        function bindBedStaffPicker(role) {
+            var picker = bedForm.querySelector('[data-staff-picker="' + role + '"]');
+            if (!picker) return;
+            var state = {
+                page: 1,
+                pages: 1,
+                query: '',
+                sequence: 0,
+                loading: false,
+                allowMultiple: picker.dataset.multipleAvailable === 'true',
+                selected: new Map()
+            };
+            staffPickerStates[role] = state;
+            var searchInput = picker.querySelector('#resources-bed-' + role + '-search');
+            var searchButton = picker.querySelector('[data-staff-search="' + role + '"]');
+            var clearButton = picker.querySelector('[data-staff-clear="' + role + '"]');
+            var results = picker.querySelector('[data-staff-results="' + role + '"]');
+            var feedback = picker.querySelector('[data-staff-feedback="' + role + '"]');
+            var summary = picker.querySelector('[data-staff-summary="' + role + '"]');
+            var selectedFields = picker.querySelector('[data-staff-selected="' + role + '"]');
+            var pageLabel = picker.querySelector('[data-staff-page="' + role + '"]');
+            var previous = picker.querySelector('[data-staff-prev="' + role + '"]');
+            var next = picker.querySelector('[data-staff-next="' + role + '"]');
+            var legacyField = document.getElementById('resources-bed-' + role);
+            if (!searchInput || !searchButton || !results || !feedback || !summary || !selectedFields) return;
+
+            function updateSelectionFields() {
+                selectedFields.replaceChildren();
+                var ids = Array.from(state.selected.keys());
+                ids.forEach(function (id) {
+                    var input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = role + '_ids[]';
+                    input.value = id;
+                    selectedFields.appendChild(input);
+                });
+                if (legacyField) legacyField.value = ids[0] || '';
+                if (!ids.length) {
+                    summary.textContent = '0 ' + (role === 'doctor' ? 'doctors' : 'nurses') + ' selected';
+                    return;
+                }
+                var names = ids.map(function (id) {
+                    return state.selected.get(id).name || 'Staff member';
+                });
+                summary.textContent = ids.length + ' ' + (role === 'doctor' ? 'doctor' : 'nurse') +
+                    (ids.length === 1 ? ' selected: ' : 's selected: ') +
+                    names.slice(0, 2).join(', ') + (names.length > 2 ? ' +' + (names.length - 2) : '');
+            }
+
+            function renderPage(data) {
+                results.replaceChildren();
+                data.items.forEach(function (member) {
+                    var selected = state.selected.has(String(member.id));
+                    var row = document.createElement('tr');
+                    row.className = selected ? 'is-selected' : '';
+                    var selectCell = document.createElement('td');
+                    var checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.checked = selected;
+                    checkbox.setAttribute('aria-label', 'Select ' + member.name);
+                    checkbox.dataset.staffId = String(member.id);
+                    checkbox.dataset.staffName = member.name;
+                    checkbox.dataset.staffSpecialization = member.specialization || '';
+                    selectCell.appendChild(checkbox);
+                    var nameCell = document.createElement('td');
+                    var name = document.createElement('strong');
+                    name.textContent = member.name;
+                    nameCell.appendChild(name);
+                    var specialty = document.createElement('small');
+                    specialty.textContent = member.specialization || 'Specialization not recorded';
+                    nameCell.appendChild(specialty);
+                    row.appendChild(selectCell);
+                    row.appendChild(nameCell);
+                    results.appendChild(row);
+                });
+                state.pages = data.pages;
+                state.page = data.page;
+                pageLabel.textContent = 'Page ' + data.page + ' of ' + data.pages;
+                previous.disabled = data.page <= 1;
+                next.disabled = data.page >= data.pages;
+                feedback.textContent = data.total
+                    ? data.total + ' matching ' + (role === 'doctor' ? 'doctor' : 'nurse') +
+                        (data.total === 1 ? '' : 's')
+                    : 'No ' + (role === 'doctor' ? 'doctors' : 'nurses') + ' match this search.';
+            }
+
+            function loadPage(page) {
+                if (state.loading) return;
+                var query = searchInput.value.trim();
+                state.query = query;
+                state.page = page;
+                var sequence = ++state.sequence;
+                state.loading = true;
+                feedback.textContent = 'Loading ' + (role === 'doctor' ? 'doctors' : 'nurses') + '...';
+                searchButton.disabled = true;
+                previous.disabled = true;
+                next.disabled = true;
+                fetch(window.location.pathname + '?section=bed-capacity&action=staff_search&role=' +
+                    encodeURIComponent(role) + '&q=' + encodeURIComponent(query) + '&page=' + page, {
+                    headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+                }).then(function (response) {
+                    return response.json().then(function (result) {
+                        if (!response.ok || !result.success || !result.staff) {
+                            throw new Error(result.message || 'Staff could not be loaded.');
+                        }
+                        return result.staff;
+                    });
+                }).then(function (data) {
+                    if (sequence !== state.sequence || query !== searchInput.value.trim()) return;
+                    renderPage(data);
+                    updateSelectionFields();
+                }).catch(function (error) {
+                    if (sequence !== state.sequence) return;
+                    console.error('[PulseAlert] Staff search failed.', error);
+                    results.replaceChildren();
+                    feedback.textContent = error.message || 'Staff could not be loaded.';
+                    pageLabel.textContent = 'Page ' + state.page + ' of ' + state.pages;
+                }).finally(function () {
+                    if (sequence === state.sequence) {
+                        state.loading = false;
+                        searchButton.disabled = false;
+                        previous.disabled = state.page <= 1;
+                        next.disabled = state.page >= state.pages;
+                    }
+                });
+            }
+
+            state.loadPage = loadPage;
+            state.sync = updateSelectionFields;
+            searchButton.addEventListener('click', function () {
+                loadPage(1);
+            });
+            searchInput.addEventListener('keydown', function (event) {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    loadPage(1);
+                }
+            });
+            searchInput.addEventListener('input', function () {
+                state.sequence++;
+                state.loading = false;
+                state.page = 1;
+                state.pages = 1;
+                results.replaceChildren();
+                feedback.textContent = this.value.trim()
+                    ? 'Press Search to update the results.'
+                    : 'Press Search or Clear to browse staff.';
+                pageLabel.textContent = 'Page 1 of ' + state.pages;
+                previous.disabled = true;
+                next.disabled = true;
+                searchButton.disabled = false;
+            });
+            clearButton.addEventListener('click', function () {
+                searchInput.value = '';
+                state.sequence++;
+                state.loading = false;
+                state.pages = 1;
+                loadPage(1);
+            });
+            previous.addEventListener('click', function () {
+                if (state.page > 1) loadPage(state.page - 1);
+            });
+            next.addEventListener('click', function () {
+                if (state.page < state.pages) loadPage(state.page + 1);
+            });
+            results.addEventListener('change', function (event) {
+                var checkbox = event.target.closest('input[type="checkbox"][data-staff-id]');
+                if (!checkbox) return;
+                var row = checkbox.closest('tr');
+                var id = checkbox.dataset.staffId;
+                if (checkbox.checked) {
+                    if (!state.allowMultiple) state.selected.clear();
+                    state.selected.set(id, {
+                        name: checkbox.dataset.staffName || '',
+                        specialization: checkbox.dataset.staffSpecialization || ''
+                    });
+                    results.querySelectorAll('input[type="checkbox"][data-staff-id]').forEach(function (item) {
+                        item.checked = item.dataset.staffId === id;
+                        var itemRow = item.closest('tr');
+                        if (itemRow) itemRow.classList.toggle('is-selected', item.checked);
+                    });
+                } else {
+                    state.selected.delete(id);
+                }
+                row.classList.toggle('is-selected', checkbox.checked);
+                updateSelectionFields();
+            });
+        }
+
+        function parseStaffIds(value, fallbackId) {
+            if (value) {
+                try {
+                    var parsed = JSON.parse(value);
+                    if (Array.isArray(parsed)) return parsed.map(String);
+                } catch (error) {
+                    console.error('[PulseAlert] Could not read bed staff assignments.', error);
+                }
+            }
+            return fallbackId ? [String(fallbackId)] : [];
+        }
+
+        function appendBedSection(title, details) {
+            var section = document.createElement('section');
+            section.className = 'resources-bed-detail-section';
+            var heading = document.createElement('h3');
+            heading.textContent = title;
+            section.appendChild(heading);
+            var list = document.createElement('dl');
+            details.forEach(function (detail) {
+                if (detail.value === '' || detail.value === null || detail.value === undefined) return;
+                var term = document.createElement('dt');
+                var description = document.createElement('dd');
+                term.textContent = detail.label;
+                description.textContent = String(detail.value);
+                list.appendChild(term);
+                list.appendChild(description);
+            });
+            section.appendChild(list);
+            bedDetails.appendChild(section);
+        }
+
+        function renderBedDetails(bed) {
+            var room = bed.dataset.roomNumber || '';
+            var bedNumberValue = bed.dataset.bedNumber || '';
+            appendBedSection('Bed information', [
+                { label: 'Bed / room identifier', value: room || 'Bed ' + bedNumberValue },
+                { label: 'Bed number', value: bedNumberValue },
+                { label: 'Room number', value: room },
+                { label: 'Bed category', value: bedType.selectedOptions[0].textContent },
+                { label: 'Bed status', value: bed.dataset.bedStatusLabel || bed.dataset.bedStatus }
+            ]);
+            appendBedSection('Staff assignments', [
+                { label: 'Assigned doctors', value: bed.dataset.doctorName || 'No doctor assigned' },
+                { label: 'Assigned nurses', value: bed.dataset.nurseName || 'No nurse assigned' }
+            ]);
+            var patientIncident = [
+                { label: 'Patient', value: bed.dataset.patientName },
+                { label: 'Incident ID', value: bed.dataset.incidentId ? '#' + bed.dataset.incidentId : '' },
+                { label: 'Incident type', value: bed.dataset.incidentType },
+                { label: 'Incident status', value: bed.dataset.incidentStatus },
+                { label: 'Triage category', value: bed.dataset.triageCategory },
+                { label: 'Age / gender', value: [bed.dataset.patientAge, bed.dataset.patientGender].filter(Boolean).join(' · ') },
+                { label: 'Reported at', value: bed.dataset.reportedAt }
+            ];
+            if (patientIncident.some(function (item) { return item.value; })) {
+                appendBedSection('Patient and incident', patientIncident);
+            }
+            var vitals = [
+                { label: 'Heart rate', value: bed.dataset.heartRate ? bed.dataset.heartRate + ' bpm' : '' },
+                { label: 'Blood pressure', value: bed.dataset.bloodPressure },
+                { label: 'SpO₂', value: bed.dataset.spo2 ? bed.dataset.spo2 + '%' : '' },
+                { label: 'GCS', value: bed.dataset.gcs },
+                { label: 'Recorded at', value: bed.dataset.vitalsRecordedAt }
+            ];
+            if (vitals.some(function (item) { return item.value; })) {
+                appendBedSection('Patient monitoring', vitals);
+            }
+            var notes = [
+                { label: 'Incident notes', value: bed.dataset.incidentNotes },
+                { label: 'Nurse notes', value: bed.dataset.nurseNotes },
+                { label: 'Patient notes', value: bed.dataset.patientNotes }
+            ];
+            if (notes.some(function (item) { return item.value; })) {
+                appendBedSection('Clinical notes', notes);
+            }
+            var clinicalNotes = [];
+            try {
+                clinicalNotes = JSON.parse(bed.dataset.clinicalNotes || '[]');
+            } catch (error) {
+                console.error('[PulseAlert] Could not read bed clinical note history.', error);
+            }
+            if (clinicalNotes.length) {
+                var historySection = document.createElement('section');
+                historySection.className = 'resources-bed-detail-section';
+                var historyTitle = document.createElement('h3');
+                historyTitle.textContent = 'Recent note history';
+                historySection.appendChild(historyTitle);
+                var historyList = document.createElement('ol');
+                historyList.className = 'resources-bed-note-history';
+                clinicalNotes.forEach(function (item) {
+                    var entry = document.createElement('li');
+                    var note = document.createElement('p');
+                    note.textContent = item.note || '';
+                    var attribution = document.createElement('small');
+                    attribution.textContent = [item.author, item.role, item.createdAt]
+                        .filter(Boolean)
+                        .join(' · ');
+                    entry.appendChild(note);
+                    entry.appendChild(attribution);
+                    historyList.appendChild(entry);
+                });
+                historySection.appendChild(historyList);
+                bedDetails.appendChild(historySection);
+            }
+        }
+
+        function renderCurrentIncident(bed) {
+            var current = bedForm.querySelector('[data-bed-current-incident]');
+            var removeButton = bedForm.querySelector('[data-incident-unassign]');
+            if (!current || !removeButton) return;
+            current.replaceChildren();
+            if (!bed || !bed.dataset.incidentId) {
+                current.textContent = 'No active incident is assigned to this bed.';
+                removeButton.hidden = true;
+                return;
+            }
+            var summary = document.createElement('strong');
+            summary.textContent = 'Incident #' + bed.dataset.incidentId +
+                (bed.dataset.incidentType ? ' · ' + bed.dataset.incidentType : '');
+            var metadata = document.createElement('span');
+            metadata.textContent = [
+                bed.dataset.patientName,
+                bed.dataset.incidentStatus
+            ].filter(Boolean).join(' · ');
+            current.appendChild(summary);
+            current.appendChild(metadata);
+            removeButton.hidden = false;
+        }
+
+        bindBedStaffPicker('doctor');
+        bindBedStaffPicker('nurse');
+
+        function openBedDialog(bed, mode) {
+            bedForm.reset();
+            bedId.value = '';
+            bedDetails.replaceChildren();
+            if (bedDoctor) bedDoctor.value = '';
+            if (bedNurse) bedNurse.value = '';
+            ['doctor', 'nurse'].forEach(function (role) {
+                var state = staffPickerStates[role];
+                if (!state) return;
+                state.sequence++;
+                state.loading = false;
+                state.selected.clear();
+                state.page = 1;
+                var selectedIds = bed ? parseStaffIds(
+                    bed.dataset[role + 'Ids'],
+                    bed.dataset[role + 'Id']
+                ) : [];
+                var nameData = [];
+                try {
+                    nameData = bed ? JSON.parse(bed.dataset[role + 'Names'] || '[]') : [];
+                } catch (error) {
+                    console.error('[PulseAlert] Could not read selected staff names.', error);
+                }
+                selectedIds.forEach(function (id, index) {
+                    state.selected.set(String(id), { name: nameData[index] || 'Staff member' });
+                });
+                var searchInput = bedForm.querySelector('#resources-bed-' + role + '-search');
+                if (searchInput) searchInput.value = '';
+                var results = bedForm.querySelector('[data-staff-results="' + role + '"]');
+                if (results) results.replaceChildren();
+                var summary = bedForm.querySelector('[data-staff-summary="' + role + '"]');
+                if (summary) {
+                    var typeLabel = role === 'doctor' ? 'doctors' : 'nurses';
+                    var selectedNames = Array.from(state.selected.values()).map(function (item) { return item.name; });
+                    summary.textContent = selectedNames.length
+                        ? selectedNames.length + ' ' + (role === 'doctor' ? 'doctor' : 'nurse') +
+                            (selectedNames.length === 1 ? ' selected: ' : 's selected: ') + selectedNames.slice(0, 2).join(', ')
+                        : '0 ' + typeLabel + ' selected';
+                }
+                if (state.sync) state.sync();
+                if (mode !== 'view' && state.loadPage) state.loadPage(1);
+            });
+            if (bed) {
+                bedId.value = bed.dataset.bedId || '';
+                bedType.value = bed.dataset.bedType || 'er';
+                bedNumber.value = bed.dataset.bedNumber || '';
+                if (roomNumber) roomNumber.value = bed.dataset.roomNumber || '';
+                if (bedStatus) bedStatus.value = bed.dataset.bedStatus || 'ready';
+                var primaryBedLabel = bed.dataset.roomNumber || 'Bed ' + bedNumber.value;
+                bedTitle.textContent = mode === 'view'
+                    ? primaryBedLabel + ' details'
+                    : 'Edit ' + primaryBedLabel;
+                renderBedDetails(bed);
+            } else {
+                bedType.value = 'er';
+                bedNumber.value = '';
+                if (bedStatus) bedStatus.value = 'ready';
+                if (roomNumber) roomNumber.value = '';
+                bedTitle.textContent = 'Register bed';
+            }
+            renderCurrentIncident(bed);
+            if (incidentSearchInput) incidentSearchInput.value = '';
+            if (incidentSearchPanel) incidentSearchPanel.hidden = true;
+            if (incidentResults) incidentResults.replaceChildren();
+            if (incidentFeedback) incidentFeedback.textContent = 'Open incident search to view available incidents.';
+            if (incidentPageLabel) incidentPageLabel.textContent = 'Page 1 of 1';
+            if (incidentPrevious) incidentPrevious.disabled = true;
+            if (incidentNext) incidentNext.disabled = true;
+            if (incidentSearchButton) incidentSearchButton.disabled = false;
+            incidentSearchSequence++;
+            incidentPage = 1;
+            incidentPages = 1;
+            var isViewing = Boolean(bed) && mode === 'view';
+            if (incidentSearchToggle) incidentSearchToggle.disabled = !bed || isViewing;
+            if (!bed && incidentFeedback) incidentFeedback.textContent = 'Save the bed before assigning an incident.';
+            bedEditFields.hidden = isViewing;
+            bedDetails.hidden = !isViewing;
+            bedSaveButton.hidden = isViewing;
+            bedSwitchEditButton.hidden = !isViewing;
+            if (bedCancelButton) {
+                bedCancelButton.textContent = isViewing ? 'Close' : 'Cancel';
+            }
             bedDialog.showModal();
-            bedMaximumInput.focus();
+            if (isViewing) {
+                bedSwitchEditButton.focus();
+            } else {
+                (bed && roomNumber ? roomNumber : bedType).focus();
+            }
+        }
+
+        function loadBedRecord(row, mode) {
+            var recordId = row && row.dataset.bedId;
+            if (!recordId) {
+                showResourcesToast('The selected bed has no database record ID.', true);
+                return;
+            }
+            fetch(window.location.pathname + '?section=bed-capacity&action=bed_details&bed_id=' +
+                encodeURIComponent(recordId), {
+                    headers: {
+                        Accept: 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                }).then(function (response) {
+                    return response.json().then(function (result) {
+                        if (!response.ok || !result.success || !result.bed) {
+                            throw new Error(result.message || 'Bed details could not be loaded.');
+                        }
+                        return result.bed;
+                    });
+                }).then(function (record) {
+                    refreshBedRow(record);
+                    openBedDialog(row, mode);
+                }).catch(function (error) {
+                    console.error('[PulseAlert] Bed details could not be loaded.', error);
+                    showResourcesToast(error.message || 'Bed details could not be loaded.', true);
+                });
+        }
+
+        var addBedButton = document.querySelector('[data-resource-bed-add]');
+        if (addBedButton) {
+            addBedButton.addEventListener('click', function () {
+                openBedDialog(null, 'edit');
+            });
+        }
+
+        bedTiles.forEach(function (tile) {
+            tile.addEventListener('click', function (event) {
+                if (event && event.target && event.target.closest && event.target.closest('button, input, select, textarea, a')) {
+                    return;
+                }
+                openBedDialog(tile, 'view');
+            });
+            tile.addEventListener('keydown', function (event) {
+                if (event && (event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar')) {
+                    event.preventDefault();
+                    openBedDialog(tile, 'view');
+                }
+            });
+        });
+
+        document.querySelectorAll('[data-resource-bed-view], [data-resource-bed-edit]').forEach(function (button) {
+            button.addEventListener('click', function (event) {
+                event.stopPropagation();
+                var row = button.closest('tr[data-resource-bed-details]');
+                if (!row) {
+                    console.error('[PulseAlert] Bed action is missing its bed record row.');
+                    return;
+                }
+                loadBedRecord(row, button.hasAttribute('data-resource-bed-edit') ? 'edit' : 'view');
+            });
+        });
+
+        if (bedSwitchEditButton) {
+            bedSwitchEditButton.addEventListener('click', function () {
+                var row = document.querySelector(
+                    'tr[data-resource-bed-details][data-bed-id="' + bedId.value.replace(/"/g, '') + '"]'
+                );
+                if (!row) {
+                    showResourcesToast('This bed is no longer present in the table. Refresh the inventory and try again.', true);
+                    return;
+                }
+                loadBedRecord(row, 'edit');
+            });
+        }
+
+        function showResourcesToast(message, isError) {
+            var notification = document.getElementById('resources-notification-toast');
+            if (!notification) {
+                notification = document.createElement('div');
+                notification.id = 'resources-notification-toast';
+                notification.className = 'resources-notification-toast';
+                notification.setAttribute('role', 'status');
+                notification.setAttribute('aria-live', 'polite');
+                document.body.appendChild(notification);
+            }
+            notification.textContent = message;
+            notification.classList.toggle('is-error', Boolean(isError));
+            notification.setAttribute('role', isError ? 'alert' : 'status');
+            notification.setAttribute('aria-live', isError ? 'assertive' : 'polite');
+            notification.classList.add('is-visible');
+            window.clearTimeout(notification.hideTimer);
+            notification.hideTimer = window.setTimeout(function () {
+                notification.classList.remove('is-visible');
+            }, 3800);
+        }
+
+        function postBedIncidentAction(action, incidentId) {
+            var formData = new FormData();
+            formData.append('csrf_token', bedForm.elements.csrf_token.value);
+            formData.append('resource_section', 'bed-capacity');
+            formData.append('action', action);
+            formData.append('bed_id', bedId.value);
+            if (incidentId) formData.append('incident_id', String(incidentId));
+            return fetch(window.location.pathname + '?section=bed-capacity', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            }).then(function (response) {
+                return response.json().then(function (result) {
+                    if (!response.ok || !result.success) {
+                        throw new Error(result.message || 'Incident assignment could not be updated.');
+                    }
+                    return result;
+                });
+            }).then(function (result) {
+                refreshBedRow(result.bed);
+                var row = document.querySelector(
+                    'tr[data-resource-bed-details][data-bed-id="' + String(result.bed.id) + '"]'
+                );
+                if (row) openBedDialog(row, 'edit');
+                showResourcesToast(result.message, false);
+            }).catch(function (error) {
+                console.error('[PulseAlert] Incident assignment failed.', error);
+                showResourcesToast(error.message || 'Incident assignment could not be updated.', true);
+            });
+        }
+
+        var incidentSearchToggle = bedForm.querySelector('[data-incident-search-toggle]');
+        var incidentSearchPanel = bedForm.querySelector('[data-bed-incident-search]');
+        var incidentSearchInput = document.getElementById('resources-bed-incident-query');
+        var incidentSearchButton = bedForm.querySelector('[data-incident-search]');
+        var incidentResults = bedForm.querySelector('[data-incident-results]');
+        var incidentFeedback = bedForm.querySelector('[data-incident-feedback]');
+        var incidentRemoveButton = bedForm.querySelector('[data-incident-unassign]');
+        var incidentPrevious = bedForm.querySelector('[data-incident-prev]');
+        var incidentNext = bedForm.querySelector('[data-incident-next]');
+        var incidentPageLabel = bedForm.querySelector('[data-incident-page]');
+        var incidentClearButton = bedForm.querySelector('[data-incident-clear]');
+        var incidentPage = 1;
+        var incidentPages = 1;
+        var incidentSearchSequence = 0;
+
+        if (incidentSearchToggle && incidentSearchPanel) {
+            incidentSearchToggle.addEventListener('click', function () {
+                incidentSearchPanel.hidden = !incidentSearchPanel.hidden;
+                if (!incidentSearchPanel.hidden) {
+                    if (incidentSearchInput) incidentSearchInput.focus();
+                    searchBedIncidents(1);
+                }
+            });
+        }
+
+        function searchBedIncidents(page) {
+            if (!incidentSearchInput || !incidentResults || !incidentFeedback) return;
+            if (incidentSearchButton.disabled) return;
+            var query = incidentSearchInput.value.trim();
+            if (query.length === 1) {
+                incidentPage = 1;
+                incidentPages = 1;
+                incidentFeedback.textContent = 'Enter at least two characters, or clear the search to view available incidents.';
+                incidentResults.replaceChildren();
+                incidentPageLabel.textContent = 'Page 1 of 1';
+                incidentPrevious.disabled = true;
+                incidentNext.disabled = true;
+                return;
+            }
+            incidentPage = page || 1;
+            var sequence = ++incidentSearchSequence;
+            incidentFeedback.textContent = 'Searching incidents...';
+            incidentSearchButton.disabled = true;
+            incidentPrevious.disabled = true;
+            incidentNext.disabled = true;
+            incidentResults.replaceChildren();
+            fetch(
+                window.location.pathname + '?section=bed-capacity&action=incident_search&q=' +
+                    encodeURIComponent(query) + '&page=' + incidentPage +
+                    '&bed_id=' + encodeURIComponent(bedId.value),
+                { headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' } }
+            ).then(function (response) {
+                return response.json().then(function (result) {
+                    if (!response.ok || !result.success || !result.incidents) {
+                        throw new Error(result.message || 'Incidents could not be searched.');
+                    }
+                    return result;
+                });
+            }).then(function (result) {
+                if (sequence !== incidentSearchSequence || query !== incidentSearchInput.value.trim()) return;
+                incidentResults.replaceChildren();
+                var incidents = result.incidents.items;
+                incidentPage = result.incidents.page;
+                incidentPages = result.incidents.pages;
+                incidentPageLabel.textContent = 'Page ' + incidentPage + ' of ' + incidentPages;
+                incidentPrevious.disabled = incidentPage <= 1;
+                incidentNext.disabled = incidentPage >= incidentPages;
+                if (!incidents.length) {
+                    incidentFeedback.textContent = query
+                        ? 'No eligible incidents matched your search.'
+                        : 'No eligible incidents are currently available.';
+                    return;
+                }
+                incidentFeedback.textContent = result.incidents.total + ' eligible incident' +
+                    (result.incidents.total === 1 ? '' : 's');
+                incidents.forEach(function (incident) {
+                    var row = document.createElement('tr');
+                    [
+                        '#' + incident.id,
+                        incident.type || 'Not recorded',
+                        incident.patient || 'Not recorded',
+                        incident.hospital || 'Not recorded',
+                        incident.status || 'Not recorded',
+                        incident.reportedAt || 'Not recorded'
+                    ].forEach(function (value) {
+                        var cell = document.createElement('td');
+                        cell.textContent = value;
+                        row.appendChild(cell);
+                    });
+                    var actionCell = document.createElement('td');
+                    var selectButton = document.createElement('button');
+                    selectButton.type = 'button';
+                    selectButton.className = 'resources-bed-search-button';
+                    selectButton.textContent = incident.assignedBedId &&
+                        Number(incident.assignedBedId) !== Number(bedId.value)
+                        ? 'Already assigned'
+                        : (Number(incident.assignedBedId) === Number(bedId.value) ? 'Assigned' : 'Assign');
+                    selectButton.disabled = Boolean(
+                        incident.assignedBedId &&
+                        Number(incident.assignedBedId) !== Number(bedId.value)
+                    );
+                    if (Number(incident.assignedBedId) === Number(bedId.value)) {
+                        selectButton.disabled = true;
+                    }
+                    selectButton.addEventListener('click', function () {
+                        selectButton.disabled = true;
+                        postBedIncidentAction('incident_assign', incident.id).finally(function () {
+                            selectButton.disabled = false;
+                        });
+                    });
+                    actionCell.appendChild(selectButton);
+                    row.appendChild(actionCell);
+                    incidentResults.appendChild(row);
+                });
+            }).catch(function (error) {
+                if (sequence !== incidentSearchSequence) return;
+                console.error('[PulseAlert] Incident search failed.', error);
+                incidentResults.replaceChildren();
+                incidentFeedback.textContent = error.message || 'Incidents could not be searched.';
+                incidentPageLabel.textContent = 'Page ' + incidentPage + ' of ' + incidentPages;
+            }).finally(function () {
+                if (sequence === incidentSearchSequence) {
+                    incidentSearchButton.disabled = false;
+                    incidentPrevious.disabled = incidentPage <= 1;
+                    incidentNext.disabled = incidentPage >= incidentPages;
+                }
+            });
+        }
+
+        if (incidentSearchButton) {
+            incidentSearchButton.addEventListener('click', function () {
+                searchBedIncidents(1);
+            });
+        }
+        if (incidentSearchInput) {
+            incidentSearchInput.addEventListener('keydown', function (event) {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    searchBedIncidents(1);
+                }
+            });
+            incidentSearchInput.addEventListener('input', function () {
+                incidentSearchSequence++;
+                incidentPage = 1;
+                incidentPages = 1;
+                incidentResults.replaceChildren();
+                incidentFeedback.textContent = this.value.trim()
+                    ? 'Press Search to update the results.'
+                    : 'Press Search to view available incidents.';
+                incidentPageLabel.textContent = 'Page 1 of 1';
+                incidentPrevious.disabled = true;
+                incidentNext.disabled = true;
+                incidentSearchButton.disabled = false;
+            });
+        }
+        if (incidentClearButton) {
+            incidentClearButton.addEventListener('click', function () {
+                incidentSearchInput.value = '';
+                incidentSearchSequence++;
+                incidentSearchButton.disabled = false;
+                searchBedIncidents(1);
+            });
+        }
+        if (incidentPrevious) {
+            incidentPrevious.addEventListener('click', function () {
+                if (incidentPage > 1) searchBedIncidents(incidentPage - 1);
+            });
+        }
+        if (incidentNext) {
+            incidentNext.addEventListener('click', function () {
+                if (incidentPage < incidentPages) searchBedIncidents(incidentPage + 1);
+            });
+        }
+        if (incidentRemoveButton) {
+            incidentRemoveButton.addEventListener('click', function () {
+                postBedIncidentAction('incident_unassign');
+            });
+        }
+
+        function refreshBedRow(record) {
+            var row = document.querySelector(
+                'tr[data-resource-bed-details][data-bed-id="' + String(record.id).replace(/"/g, '') + '"]'
+            );
+            if (!row) {
+                throw new Error('The saved bed is not present in the current inventory.');
+            }
+            var values = {
+                bedId: record.id,
+                bedType: record.type,
+                bedNumber: record.number,
+                roomNumber: record.room,
+                bedStatus: record.status,
+                bedStatusLabel: record.statusLabel,
+                doctorId: record.doctorId,
+                nurseId: record.nurseId,
+                doctorIds: JSON.stringify(record.doctorIds || []),
+                nurseIds: JSON.stringify(record.nurseIds || []),
+                doctorNames: JSON.stringify(record.doctorNames || []),
+                nurseNames: JSON.stringify(record.nurseNames || []),
+                doctorName: record.doctorName,
+                nurseName: record.nurseName,
+                patientName: record.patientName,
+                incidentId: record.incidentId || '',
+                incidentType: record.incidentType,
+                incidentStatus: record.incidentStatus,
+                triageCategory: record.triageCategory,
+                patientAge: record.patientAge,
+                patientGender: record.patientGender,
+                reportedAt: record.reportedAt,
+                heartRate: record.vitals && record.vitals.heartRate,
+                bloodPressure: record.vitals && record.vitals.bloodPressure,
+                spo2: record.vitals && record.vitals.spo2,
+                gcs: record.vitals && record.vitals.gcs,
+                vitalsRecordedAt: record.vitals && record.vitals.recordedAt,
+                nurseNotes: record.nurseNotes,
+                incidentNotes: record.incidentNotes,
+                patientNotes: record.patientNotes,
+                clinicalNotes: JSON.stringify(record.clinicalNotes || [])
+            };
+            Object.keys(values).forEach(function (key) {
+                row.dataset[key] = values[key] === null || values[key] === undefined
+                    ? ''
+                    : String(values[key]);
+            });
+            row.dataset.resourceStatus = String(record.status);
+            row.dataset.resourceName = ('bed ' + record.number + ' ' + (record.room || '')).toLowerCase();
+            row.setAttribute(
+                'aria-label',
+                'Bed ' + record.number + ' in room ' + (record.room || 'not recorded')
+            );
+            var identifier = document.createElement('strong');
+            identifier.className = 'resources-bed-primary-label';
+            identifier.textContent = record.room || 'Bed ' + record.number;
+            row.cells[0].replaceChildren(identifier);
+            if (record.room) {
+                var bedSubLabel = document.createElement('small');
+                bedSubLabel.className = 'resources-bed-number-label';
+                bedSubLabel.textContent = 'Bed ' + record.number;
+                row.cells[0].appendChild(bedSubLabel);
+            }
+            row.cells[1].textContent = record.room || 'Not recorded';
+            var status = document.createElement('span');
+            status.className = 'resources-status resources-status--' + record.status;
+            status.textContent = record.statusLabel;
+            row.cells[2].replaceChildren(status);
+            row.cells[3].textContent = record.doctorName || 'Not assigned';
+            row.cells[4].textContent = record.nurseName || 'Not assigned';
+            row.cells[5].textContent = record.patientName || '—';
+
+            var previousAreaCard = row.closest('.resources-area-card');
+            var areaCard = document.querySelector(
+                '.resources-area-card[data-resource-bed-area="' + String(record.type).replace(/"/g, '') + '"]'
+            );
+            if (areaCard && previousAreaCard !== areaCard) {
+                var targetBody = areaCard.querySelector('tbody');
+                var searchEmptyRow = targetBody ? targetBody.querySelector('[data-resource-search-empty]') : null;
+                if (targetBody) {
+                    targetBody.insertBefore(row, searchEmptyRow);
+                }
+            }
+            [previousAreaCard, areaCard].forEach(function (card) {
+                if (!card) return;
+                var counts = { ready: 0, occupied: 0, unavailable: 0 };
+                var bedRows = card.querySelectorAll('tbody tr[data-resource-bed-details]');
+                bedRows.forEach(function (bedRow) {
+                    var state = bedRow.dataset.bedStatus;
+                    if (state === 'ready') counts.ready++;
+                    else if (state === 'occupied') counts.occupied++;
+                    else counts.unavailable++;
+                });
+                var countValues = card.querySelectorAll('.resources-bed-counts dd');
+                if (countValues[0]) countValues[0].textContent = String(counts.ready);
+                if (countValues[1]) countValues[1].textContent = String(counts.occupied);
+                if (countValues[2]) countValues[2].textContent = String(counts.unavailable);
+                var totalLabel = card.querySelector('.resources-area-heading > span');
+                if (totalLabel) totalLabel.textContent = bedRows.length + ' total';
+            });
+            applyResourcesFilters();
+        }
+
+        bedForm.addEventListener('submit', function (event) {
+            if (!bedId.value) {
+                return;
+            }
+            event.preventDefault();
+            bedSaveButton.disabled = true;
+            bedSaveButton.textContent = 'Saving...';
+            fetch(window.location.pathname + '?section=bed-capacity', {
+                method: 'POST',
+                body: new FormData(bedForm),
+                headers: {
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            }).then(function (response) {
+                return response.json().then(function (result) {
+                    if (!response.ok || !result.success) {
+                        throw new Error(result.message || 'Bed details could not be saved.');
+                    }
+                    return result;
+                });
+            }).then(function (result) {
+                refreshBedRow(result.bed);
+                bedDialog.close();
+                showResourcesToast(result.message || 'Bed details updated.', false);
+            }).catch(function (error) {
+                console.error('[PulseAlert] Bed update failed.', error);
+                showResourcesToast(error.message || 'Bed details could not be saved.', true);
+            }).finally(function () {
+                bedSaveButton.disabled = false;
+                bedSaveButton.textContent = 'Save bed';
+            });
         });
 
         bedDialog.querySelectorAll('[data-resource-bed-close]').forEach(function (button) {
@@ -1585,15 +2720,6 @@ function hospitalnetworkInit() {
     }
 
     if (input) {
-        input.addEventListener('focus', function () {
-            this.style.transition = 'width 0.2s ease';
-            this.style.width = '340px';
-        });
-
-        input.addEventListener('blur', function () {
-            this.style.width = '300px';
-        });
-
         input.addEventListener('input', function () {
             var query = this.value.trim().toLowerCase();
             document.querySelectorAll('.hospitalnetwork-card').forEach(function (card) {
@@ -1694,6 +2820,8 @@ function hospitalnetworkInit() {
                         (referral.patient_name || 'Patient') + ' · Incident #' + incidentId + (referral.incident_type ? ' · ' + referral.incident_type : '');
                     document.getElementById('hospitalnetwork-referral-success-destination').textContent = referral.receiving_hospital || '';
                     document.getElementById('hospitalnetwork-referral-success-status').textContent = referral.status || 'pending';
+                    document.getElementById('hospitalnetwork-referral-success-incident-status').textContent =
+                        referral.incident_status || 'referred';
                     document.getElementById('hospitalnetwork-referral-success-reason').textContent = referral.referral_reason || '';
                     document.getElementById('hospitalnetwork-referral-map-link').href =
                         new URL('livemappingController.php?incident_id=' + encodeURIComponent(incidentId), window.location.href).toString();
@@ -1712,124 +2840,11 @@ function hospitalnetworkInit() {
     pulseAlertShakeBell(bell);
 }
 
-function analyticsInit() {
-
-    var canvas = document.getElementById('analytics-trend-chart');
-    var dataElement = document.getElementById('analytics-trend-data');
-    var range = document.getElementById('analytics-range');
-    var customDates = document.querySelector('.analytics-custom-dates');
-    var rangeForm = range ? range.form : null;
-    var fromDate = document.getElementById('analytics-from-date');
-    var toDate = document.getElementById('analytics-to-date');
-
-    incomingdispatchBindBell();
-    incomingdispatchBindBellShake();
-
-    if (range) {
-        function updateAnalyticsDateInputs() {
-            var isCustom = range.value === 'custom';
-            if (customDates) customDates.hidden = !isCustom;
-            if (fromDate) fromDate.required = isCustom;
-            if (toDate) {
-                toDate.required = isCustom;
-                toDate.min = fromDate && fromDate.value ? fromDate.value : '';
-                if (fromDate && fromDate.value && toDate.value && toDate.value < fromDate.value) {
-                    toDate.value = fromDate.value;
-                }
-            }
-        }
-
-        updateAnalyticsDateInputs();
-        range.addEventListener('change', function () {
-            if (this.value !== 'custom') {
-                this.form.submit();
-            } else {
-                updateAnalyticsDateInputs();
-            }
-        });
-
-        if (fromDate) fromDate.addEventListener('change', updateAnalyticsDateInputs);
-        if (rangeForm) {
-            rangeForm.addEventListener('submit', function (event) {
-                if (range.value === 'custom' && fromDate && toDate && fromDate.value > toDate.value) {
-                    event.preventDefault();
-                    toDate.setCustomValidity('End date must be on or after start date.');
-                    toDate.reportValidity();
-                    return;
-                }
-                if (toDate) toDate.setCustomValidity('');
-            });
-        }
-    }
-
-    if (!canvas || !dataElement) {
-        return;
-    }
-
-    try {
-        analyticsDrawTrend(canvas, JSON.parse(dataElement.textContent || '[]'));
-    } catch (error) {
-        console.warn('[Analytics] Trend chart could not be drawn.', error);
-    }
-}
-
-function analyticsDrawTrend(canvas, rows) {
-
-    var context = canvas.getContext('2d');
-    var rect = canvas.getBoundingClientRect();
-    var width = Math.max(260, Math.round(rect.width));
-    var height = Math.max(180, Math.round(rect.height));
-    var ratio = window.devicePixelRatio || 1;
-    var values = rows.map(function (row) { return Number(row.value) || 0; });
-    var labels = rows.map(function (row) { return row.label || ''; });
-    var max = Math.max(5, Math.ceil(Math.max.apply(null, values.concat([0])) / 5) * 5);
-    var padding = { top: 18, right: 14, bottom: 28, left: 30 };
-
-    canvas.width = width * ratio;
-    canvas.height = height * ratio;
-    context.setTransform(ratio, 0, 0, ratio, 0, 0);
-    context.clearRect(0, 0, width, height);
-
-    context.strokeStyle = '#eee1de';
-    context.lineWidth = 1;
-    for (var row = 0; row < 5; row++) {
-        var y = padding.top + ((height - padding.top - padding.bottom) * row / 4);
-        context.beginPath(); context.moveTo(padding.left, y); context.lineTo(width - padding.right, y); context.stroke();
-    }
-
-    if (!values.length) {
-        return;
-    }
-
-    var chartWidth = width - padding.left - padding.right;
-    var chartHeight = height - padding.top - padding.bottom;
-    context.beginPath();
-    values.forEach(function (value, index) {
-        var x = padding.left + chartWidth * index / Math.max(1, values.length - 1);
-        var y = padding.top + chartHeight - (value / max * chartHeight);
-        index === 0 ? context.moveTo(x, y) : context.lineTo(x, y);
-    });
-    context.strokeStyle = '#8b0000'; context.lineWidth = 2.5; context.stroke();
-
-    context.fillStyle = '#8b0000';
-    values.forEach(function (value, index) {
-        var x = padding.left + chartWidth * index / Math.max(1, values.length - 1);
-        var y = padding.top + chartHeight - (value / max * chartHeight);
-        context.beginPath(); context.arc(x, y, 3, 0, Math.PI * 2); context.fill();
-    });
-
-    context.fillStyle = '#7d7774'; context.font = '9px Inter, sans-serif'; context.textAlign = 'center';
-    labels.forEach(function (label, index) {
-        var x = padding.left + chartWidth * index / Math.max(1, labels.length - 1);
-        context.fillText(label, x, height - 8);
-    });
-}
-
 function demographicsInit() {
 
     var filterButtons = document.querySelectorAll('.demographics-filter');
     var statValues = document.querySelectorAll('.demographics-stat-value');
-    var rows = document.querySelectorAll('.demographics-log-table tbody tr');
+    var rows = document.querySelectorAll('.demographics-log-table tbody tr:not([data-empty-state])');
     var previousLogsButton = document.getElementById('demographics-log-previous');
     var nextLogsButton = document.getElementById('demographics-log-next');
     var logPageLabel = document.getElementById('demographics-log-page');
@@ -1844,7 +2859,8 @@ function demographicsInit() {
 
     function renderDemographicsLogPage() {
         var matchingRows = Array.prototype.filter.call(rows, function (row) {
-            return activeLogFilter === 'all' || (row.getAttribute('data-status') || 'pending') === activeLogFilter;
+            return activeLogFilter === 'all' ||
+                (row.getAttribute('data-category') || 'unclassified') === activeLogFilter;
         });
         var pageCount = Math.max(1, Math.ceil(matchingRows.length / logPageSize));
         currentLogPage = Math.min(currentLogPage, pageCount - 1);
@@ -1969,14 +2985,14 @@ function livemappingRender(map, data) {
 
     var markers = window.livemappingMarkers;
     var fleetList = document.getElementById('livemapping-fleet-list');
-    window.livemappingStaffAlertSent = window.livemappingStaffAlertSent || Object.create(null);
+    livemappingRefreshPersonColors(data.map_people || []);
     window.livemappingIncidentPage = window.livemappingIncidentPage || 0;
     // Clearing the layers closes the open popup; the flag keeps that from forgetting which one was open.
     window.livemappingRedrawing = true;
     markers.clearLayers();
     window.livemappingRedrawing = false;
     fleetList.innerHTML = '';
-    livemappingRenderIncidentRoster(map, fleetList, data.incidents || [], data.ambulances || []);
+    livemappingRenderPeopleRoster(map, fleetList, data.map_people || []);
     livemappingRenderDatabaseFleet(
         data.fleet_ambulances || [],
         data.fleet_incidents || []
@@ -1985,8 +3001,71 @@ function livemappingRender(map, data) {
         map.invalidateSize({ pan: false });
     });
 
+    var incidentsById = Object.create(null);
+    (data.incidents || []).forEach(function (incident) {
+        incidentsById[String(incident.id)] = incident;
+    });
     (data.hospitals || []).forEach(function (hospital) {
-        livemappingAddMarker(markers, hospital.latitude, hospital.longitude, 'hospital', '&#127973;', livemappingEscapeHtml(hospital.name), 'hospital-' + hospital.id);
+        livemappingAddMarker(markers, hospital.latitude, hospital.longitude, 'hospital', 'H', livemappingEscapeHtml(hospital.name), 'hospital-' + hospital.id);
+    });
+
+    (data.map_people || []).forEach(function (person) {
+        var incident = incidentsById[String(person.incident_id)];
+        var role = String(person.role || '').toLowerCase();
+        if (role !== 'responder' && role !== 'volunteer') return;
+        var color = livemappingAssignedPersonColor(person);
+        var route = incident && role === 'volunteer' && person.status === 'en_route'
+            ? livemappingAssignedPersonRouteState(person)
+            : null;
+        if (route) {
+            livemappingAddAssignedPersonRoute(markers, person, incident, route, color);
+        }
+
+        var roleLabel = role === 'volunteer' ? 'Barangay volunteer' : 'Responder';
+        var routeMessage = role === 'responder'
+            ? livemappingResponderRouteMessage(incident, person)
+            : livemappingAssignedPersonRouteMessage(person);
+        var popup = '<strong>' + livemappingEscapeHtml(person.full_name) + '</strong>' +
+            '<br>Role: ' + livemappingEscapeHtml(roleLabel) +
+            '<br>Status: ' + livemappingEscapeHtml(livemappingPersonStatusLabel(person.status)) +
+            '<br>Assigned barangay: ' + livemappingEscapeHtml(person.assigned_barangay || 'Unassigned barangay') +
+            (incident
+                ? '<br>Assigned incident: #' + livemappingEscapeHtml(person.incident_id) +
+                    '<br>Assignment: ' + livemappingEscapeHtml(livemappingAssignmentProgressLabel(person)) +
+                    '<br>Incident location: ' + livemappingEscapeHtml(incident.location || 'Unavailable') +
+                    '<br>Destination: ' + livemappingEscapeHtml(
+                        role === 'responder'
+                            ? (person.destination_name || 'Hospital unavailable')
+                            : (incident.location || 'Incident location unavailable')
+                    )
+                : '<br>Assignment: None') +
+            '<br>GPS update: ' + livemappingEscapeHtml(person.location_updated_at || person.last_location_updated_at || 'Unavailable') +
+            '<br>' + livemappingEscapeHtml(routeMessage);
+        var hasCurrentLocation = livemappingHasAssignedPersonCoordinates(person.latitude, person.longitude);
+        var hasLastKnownLocation = livemappingHasAssignedPersonCoordinates(
+            person.last_known_latitude,
+            person.last_known_longitude
+        );
+        var markerLatitude = hasCurrentLocation ? person.latitude : person.last_known_latitude;
+        var markerLongitude = hasCurrentLocation ? person.longitude : person.last_known_longitude;
+        var locationPopup = hasCurrentLocation
+            ? 'Current GPS location'
+            : hasLastKnownLocation
+                ? 'Last known location · GPS is stale'
+                : 'No GPS coordinates available';
+        livemappingAddMarker(
+            markers,
+            markerLatitude,
+            markerLongitude,
+            role,
+            role === 'volunteer' ? 'V' : 'R',
+            '<strong>' + livemappingEscapeHtml(person.full_name || 'Unknown staff member') + '</strong>' +
+                '<br>' + livemappingEscapeHtml(locationPopup) + '<br>' + popup,
+            'assigned-person-' + role + '-' + person.user_id + '-' + (person.incident_id || 'available'),
+            color,
+            !hasCurrentLocation,
+            (person.full_name || 'Unknown staff member') + ' · ' + roleLabel
+        );
     });
 
     (data.incidents || []).forEach(function (incident) {
@@ -2001,14 +3080,49 @@ function livemappingRender(map, data) {
                 ? 'En route to referred hospital: ' + destination
                 : 'En route to ' + destination;
         if (route) {
-            livemappingAddRoute(markers, route, destination, destinationLabel);
+            var assignedResponder = (data.map_people || []).find(function (person) {
+                return person.role === 'responder' &&
+                    String(person.incident_id) === String(incident.id);
+            });
+            livemappingAddRoute(
+                markers,
+                route,
+                destination,
+                destinationLabel,
+                assignedResponder ? livemappingAssignedPersonColor(assignedResponder) : null
+            );
         }
         var etaMinutes = route && route.etaMinutes !== null && route.etaMinutes !== undefined
             ? route.etaMinutes
             : incident.eta_minutes;
         var incidentEta = etaMinutes !== null && etaMinutes !== undefined ? etaMinutes + ' min' : 'Unavailable';
         var incidentStatusLabel = livemappingIncidentStatusLabel(incident);
-        livemappingAddMarker(markers, incident.latitude, incident.longitude, 'incident', '!', livemappingEscapeHtml(incident.incident_type) + '<br>Status: ' + livemappingEscapeHtml(incidentStatusLabel) + '<br>' + livemappingEscapeHtml(incident.location) + '<br>' + livemappingEscapeHtml(destinationLabel) + '<br>ETA: ' + livemappingEscapeHtml(incidentEta), 'incident-' + incident.id);
+        var assignedPeople = (data.map_people || []).filter(function (person) {
+            return String(person.incident_id) === String(incident.id);
+        });
+        var assignedPeopleLabel = assignedPeople.map(function (person) {
+            var roleLabel = person.role === 'volunteer' ? 'Volunteer' : 'Responder';
+            var locationLabel = person.latitude !== null && person.longitude !== null
+                ? 'GPS updated at ' + (person.location_updated_at || 'unknown time')
+                : 'no recent GPS location';
+            return livemappingEscapeHtml(roleLabel + ': ' + (person.full_name || 'Unknown') +
+                ' · Assigned barangay: ' + (person.assigned_barangay || 'Unassigned barangay') +
+                ' · ' + locationLabel);
+        }).join('<br>');
+        livemappingAddMarker(
+            markers,
+            incident.latitude,
+            incident.longitude,
+            'incident',
+            '!',
+            livemappingEscapeHtml(incident.incident_type) +
+                '<br>Status: ' + livemappingEscapeHtml(incidentStatusLabel) +
+                '<br>' + livemappingEscapeHtml(incident.location) +
+                (assignedPeopleLabel ? '<br>' + assignedPeopleLabel : '<br>No assigned responder or accepted volunteer') +
+                '<br>' + livemappingEscapeHtml(destinationLabel) +
+                '<br>ETA: ' + livemappingEscapeHtml(incidentEta),
+            'incident-' + incident.id
+        );
     });
 
     var fleet = (data.ambulances || []).map(function (ambulance) {
@@ -2044,153 +3158,126 @@ function livemappingRender(map, data) {
     livemappingBindUnitAlerts();
 }
 
-function livemappingRenderIncidentRoster(map, list, incidents, ambulances) {
+function livemappingRenderPeopleRoster(map, list, people) {
     var count = document.getElementById('livemapping-incident-count');
     if (!list) return;
 
     var filter = window.livemappingFleetFilter || 'all';
-    var incidentRecords = incidents
-        .filter(function (incident) {
-            return filter === 'all' || livemappingIncidentStatus(incident) === filter;
-        })
-        .map(function (incident) {
-            return {
-                kind: 'incident',
-                data: incident,
-                time: Date.parse(incident.reported_at || incident.created_at || '') || 0
-            };
-        });
-    var vehicleRecords = ambulances
-        .filter(function (ambulance) {
-            var status = livemappingTransportStatus(ambulance);
-            var isAssignedIncidentListed = ambulance.incident_id &&
-                incidents.some(function (incident) {
-                    return String(incident.id) === String(ambulance.incident_id);
-                });
-            return !isAssignedIncidentListed && (filter === 'all' || status === filter);
-        })
-        .map(function (ambulance) {
-            return {
-                kind: 'vehicle',
-                data: ambulance,
-                time: Date.parse(
-                    ambulance.arrived_at || ambulance.recorded_at ||
-                    ambulance.updated_at || ambulance.created_at || ''
-                ) || 0
-            };
-        });
-    var records = incidentRecords.concat(vehicleRecords).sort(function (left, right) {
-        return right.time - left.time ||
-            Number(right.data.id || right.data.incident_id) -
-            Number(left.data.id || left.data.incident_id);
+    var records = people.filter(function (person) {
+        return filter === 'all' || String(person.status || '').toLowerCase() === filter;
+    }).slice().sort(function (left, right) {
+        var assignmentOrder = Number(Boolean(right.incident_id)) - Number(Boolean(left.incident_id));
+        return assignmentOrder ||
+            String(left.full_name || '').localeCompare(String(right.full_name || '')) ||
+            Number(left.user_id) - Number(right.user_id);
     });
+
     if (count) {
-        count.textContent = records.length + ' record' + (records.length === 1 ? '' : 's');
+        count.textContent = records.length + ' staff';
     }
+
     var pageSize = 3;
     var pageCount = Math.ceil(records.length / pageSize);
-    window.livemappingIncidentPage = Math.min(window.livemappingIncidentPage, Math.max(0, pageCount - 1));
+    window.livemappingIncidentPage = Math.min(
+        window.livemappingIncidentPage || 0,
+        Math.max(0, pageCount - 1)
+    );
     var page = window.livemappingIncidentPage;
     var pageRecords = records.slice(page * pageSize, (page + 1) * pageSize);
-    var pageKey = filter + ':' + page + ':' + pageRecords.map(function (record) {
-        return record.kind + ':' + String(record.data.id || record.data.incident_id);
+    var pageKey = filter + ':' + page + ':' + pageRecords.map(function (person) {
+        return livemappingAssignedPersonKey(person);
     }).join(',');
 
     if (pageKey !== window.livemappingMapPageKey) {
-        var pageBounds = [];
-        pageRecords.forEach(function (record) {
-            var item = record.data;
-            livemappingAddBoundsPoint(pageBounds, item.latitude, item.longitude);
+        var bounds = [];
+        pageRecords.forEach(function (person) {
+            livemappingAddBoundsPoint(bounds, person.latitude, person.longitude);
+            livemappingAddBoundsPoint(bounds, person.incident_latitude, person.incident_longitude);
         });
-        if (pageBounds.length) {
-            map.fitBounds(pageBounds, { padding: [55, 55], maxZoom: 15 });
+        if (bounds.length) {
+            map.fitBounds(bounds, { padding: [55, 55], maxZoom: 15 });
         }
         window.livemappingMapPageKey = pageKey;
     }
 
     if (!pageRecords.length) {
-        list.insertAdjacentHTML('beforeend', '<p class="livemapping-incident-empty">No ' + livemappingEscapeHtml(filter.replace('_', ' ')) + ' records to display.</p>');
+        list.insertAdjacentHTML(
+            'beforeend',
+            '<p class="livemapping-incident-empty">No ' +
+                livemappingEscapeHtml(filter.replace('_', ' ')) +
+                ' responders or volunteers to display.</p>'
+        );
     }
 
-    pageRecords.forEach(function (record) {
-        if (record.kind === 'vehicle') {
-            var vehicle = record.data;
-            var vehicleType = vehicle.vehicle_type || 'Ambulance';
-            var isPtv = String(vehicleType).toLowerCase().indexOf('ptv') !== -1;
-            var status = livemappingTransportStatus(vehicle);
-            var coordinates = livemappingCoordinates(vehicle.latitude, vehicle.longitude);
-            var hasCoordinates = coordinates !== 'Coordinates unavailable';
-            list.insertAdjacentHTML('beforeend',
-                '<article class="livemapping-incident-card">' +
-                '<div class="livemapping-incident-card-heading">' +
-                '<span class="livemapping-incident-transport"><i class="livemapping-incident-transport-icon' + (isPtv ? ' livemapping-incident-transport-icon--ptv' : '') + '" aria-hidden="true">' + (isPtv ? '&#128663;' : '&#128657;') + '</i>' +
-                '<strong>' + livemappingEscapeHtml(vehicle.call_sign || 'Unnamed vehicle') + ' · ' + livemappingEscapeHtml(vehicleType) + '</strong></span>' +
-                '<span class="livemapping-incident-status livemapping-incident-status--' + livemappingEscapeClass(status) + '">' + livemappingEscapeHtml(status.replace('_', ' ')) + '</span>' +
-                '</div>' +
-                '<p>Hospital: ' + livemappingEscapeHtml(vehicle.hospital_name || 'Hospital unavailable') + '</p>' +
-                '<p>Driver: ' + livemappingEscapeHtml(vehicle.driver_name || 'Not assigned') + '</p>' +
-                '<p>' + livemappingEscapeHtml(vehicle.assignment_note || 'No current assignment') + ' · ' + livemappingEscapeHtml(coordinates) + '</p>' +
-                (hasCoordinates ? '<div class="livemapping-incident-actions"><button type="button" class="livemapping-incident-focus">Focus on map</button></div>' : '') +
-                '</article>');
-            var vehicleFocus = list.lastElementChild.querySelector('.livemapping-incident-focus');
-            if (vehicleFocus) {
-                vehicleFocus.addEventListener('click', function () {
-                    map.setView([Number(vehicle.latitude), Number(vehicle.longitude)], 16);
-                });
-            }
-            return;
+    pageRecords.forEach(function (person) {
+        var role = String(person.role || '').toLowerCase();
+        var roleLabel = role === 'volunteer' ? 'Barangay Volunteer' : 'Responder';
+        var roleInitial = role === 'volunteer' ? 'V' : 'R';
+        var status = String(person.status || 'offline').toLowerCase();
+        var color = livemappingAssignedPersonColor(person);
+        var hasCurrentLocation = livemappingHasAssignedPersonCoordinates(person.latitude, person.longitude);
+        var hasLastKnownLocation = livemappingHasAssignedPersonCoordinates(
+            person.last_known_latitude,
+            person.last_known_longitude
+        );
+        var mapLatitude = hasCurrentLocation ? person.latitude : person.last_known_latitude;
+        var mapLongitude = hasCurrentLocation ? person.longitude : person.last_known_longitude;
+        var locationCoordinates = hasCurrentLocation
+            ? livemappingCoordinates(person.latitude, person.longitude)
+            : hasLastKnownLocation
+                ? livemappingCoordinates(person.last_known_latitude, person.last_known_longitude)
+                : 'Coordinates unavailable';
+        var locationLabel = hasCurrentLocation
+            ? 'Current GPS location'
+            : hasLastKnownLocation
+                ? 'Last known location'
+                : 'Location unavailable';
+        if (person.location_updated_at) {
+            locationLabel += ' · updated ' + person.location_updated_at;
+        } else if (person.last_location_updated_at) {
+            locationLabel += ' · last update ' + person.last_location_updated_at;
         }
+        var incidentLabel = person.incident_id
+            ? '#' + person.incident_id + ' · ' + (person.incident_type || 'Emergency incident')
+            : 'No active incident';
+        var destination = person.incident_id
+            ? role === 'responder'
+                ? person.destination_name || 'Hospital unavailable'
+                : person.incident_location || 'Incident location unavailable'
+            : 'No active destination';
+        var assignmentState = person.incident_id
+            ? 'Assignment: ' + incidentLabel +
+                (livemappingAssignmentProgressLabel(person)
+                    ? ' · ' + livemappingAssignmentProgressLabel(person)
+                    : '')
+            : 'Assignment: None';
 
-        var incident = record.data;
-        var movementStatus = livemappingIncidentStatus(incident);
-        var statusLabel = livemappingIncidentStatusLabel(incident);
-        var location = incident.location || 'Location unavailable';
-        var barangay = incident.barangay_name || 'Barangay unavailable';
-        var patient = incident.patient_name ? 'Patient: ' + incident.patient_name : '';
-        var destination = incident.destination_name || 'Hospital destination unavailable';
-        var vehicle = ambulances.find(function (item) {
-            return String(item.incident_id || '') === String(incident.id);
-        });
-        var eta = incident.eta_minutes !== null && incident.eta_minutes !== undefined
-            ? 'ETA: ' + incident.eta_minutes + ' min'
-            : '';
-        var incidentLatitude = Number(incident.latitude);
-        var incidentLongitude = Number(incident.longitude);
-        var canFocus = incident.latitude !== null && incident.latitude !== '' &&
-            incident.longitude !== null && incident.longitude !== '' &&
-            Number.isFinite(incidentLatitude) && Number.isFinite(incidentLongitude) &&
-            Math.abs(incidentLatitude) <= 90 && Math.abs(incidentLongitude) <= 180;
-        var transportName = incident.transport_name || (vehicle && vehicle.call_sign) || '';
-        var transportType = String(incident.transport_type || (vehicle && vehicle.vehicle_type) || '').toLowerCase();
-        var isPtv = transportType.indexOf('ptv') !== -1;
-        var hasTransport = Boolean(transportName);
-        var transportIcon = hasTransport
-            ? (isPtv ? '&#128663;' : '&#128657;')
-            : '!';
-        var transportLabel = hasTransport
-            ? transportName + ' · ' + (incident.transport_type || (vehicle && vehicle.vehicle_type) || (isPtv ? 'PTV' : 'Ambulance'))
-            : 'Transport not assigned';
-        var driver = incident.driver_name || (vehicle && vehicle.driver_name);
-        var alreadyAlerted = window.livemappingStaffAlertSent[String(incident.id)];
-        var alertButton = alreadyAlerted
-            ? '<button type="button" class="livemapping-incident-alert" disabled>Staff notified</button>'
-            : '<button type="button" class="livemapping-incident-alert" data-incident-id="' + livemappingEscapeHtml(String(incident.id)) + '" data-transport-name="' + livemappingEscapeHtml(String(transportName)) + '">Alert staff</button>';
-
-        list.insertAdjacentHTML('beforeend', '<article class="livemapping-incident-card">' +
+        list.insertAdjacentHTML('beforeend',
+            '<article class="livemapping-incident-card livemapping-person-card" style="--livemapping-person-color:' + color + '">' +
             '<div class="livemapping-incident-card-heading">' +
-            '<span class="livemapping-incident-transport"><i class="livemapping-incident-transport-icon' + (isPtv ? ' livemapping-incident-transport-icon--ptv' : '') + '" aria-hidden="true">' + transportIcon + '</i>' +
-            '<strong>#' + livemappingEscapeHtml(String(incident.id)) + ' · ' + livemappingEscapeHtml(incident.incident_type || 'Emergency incident') + '</strong></span>' +
-            '<span class="livemapping-incident-status livemapping-incident-status--' + livemappingEscapeClass(movementStatus) + '">' + livemappingEscapeHtml(statusLabel) + '</span>' +
+            '<span class="livemapping-incident-transport">' +
+            '<i class="livemapping-incident-transport-icon livemapping-person-icon livemapping-person-icon--' + role + '" aria-hidden="true">' + roleInitial + '</i>' +
+            '<strong>' + livemappingEscapeHtml(person.full_name || 'Unknown staff member') + ' · ' + roleLabel + '</strong></span>' +
+            '<span class="livemapping-incident-status livemapping-incident-status--' + livemappingEscapeClass(status) + '">' + livemappingEscapeHtml(livemappingPersonStatusLabel(status)) + '</span>' +
             '</div>' +
-            '<p>' + livemappingEscapeHtml(transportLabel) + '</p>' +
-            '<p>Barangay: ' + livemappingEscapeHtml(barangay) + '</p>' +
-            '<p>' + livemappingEscapeHtml(location) + '</p>' +
-            (driver ? '<p>Driver: ' + livemappingEscapeHtml(driver) + '</p>' : '') +
-            (patient ? '<p>' + livemappingEscapeHtml(patient) + '</p>' : '') +
-            '<p>Hospital: ' + livemappingEscapeHtml(destination) + (eta ? ' · ' + livemappingEscapeHtml(eta) : '') + '</p>' +
-            '<div class="livemapping-incident-actions">' +
-            '<button type="button" class="livemapping-incident-focus" data-incident-id="' + livemappingEscapeHtml(String(incident.id)) + '"' + (canFocus ? '' : ' disabled') + '>Focus on map</button>' +
-            alertButton + '</div></article>');
+            '<p>Assigned barangay: ' + livemappingEscapeHtml(person.assigned_barangay || 'Unassigned barangay') + '</p>' +
+            '<p>' + livemappingEscapeHtml(assignmentState) +
+                (person.incident_barangay ? ' · Incident barangay: ' + livemappingEscapeHtml(person.incident_barangay) : '') +
+            '</p>' +
+            (person.incident_location ? '<p>Incident location: ' + livemappingEscapeHtml(person.incident_location) + '</p>' : '') +
+            '<p>Destination: ' + livemappingEscapeHtml(destination) + '</p>' +
+            '<p>' + livemappingEscapeHtml(locationLabel) + ': ' + livemappingEscapeHtml(locationCoordinates) + '</p>' +
+            (hasCurrentLocation || hasLastKnownLocation
+                ? '<div class="livemapping-incident-actions"><button type="button" class="livemapping-incident-focus">Focus on map</button></div>'
+                : '') +
+            '</article>');
+
+        var focusButton = list.lastElementChild.querySelector('.livemapping-incident-focus');
+        if (focusButton) {
+            focusButton.addEventListener('click', function () {
+                map.setView([Number(mapLatitude), Number(mapLongitude)], 16);
+            });
+        }
     });
 
     if (pageCount > 1) {
@@ -2202,23 +3289,12 @@ function livemappingRenderIncidentRoster(map, list, incidents, ambulances) {
             '</nav>');
     }
 
-    list.querySelectorAll('.livemapping-incident-focus:not(:disabled)').forEach(function (button) {
-        button.addEventListener('click', function () {
-            var incident = pageRecords.find(function (record) {
-                return record.kind === 'incident' &&
-                    String(record.data.id) === button.dataset.incidentId;
-            });
-            if (!incident) return;
-            map.setView([Number(incident.data.latitude), Number(incident.data.longitude)], 16);
-        });
-    });
     list.querySelectorAll('.livemapping-incident-page-button:not(:disabled)').forEach(function (button) {
         button.addEventListener('click', function () {
             window.livemappingIncidentPage += button.dataset.incidentPage === 'next' ? 1 : -1;
-            livemappingRender(map, window.livemappingData || { incidents: [], ambulances: [], hospitals: [] });
+            livemappingRender(map, window.livemappingData || { map_people: [], incidents: [], ambulances: [], hospitals: [] });
         });
     });
-    livemappingBindUnitAlerts();
 }
 
 function livemappingRenderDatabaseFleet(ambulances, incidents) {
@@ -2311,19 +3387,28 @@ function livemappingRenderDatabaseFleet(ambulances, incidents) {
         var transportType = incident.transport_type || (vehicle && vehicle.vehicle_type) || '';
         var isPtv = String(transportType).toLowerCase().indexOf('ptv') !== -1;
         var movementStatus = String(incident.movement_status || incident.status || 'unknown').toLowerCase();
-        var severity = String(incident.status || 'unknown').replace('_', ' ');
-        severity = severity.charAt(0).toUpperCase() + severity.slice(1);
-        var statusLabel = movementStatus === 'en_route'
-            ? 'En-route'
-            : movementStatus === 'arrived'
-                ? 'Arrived'
-                : severity;
+        var statusLabel = livemappingIncidentStatusLabel(incident);
+        var categoryLabel = livemappingCategoryLabel(incident.triage_category);
         var etaMinutes = vehicle && vehicle.eta_minutes !== null && vehicle.eta_minutes !== undefined
             ? vehicle.eta_minutes
             : incident.eta_minutes;
         var eta = etaMinutes !== null && etaMinutes !== undefined
             ? ' · ETA ' + etaMinutes + ' min'
             : '';
+        var latitude = Number(incident.latitude);
+        var longitude = Number(incident.longitude);
+        var canFocus = incident.latitude !== null && incident.latitude !== '' &&
+            incident.longitude !== null && incident.longitude !== '' &&
+            Number.isFinite(latitude) && Number.isFinite(longitude) &&
+            Math.abs(latitude) <= 90 && Math.abs(longitude) <= 180;
+        var alreadyAlerted = window.livemappingStaffAlertSent[String(incident.id)];
+        var alertButton = alreadyAlerted
+            ? '<button type="button" class="livemapping-incident-alert" disabled>Alert queued</button>'
+            : '<button type="button" class="livemapping-incident-alert" data-incident-id="' +
+                livemappingEscapeHtml(String(incident.id)) +
+                '" data-transport-name="' +
+                livemappingEscapeHtml(String(transportName || '')) +
+                '">Alert staff</button>';
 
         list.insertAdjacentHTML('beforeend',
             '<article class="livemapping-incident-card">' +
@@ -2332,13 +3417,27 @@ function livemappingRenderDatabaseFleet(ambulances, incidents) {
             '<strong>#' + livemappingEscapeHtml(String(incident.id)) + ' · ' + livemappingEscapeHtml(incident.incident_type || 'Emergency incident') + '</strong></span>' +
             '<span class="livemapping-incident-status livemapping-incident-status--' + livemappingEscapeClass(movementStatus) + '">' + livemappingEscapeHtml(statusLabel) + '</span>' +
             '</div>' +
+            '<p>Category: ' + livemappingEscapeHtml(categoryLabel) + '</p>' +
             '<p>' + livemappingEscapeHtml(transportName ? transportName + ' · ' + transportType : 'Transport not assigned') + '</p>' +
             '<p>Barangay: ' + livemappingEscapeHtml(incident.barangay_name || 'Barangay unavailable') + '</p>' +
             '<p>' + livemappingEscapeHtml(incident.location || 'Location unavailable') + '</p>' +
             '<p>Hospital: ' + livemappingEscapeHtml(incident.destination_name || incident.owner_hospital_name || 'Hospital unavailable') + eta + '</p>' +
+            '<div class="livemapping-incident-actions">' +
+            '<button type="button" class="livemapping-incident-focus" data-incident-id="' +
+                livemappingEscapeHtml(String(incident.id)) + '"' +
+                (canFocus ? '' : ' disabled') + '>Focus on map</button>' +
+            alertButton + '</div>' +
             '</article>');
+
+        var focusButton = list.lastElementChild.querySelector('.livemapping-incident-focus:not(:disabled)');
+        if (focusButton) {
+            focusButton.addEventListener('click', function () {
+                map.setView([latitude, longitude], 16);
+            });
+        }
     });
 
+    livemappingBindUnitAlerts();
     if (pageRecords.length === 0) {
         list.innerHTML = '<p class="livemapping-incident-empty">No fleet or incident records found.</p>';
     }
@@ -2363,7 +3462,7 @@ function livemappingIncidentStatus(incident) {
     if (transportStatus === 'arrived' || incident.transport_arrived_at || incident.hospital_arrived_at) {
         return 'arrived';
     }
-    var incidentIsActive = ['critical', 'urgent', 'dispatched', 'stable']
+    var incidentIsActive = ['open', 'dispatched', 'referred']
         .indexOf(String(incident.status || '').toLowerCase()) !== -1;
     if (transportStatus === 'en_route' || (incidentIsActive && (
         Number(incident.sent_to_hospital) === 1 ||
@@ -2375,12 +3474,27 @@ function livemappingIncidentStatus(incident) {
 }
 
 function livemappingIncidentStatusLabel(incident) {
-    var severity = String(incident.status || 'unknown').replace('_', ' ');
-    severity = severity.charAt(0).toUpperCase() + severity.slice(1);
     var movementStatus = livemappingIncidentStatus(incident);
     if (movementStatus === 'en_route') return 'En-route';
     if (movementStatus === 'arrived') return 'Arrived';
-    return severity;
+    var status = String(incident.status || 'open').toLowerCase();
+    var labels = {
+        open: 'Open',
+        dispatched: 'Dispatched',
+        referred: 'Referred',
+        resolved: 'Resolved'
+    };
+    return labels[status] || status.replace('_', ' ');
+}
+
+function livemappingCategoryLabel(category) {
+    var labels = {
+        emergent: 'Emergent',
+        urgent: 'Urgent',
+        non_urgent: 'Non-Urgent',
+        expectant: 'Expectant'
+    };
+    return labels[String(category || '').toLowerCase()] || 'Unclassified';
 }
 
 function livemappingTransportStatus(ambulance) {
@@ -2472,11 +3586,22 @@ function livemappingBindFleetFilters() {
 }
 
 function livemappingBindAlertDrawer(data) {
+    window.livemappingStaffAlertSent = window.livemappingStaffAlertSent || Object.create(null);
+
     var overlay = document.getElementById('livemapping-alert-overlay');
     var form = document.getElementById('livemapping-alert-form');
     var close = document.getElementById('livemapping-alert-close');
     var recipients = document.getElementById('livemapping-alert-recipients');
     var specialization = document.getElementById('livemapping-alert-specialization');
+    var onlineStatus = document.getElementById('livemapping-alert-online-status');
+    var accountStatus = document.getElementById('livemapping-alert-account-status');
+    var dutyStatus = document.getElementById('livemapping-alert-duty-status');
+    var search = document.getElementById('livemapping-alert-search');
+    var selectedNode = document.getElementById('livemapping-alert-selected');
+    var selectionCount = document.getElementById('livemapping-alert-selection-count');
+    var previousButton = document.getElementById('livemapping-alert-previous');
+    var nextButton = document.getElementById('livemapping-alert-next');
+    var pageNode = document.getElementById('livemapping-alert-page');
     var statusNode = document.getElementById('livemapping-alert-status');
     var alertIncidentName = document.getElementById('livemapping-alert-incident-name');
     var alertIncidentId = document.getElementById('livemapping-alert-incident-id');
@@ -2485,14 +3610,22 @@ function livemappingBindAlertDrawer(data) {
     var alertIncidentPatient = document.getElementById('livemapping-alert-incident-patient');
     var alertIncidentEta = document.getElementById('livemapping-alert-incident-eta');
     var alertIncidentHospital = document.getElementById('livemapping-alert-incident-hospital');
-    var people = Array.isArray(data.recipients) ? data.recipients : [];
-    var allSpecializations = Array.from(new Set(people.map(function (person) { return person.specialization; }).filter(Boolean))).sort();
-    allSpecializations.forEach(function (value) {
-        var option = document.createElement('option');
-        option.value = value;
-        option.textContent = value;
-        specialization.appendChild(option);
-    });
+    if (!overlay || !form || !close || !recipients || !specialization ||
+        !onlineStatus || !accountStatus || !dutyStatus || !search ||
+        !selectedNode || !selectionCount || !previousButton || !nextButton || !pageNode ||
+        form.dataset.staffAlertBound === '1') return;
+
+    form.dataset.staffAlertBound = '1';
+    var people = [];
+    var selected = new Map();
+    var currentPage = 1;
+    var totalPages = 1;
+    var totalMatches = 0;
+    var loading = false;
+    var sending = false;
+    var searchTimer = null;
+    var requestSequence = 0;
+    var lastFocusedElement = null;
 
     function setStatus(message, kind) {
         if (!statusNode) return;
@@ -2503,30 +3636,128 @@ function livemappingBindAlertDrawer(data) {
         }
     }
 
-    function renderRecipients(list) {
-        if (!recipients) return;
-        var filter = specialization.value;
-        var rows = (list || []).filter(function (person) {
-            return (!filter || person.specialization === filter);
-        });
+    function closeDrawer() {
+        if (sending) return;
+        overlay.hidden = true;
+        overlay.setAttribute('aria-hidden', 'true');
+        setStatus('', '');
+        if (lastFocusedElement && document.contains(lastFocusedElement)) {
+            lastFocusedElement.focus();
+        }
+    }
 
-        if (!rows.length) {
-            recipients.innerHTML = '<p class="livemapping-alert-empty">No doctors or nurses are currently on duty or logged in.</p>';
+    function setSubmitState() {
+        var submitButton = form.querySelector('.livemapping-alert-submit');
+        if (submitButton) {
+            submitButton.disabled = sending || loading || selected.size === 0;
+        }
+    }
+
+    function renderSelected() {
+        selectedNode.replaceChildren();
+        var count = selected.size;
+        selectionCount.textContent = count + ' staff member' + (count === 1 ? '' : 's') + ' selected';
+
+        selected.forEach(function (person, id) {
+            var chip = document.createElement('div');
+            chip.className = 'livemapping-alert-selected-item';
+            var label = document.createElement('span');
+            label.textContent = (person.full_name || 'Staff member') + ' · ' +
+                (person.role || 'staff') + (person.eligible ? '' : ' · unavailable now');
+            var remove = document.createElement('button');
+            remove.type = 'button';
+            remove.dataset.removeRecipient = String(id);
+            remove.setAttribute('aria-label', 'Remove ' + (person.full_name || 'staff member'));
+            remove.textContent = 'Remove';
+            chip.appendChild(label);
+            chip.appendChild(remove);
+            selectedNode.appendChild(chip);
+        });
+        setSubmitState();
+    }
+
+    function renderRecipients() {
+        recipients.replaceChildren();
+        if (!people.length) {
+            var empty = document.createElement('p');
+            empty.className = 'livemapping-alert-empty';
+            empty.textContent = 'No staff match the current search and filters.';
+            recipients.appendChild(empty);
+            renderSelected();
+            updatePagination();
             return;
         }
 
-        recipients.innerHTML = rows.map(function (person) {
-            var name = person.full_name || 'Unassigned staff';
-            var role = person.role || 'staff';
-            var spec = person.specialization || 'General care';
-            var dutyStart = livemappingFormatDutyTime(person.shift_start);
-            var dutyEnd = livemappingFormatDutyTime(person.shift_end);
-            var dutyDetails = person.duty_status || 'Logged in';
-            if (person.duty_status === 'On duty' || person.duty_status === 'On duty · logged in') {
-                dutyDetails += ': ' + dutyStart + ' - ' + dutyEnd + ' (Asia/Manila)';
+        people.forEach(function (person) {
+            var id = Number(person.id);
+            var existingSelection = selected.get(id);
+            if (existingSelection) selected.set(id, person);
+            var label = document.createElement('label');
+            label.className = 'livemapping-alert-recipient' +
+                (person.eligible ? '' : ' livemapping-alert-recipient--unavailable');
+            var checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.name = 'recipient_ids[]';
+            checkbox.value = String(id);
+            checkbox.checked = selected.has(id);
+            checkbox.disabled = !person.eligible || loading || sending;
+            checkbox.addEventListener('change', function () {
+                if (checkbox.checked) {
+                    selected.set(id, person);
+                } else {
+                    selected.delete(id);
+                }
+                renderSelected();
+                renderRecipients();
+            });
+
+            var copy = document.createElement('span');
+            copy.className = 'livemapping-alert-recipient-copy';
+            var title = document.createElement('strong');
+            title.textContent = (person.full_name || 'Unassigned staff') + ' · ' +
+                (person.role || 'staff');
+            var specialty = document.createElement('small');
+            specialty.textContent = person.specialization || 'Specialty not listed';
+            var status = document.createElement('small');
+            status.className = 'livemapping-alert-recipient-status';
+            status.textContent = 'Online Status: ' + (person.online_status || 'Offline');
+            var account = document.createElement('small');
+            account.className = 'livemapping-alert-recipient-account';
+            var accountDot = document.createElement('span');
+            accountDot.className = 'staff-account-status-dot ' +
+                (person.is_account_active
+                    ? 'staff-account-status-dot--active'
+                    : 'staff-account-status-dot--inactive');
+            accountDot.setAttribute('aria-hidden', 'true');
+            account.appendChild(accountDot);
+            account.appendChild(document.createTextNode(
+                'Account Status: ' + (person.account_status || 'Inactive')
+            ));
+            var duty = document.createElement('small');
+            duty.className = 'livemapping-alert-recipient-status';
+            duty.textContent = 'Duty Status: ' + (person.duty_status || 'Off Duty');
+            if (person.is_on_duty && person.shift_start && person.shift_end) {
+                duty.textContent += ': ' + livemappingFormatDutyTime(person.shift_start) +
+                    '–' + livemappingFormatDutyTime(person.shift_end) +
+                    ' (' + (person.duty_timezone || 'Asia/Manila') + ')';
             }
-            return '<label class="livemapping-alert-recipient"><input type="checkbox" name="recipient_ids[]" value="' + person.id + '" checked><span class="livemapping-alert-recipient-copy"><strong>' + livemappingEscapeHtml(name) + ' · ' + livemappingEscapeHtml(role) + '</strong><small>' + livemappingEscapeHtml(spec) + ' · ' + livemappingEscapeHtml(dutyDetails) + '</small></span></label>';
-        }).join('');
+            var eligibility = document.createElement('small');
+            eligibility.className = 'livemapping-alert-recipient-eligibility';
+            eligibility.textContent = person.eligible
+                ? 'Eligible to notify'
+                : 'Unavailable for notifications';
+            copy.appendChild(title);
+            copy.appendChild(specialty);
+            copy.appendChild(status);
+            copy.appendChild(account);
+            copy.appendChild(duty);
+            copy.appendChild(eligibility);
+            label.appendChild(checkbox);
+            label.appendChild(copy);
+            recipients.appendChild(label);
+        });
+        renderSelected();
+        updatePagination();
     }
 
     function livemappingFormatDutyTime(value) {
@@ -2542,7 +3773,11 @@ function livemappingBindAlertDrawer(data) {
         if (!incident) return;
         if (alertIncidentName) alertIncidentName.textContent = incident.incident_type || 'Emergency incident';
         if (alertIncidentId) alertIncidentId.textContent = incident.incident_id ? '#' + incident.incident_id : '—';
-        if (alertIncidentStatus) alertIncidentStatus.textContent = incident.status || 'CRITICAL';
+        if (alertIncidentStatus) {
+            alertIncidentStatus.textContent =
+                String(incident.status || 'open').replace('_', ' ') +
+                ' · ' + livemappingCategoryLabel(incident.triage_category);
+        }
         if (alertIncidentLocation) alertIncidentLocation.textContent = incident.location || 'Location unavailable';
         if (alertIncidentPatient) {
             var patient = incident.patient_name || 'Patient name unavailable';
@@ -2554,70 +3789,182 @@ function livemappingBindAlertDrawer(data) {
         if (alertIncidentHospital) alertIncidentHospital.textContent = incident.hospital_name || 'Hospital not available';
     }
 
-    function refreshAlertOptions(incidentId) {
+    function updatePagination() {
+        pageNode.textContent = 'Page ' + currentPage + ' of ' + totalPages +
+            ' · ' + totalMatches + ' staff';
+        previousButton.disabled = loading || currentPage <= 1;
+        nextButton.disabled = loading || currentPage >= totalPages;
+    }
+
+    function loadStaff(page, includeIncident) {
+        var incidentId = form.dataset.incidentId || '';
         if (!incidentId) {
             setStatus('The selected incident could not be found. Please refresh the page and try again.', 'error');
             return;
         }
 
+        currentPage = page;
+        loading = true;
+        renderRecipients();
         setStatus('Loading eligible staff...', '');
-        fetch('livemappingController.php?action=alert_staff_options&incident_id=' + encodeURIComponent(incidentId), {
-            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        var sequence = ++requestSequence;
+        var params = new URLSearchParams({
+            action: 'alert_staff_options',
+            incident_id: incidentId,
+            search: search.value.trim(),
+            specialization: specialization.value,
+            online_status: onlineStatus.value,
+            account_status: accountStatus.value,
+            duty_status: dutyStatus.value,
+            page: String(page)
+        });
+        fetch('livemappingController.php?' + params.toString(), {
+            credentials: 'same-origin',
+            cache: 'no-store',
+            headers: { 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' }
         })
             .then(function (response) {
-                if (!response.ok) {
-                    throw new Error('Unable to load staff.');
-                }
-                return response.json();
+                return response.json().then(function (result) {
+                    if (!response.ok || !result.success) {
+                        throw new Error(result.message || 'Unable to load staff.');
+                    }
+                    return result;
+                });
             })
             .then(function (result) {
-                if (!result.success) {
-                    setStatus(result.message || 'The selected incident could not be found. Please refresh the page and try again.', 'error');
-                    return;
+                if (sequence !== requestSequence) return;
+                if (includeIncident) {
+                    populateIncidentFields(result.incident || null);
                 }
-                populateIncidentFields(result.incident || null);
-                var currentPeople = Array.isArray(result.recipients) ? result.recipients : [];
-                people = currentPeople;
-                specialization.innerHTML = '<option value="">All specializations</option>';
-                var options = Array.from(new Set(people.map(function (person) { return person.specialization; }).filter(Boolean))).sort();
-                options.forEach(function (value) {
-                    var option = document.createElement('option');
-                    option.value = value;
-                    option.textContent = value;
-                    specialization.appendChild(option);
-                });
-                renderRecipients(people);
-                if (!people.length) {
-                    setStatus(result.message || 'No doctors or nurses are currently on duty or logged in.', 'error');
+                people = Array.isArray(result.recipients) ? result.recipients : [];
+                currentPage = Number(result.page || 1);
+                totalPages = Number(result.totalPages || 1);
+                totalMatches = Number(result.total || 0);
+                if (Array.isArray(result.specializations)) {
+                    var selectedSpecialization = specialization.value;
+                    specialization.replaceChildren();
+                    var allOption = document.createElement('option');
+                    allOption.value = '';
+                    allOption.textContent = 'All specialties';
+                    specialization.appendChild(allOption);
+                    result.specializations.forEach(function (value) {
+                        var option = document.createElement('option');
+                        option.value = value;
+                        option.textContent = value;
+                        specialization.appendChild(option);
+                    });
+                    specialization.value = selectedSpecialization;
+                }
+                loading = false;
+                renderRecipients();
+                var eligibleCount = people.filter(function (person) { return person.eligible; }).length;
+                if (totalMatches === 0) {
+                    setStatus(result.message || 'No staff match the current search.', '');
                 } else {
-                    setStatus('Eligible staff loaded. Select on-duty or logged-in recipients and send the alert.', '');
+                    setStatus(eligibleCount + ' eligible staff member' +
+                        (eligibleCount === 1 ? '' : 's') + ' on this page. Select at least one to enable sending; alerts will be queued only for selected staff.', '');
                 }
             })
             .catch(function (error) {
-                console.warn('[Live Mapping] Alert staff options failed.', error);
-                setStatus('Unable to load eligible staff right now. Please try again.', 'error');
+                if (sequence !== requestSequence) return;
+                loading = false;
+                renderRecipients();
+                console.warn('[Staff Alerts] Eligible staff load failed.', error);
+                setStatus(error.message || 'Unable to load eligible staff right now. Please try again.', 'error');
             });
     }
 
+    function populateSpecializations(values) {
+        if (!Array.isArray(values)) return;
+        var selectedSpecialization = specialization.value;
+        specialization.replaceChildren();
+        var allOption = document.createElement('option');
+        allOption.value = '';
+        allOption.textContent = 'All specialties';
+        specialization.appendChild(allOption);
+        values.forEach(function (value) {
+            var option = document.createElement('option');
+            option.value = value;
+            option.textContent = value;
+            specialization.appendChild(option);
+        });
+        specialization.value = selectedSpecialization;
+    }
+
+    search.addEventListener('input', function () {
+        window.clearTimeout(searchTimer);
+        searchTimer = window.setTimeout(function () {
+            loadStaff(1, false);
+        }, 250);
+    });
+
     specialization.addEventListener('change', function () {
-        renderRecipients(people);
+        loadStaff(1, false);
+    });
+
+    [onlineStatus, accountStatus, dutyStatus].forEach(function (filter) {
+        filter.addEventListener('change', function () {
+            loadStaff(1, false);
+        });
+    });
+
+    previousButton.addEventListener('click', function () {
+        if (currentPage > 1) loadStaff(currentPage - 1, false);
+    });
+
+    nextButton.addEventListener('click', function () {
+        if (currentPage < totalPages) loadStaff(currentPage + 1, false);
+    });
+
+    selectedNode.addEventListener('click', function (event) {
+        var button = event.target.closest('[data-remove-recipient]');
+        if (!button) return;
+        selected.delete(Number(button.dataset.removeRecipient));
+        renderSelected();
+        renderRecipients();
     });
 
     window.livemappingOpenAlert = function (button) {
         var incidentId = button.dataset.incidentId || '';
         var transportName = button.dataset.transportName || '';
+        if (!incidentId) {
+            setStatus('Select a valid incident before notifying staff.', 'error');
+            return;
+        }
+        lastFocusedElement = document.activeElement;
         overlay.hidden = false;
+        overlay.setAttribute('aria-hidden', 'false');
         document.getElementById('livemapping-alert-transport').textContent = 'Transport: ' + (transportName || 'Not assigned');
         form.dataset.incidentId = incidentId;
         form.dataset.transportName = transportName;
         form.reset();
+        selected.clear();
+        people = [];
+        currentPage = 1;
+        totalPages = 1;
+        totalMatches = 0;
+        form.dataset.requestKey = '';
+        populateSpecializations(data.specializations || []);
+        renderSelected();
         setStatus('Loading eligible staff...', '');
-        refreshAlertOptions(incidentId);
+        loadStaff(1, true);
+        close.focus();
     };
 
     close.addEventListener('click', function () {
-        overlay.hidden = true;
-        setStatus('', '');
+        closeDrawer();
+    });
+
+    overlay.addEventListener('click', function (event) {
+        if (event.target === overlay) {
+            closeDrawer();
+        }
+    });
+
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape' && !overlay.hidden) {
+            closeDrawer();
+        }
     });
 
     form.addEventListener('submit', function (event) {
@@ -2625,68 +3972,85 @@ function livemappingBindAlertDrawer(data) {
 
         var incidentId = form.dataset.incidentId || '';
         var transportName = form.dataset.transportName || '';
-        var selected = Array.from(form.querySelectorAll('input[name="recipient_ids[]"]:checked')).map(function (input) { return input.value; });
+        var selectedIds = Array.from(selected.keys());
         var submitButton = form.querySelector('.livemapping-alert-submit');
-        if (!incidentId || !selected.length) {
-            setStatus('Select at least one on-duty or logged-in staff member before sending the alert.', 'error');
+        if (!incidentId || !selectedIds.length) {
+            setStatus('Select at least one eligible staff member before sending the alert.', 'error');
             return;
         }
 
+        if (sending) return;
+        sending = true;
         if (submitButton) {
             submitButton.disabled = true;
         }
-        setStatus('Sending alert...', '');
+        setStatus('Queuing alert...', '');
 
+        if (!form.dataset.requestKey) {
+            form.dataset.requestKey = window.crypto && typeof window.crypto.randomUUID === 'function'
+                ? window.crypto.randomUUID()
+                : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (character) {
+                    var random = Math.random() * 16 | 0;
+                    return (character === 'x' ? random : (random & 3 | 8)).toString(16);
+                });
+        }
         var payload = {
             incident_id: incidentId,
             transport_name: transportName,
             message: form.elements.message.value || '',
-            specialization: specialization.value || '',
-            recipient_ids: selected
+            recipient_ids: selectedIds,
+            request_key: form.dataset.requestKey
         };
 
         fetch('livemappingController.php?action=send_alert', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': form.elements.csrf_token.value
+            },
             body: JSON.stringify(payload)
-        }).then(function (response) { return response.json(); })
-            .then(function (result) {
-                if (!result.success) {
-                    throw new Error(result.message || 'Unable to send alert.');
+        }).then(function (response) {
+            return response.json().then(function (result) {
+                if (!response.ok || !result.success) {
+                    throw new Error(result.message || 'Unable to queue alert.');
                 }
-
+                return result;
+            });
+        })
+            .then(function (result) {
                 var count = Number(result.count || 0);
                 var names = Array.isArray(result.sent_to) ? result.sent_to : [];
-                var summary = count + ' active staff member' + (count === 1 ? '' : 's');
+                var summary = count + ' selected staff member' + (count === 1 ? '' : 's');
                 if (names.length) {
                     summary += '\n• ' + names.join('\n• ');
                 }
-                window.livemappingStaffAlertSent[String(result.incident_id || incidentId)] = true;
                 var alertedIncidentId = String(result.incident_id || incidentId);
+                window.livemappingStaffAlertSent[alertedIncidentId] = true;
                 document.querySelectorAll('.livemapping-incident-alert, .livemapping-unit-alert').forEach(function (button) {
                     if (button.dataset.incidentId === alertedIncidentId) {
-                        button.disabled = true;
-                        button.textContent = 'Staff notified';
+                        button.textContent = 'Alert queued';
                     }
                 });
-                setStatus('Alert Sent Successfully\nIncident #' + (result.incident_id || incidentId) + ' has been sent to:\n' + summary, 'success');
-                form.reset();
+                setStatus('Notification queued for ' + summary + '.\n' + names.join(', '), 'success');
+                selected.clear();
+                renderSelected();
+                form.dataset.requestKey = '';
                 setTimeout(function () {
-                    overlay.hidden = true;
+                    closeDrawer();
                 }, 2000);
             })
             .catch(function (error) {
-                console.warn('[Live Mapping] Send alert failed.', error);
-                setStatus(error.message || 'Unable to send alert. Please try again.', 'error');
+                console.warn('[Staff Alerts] Send alert failed.', error);
+                setStatus(error.message || 'Unable to queue alert. Please try again.', 'error');
             })
             .finally(function () {
-                if (submitButton) {
-                    submitButton.disabled = false;
-                }
+                sending = false;
+                setSubmitState();
             });
     });
 
-    renderRecipients(people);
+    renderSelected();
 }
 
 function livemappingBindUnitAlerts() {
@@ -2818,7 +4182,7 @@ function livemappingIncidentRouteState(incident) {
     };
 }
 
-function livemappingAddRoute(markers, route, destinationName, label) {
+function livemappingAddRoute(markers, route, destinationName, label, color) {
     if (!Array.isArray(route.geometry) || route.geometry.length < 2) return;
     var points = route.geometry.map(function (point) {
         return [Number(point.latitude), Number(point.longitude)];
@@ -2830,22 +4194,327 @@ function livemappingAddRoute(markers, route, destinationName, label) {
     var routeLabel = label || 'Destination: ' + destinationName;
     L.polyline(points, {
         color: '#ffffff',
-        weight: 7,
-        opacity: 0.9,
+        weight: 10,
+        opacity: 0.96,
         lineCap: 'round',
         lineJoin: 'round',
         interactive: false
     }).addTo(markers);
-    L.polyline(
-        points,
-        {
-            color: '#171516',
-            weight: 4,
-            opacity: 0.95,
-            lineCap: 'round',
-            lineJoin: 'round'
+    var routeColor = /^#[0-9a-f]{6}$/i.test(String(color || '')) ? color : '#171516';
+    L.polyline(points, {
+        color: routeColor,
+        weight: 6,
+        opacity: 1,
+        lineCap: 'round',
+        lineJoin: 'round',
+        dashArray: '14 7'
+    }).bindPopup(livemappingEscapeHtml(routeLabel)).addTo(markers);
+}
+
+function livemappingAssignedPersonKey(person) {
+    return String(person.role) + ':' + String(person.user_id) + ':' + String(person.incident_id);
+}
+
+function livemappingAssignedPersonColor(person) {
+    var key = String(person.role || '') + ':' + String(person.user_id || '');
+    return (window.livemappingPersonColors || {})[key] || '#525252';
+}
+
+function livemappingRefreshPersonColors(people) {
+    var colors = window.livemappingPersonColors ||
+        (window.livemappingPersonColors = Object.create(null));
+    var keys = people.map(function (person) {
+        return String(person.role || '') + ':' + String(person.user_id || '');
+    });
+    var activeKeys = Object.create(null);
+    keys.forEach(function (key) { activeKeys[key] = true; });
+    Object.keys(colors).forEach(function (key) {
+        if (!activeKeys[key]) delete colors[key];
+    });
+
+    var usedColors = Object.create(null);
+    Object.keys(colors).forEach(function (key) {
+        usedColors[colors[key]] = true;
+    });
+    var nextColorIndex = Number(window.livemappingNextPersonColorIndex || 0);
+    people.slice().sort(function (left, right) {
+        return String(left.role || '').localeCompare(String(right.role || '')) ||
+            Number(left.user_id) - Number(right.user_id);
+    }).forEach(function (person) {
+        var key = String(person.role || '') + ':' + String(person.user_id || '');
+        if (colors[key]) return;
+        var color = livemappingPersonColorAt(nextColorIndex++);
+        while (usedColors[color]) {
+            color = livemappingPersonColorAt(nextColorIndex++);
         }
-    ).bindPopup(livemappingEscapeHtml(routeLabel)).addTo(markers);
+        colors[key] = color;
+        usedColors[color] = true;
+    });
+    window.livemappingNextPersonColorIndex = nextColorIndex;
+}
+
+function livemappingPersonColorAt(index) {
+    var hue = (index * 137.508 + 8) % 360;
+    var saturation = 0.72;
+    var lightness = 0.38;
+    var chroma = (1 - Math.abs(2 * lightness - 1)) * saturation;
+    var secondary = chroma * (1 - Math.abs((hue / 60) % 2 - 1));
+    var offset = lightness - chroma / 2;
+    var red = 0;
+    var green = 0;
+    var blue = 0;
+    if (hue < 60) [red, green, blue] = [chroma, secondary, 0];
+    else if (hue < 120) [red, green, blue] = [secondary, chroma, 0];
+    else if (hue < 180) [red, green, blue] = [0, chroma, secondary];
+    else if (hue < 240) [red, green, blue] = [0, secondary, chroma];
+    else if (hue < 300) [red, green, blue] = [secondary, 0, chroma];
+    else [red, green, blue] = [chroma, 0, secondary];
+    return '#' + [red, green, blue].map(function (channel) {
+        return Math.round((channel + offset) * 255).toString(16).padStart(2, '0');
+    }).join('');
+}
+
+function livemappingPersonStatusLabel(status) {
+    var labels = {
+        en_route: 'En route',
+        arrived: 'Arrived',
+        available: 'Available',
+        offline: 'Offline'
+    };
+    return labels[String(status || '').toLowerCase()] || 'Status unavailable';
+}
+
+function livemappingAssignmentProgressLabel(person) {
+    var labels = {
+        assigned: 'Assigned · awaiting pickup',
+        picked_up: 'Picked up · en route',
+        accepted: 'Accepted · en route',
+        arrived: 'Arrived at hospital'
+    };
+    return labels[String(person.assignment_progress || '').toLowerCase()] || '';
+}
+
+function livemappingHasAssignedPersonCoordinates(latitude, longitude) {
+    if (latitude === null || latitude === undefined || latitude === '' ||
+        longitude === null || longitude === undefined || longitude === '') return false;
+    var parsedLatitude = Number(latitude);
+    var parsedLongitude = Number(longitude);
+    return Number.isFinite(parsedLatitude) && Number.isFinite(parsedLongitude) &&
+        Math.abs(parsedLatitude) <= 90 && Math.abs(parsedLongitude) <= 180;
+}
+
+function livemappingAssignedPersonRouteState(person) {
+    var routes = window.livemappingPersonRoadRoutes || {};
+    var cached = routes[livemappingAssignedPersonKey(person)];
+    if (!livemappingHasAssignedPersonCoordinates(person.latitude, person.longitude) ||
+        !livemappingHasAssignedPersonCoordinates(person.route_destination_latitude, person.route_destination_longitude)) return null;
+    var latitude = Number(person.latitude);
+    var longitude = Number(person.longitude);
+    var destinationLatitude = Number(person.route_destination_latitude);
+    var destinationLongitude = Number(person.route_destination_longitude);
+    if (!cached || !Array.isArray(cached.geometry)) return null;
+
+    var destinationChanged = cached.destinationLatitude !== destinationLatitude ||
+        cached.destinationLongitude !== destinationLongitude;
+    var moved = livemappingDistanceKm(
+        cached.originLatitude,
+        cached.originLongitude,
+        latitude,
+        longitude
+    ) >= 0.025;
+    return destinationChanged || moved ? null : cached;
+}
+
+function livemappingAssignedPersonRouteMessage(person) {
+    var key = livemappingAssignedPersonKey(person);
+    var cached = (window.livemappingPersonRoadRoutes || {})[key];
+    if (!person.incident_id) {
+        return livemappingPersonStatusLabel(person.status);
+    }
+    if (!livemappingHasAssignedPersonCoordinates(person.route_destination_latitude, person.route_destination_longitude)) {
+        return person.role === 'responder'
+            ? 'Hospital destination coordinates unavailable'
+            : 'Incident coordinates unavailable';
+    }
+    if (!livemappingHasAssignedPersonCoordinates(person.latitude, person.longitude)) {
+        return 'Waiting for a fresh GPS location';
+    }
+    if (!livemappingAssignedPersonRouteState(person)) {
+        if (cached && cached.error && Date.now() < cached.retryAt) {
+            return 'Road route unavailable: ' + cached.error;
+        }
+        return 'Calculating road route to incident';
+    }
+    var route = livemappingAssignedPersonRouteState(person);
+    return 'Road route to incident' +
+        (route.etaMinutes !== null && route.etaMinutes !== undefined
+            ? ' · ETA ' + route.etaMinutes + ' min'
+            : '') +
+        (person.location_updated_at
+            ? ' · GPS updated ' + person.location_updated_at
+            : '');
+}
+
+function livemappingResponderRouteMessage(incident, person) {
+    if (!incident || !person.incident_id) {
+        return livemappingPersonStatusLabel(person.status);
+    }
+    if (person.status === 'arrived') {
+        return 'Arrived at ' + (person.destination_name || 'hospital');
+    }
+    if (!livemappingHasAssignedPersonCoordinates(person.latitude, person.longitude)) {
+        return 'Waiting for a fresh GPS location';
+    }
+
+    var status = (window.livemappingRouteStatuses || {})[String(person.incident_id)];
+    var route = livemappingIncidentRouteState(incident);
+    if (route) {
+        var eta = route.etaMinutes !== null && route.etaMinutes !== undefined
+            ? ' · ETA ' + route.etaMinutes + ' min'
+            : '';
+        return 'Road route to ' + (person.destination_name || 'hospital') + eta;
+    }
+    if (status && status.status === 'error') {
+        return status.message;
+    }
+    return 'Calculating road route to ' + (person.destination_name || 'hospital');
+}
+
+function livemappingAddAssignedPersonRoute(markers, person, incident, route, color) {
+    if (!Array.isArray(route.geometry) || route.geometry.length < 2) return;
+    var points = route.geometry.map(function (point) {
+        return [Number(point.latitude), Number(point.longitude)];
+    });
+    if (points.some(function (point) {
+        return !Number.isFinite(point[0]) || !Number.isFinite(point[1]) ||
+            Math.abs(point[0]) > 90 || Math.abs(point[1]) > 180;
+    })) return;
+
+    var roleLabel = person.role === 'volunteer' ? 'Barangay volunteer' : 'Responder';
+    var destinationLabel = person.role === 'responder'
+        ? (person.destination_name || 'hospital')
+        : (incident.location || 'incident');
+    var label = roleLabel + ': ' + (person.full_name || 'Unknown') +
+        ' · Assigned barangay: ' + (person.assigned_barangay || 'Unassigned barangay') +
+        ' · Incident #' + person.incident_id + ' → ' + destinationLabel;
+    L.polyline(points, {
+        color: '#ffffff',
+        weight: 10,
+        opacity: 0.96,
+        lineCap: 'round',
+        lineJoin: 'round',
+        interactive: false
+    }).addTo(markers);
+    L.polyline(points, {
+        color: color,
+        weight: 6,
+        opacity: 1,
+        lineCap: 'round',
+        lineJoin: 'round',
+        dashArray: '14 7'
+    }).bindPopup(livemappingEscapeHtml(label)).addTo(markers);
+}
+
+function livemappingRefreshAssignedPersonRoutes(data) {
+    var routes = window.livemappingPersonRoadRoutes ||
+        (window.livemappingPersonRoadRoutes = Object.create(null));
+    var activeKeys = Object.create(null);
+
+    (data.map_people || []).forEach(function (person) {
+        var key = livemappingAssignedPersonKey(person);
+        activeKeys[key] = true;
+        if (person.role !== 'volunteer' || person.status !== 'en_route' || !person.incident_id ||
+            !livemappingHasAssignedPersonCoordinates(person.latitude, person.longitude) ||
+            !livemappingHasAssignedPersonCoordinates(person.route_destination_latitude, person.route_destination_longitude)) return;
+        var latitude = Number(person.latitude);
+        var longitude = Number(person.longitude);
+        var destinationLatitude = Number(person.route_destination_latitude);
+        var destinationLongitude = Number(person.route_destination_longitude);
+
+        var cached = routes[key];
+        var destinationChanged = !cached ||
+            cached.destinationLatitude !== destinationLatitude ||
+            cached.destinationLongitude !== destinationLongitude;
+        var moved = !cached || livemappingDistanceKm(
+            cached.originLatitude,
+            cached.originLongitude,
+            latitude,
+            longitude
+        ) >= 0.025;
+        if (cached && cached.pending) return;
+        if (cached && !destinationChanged && !moved &&
+            (!cached.retryAt || Date.now() < cached.retryAt)) return;
+
+        var routeState = cached || {};
+        routeState.pending = true;
+        routeState.error = '';
+        routes[key] = routeState;
+        var parameters = new URLSearchParams({
+            incident_id: String(person.incident_id),
+            person_id: String(person.user_id),
+            role: String(person.role)
+        });
+        var routeUrl = (window.APP_BASE_URL || '') + '/api/livemapping-route.php?' + parameters.toString();
+        fetch(routeUrl, {
+            headers: { 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' }
+        }).then(function (response) {
+            return response.json().then(function (result) {
+                if (!response.ok) {
+                    throw new Error(result.message || 'Road route request returned HTTP ' + response.status + '.');
+                }
+                return result;
+            });
+        }).then(function (result) {
+            if (!result.success || !result.route ||
+                !Array.isArray(result.route.geometry) ||
+                result.route.geometry.length < 2) {
+                throw new Error(result.message || 'Road route response was invalid.');
+            }
+            var geometry = result.route.geometry.map(function (point) {
+                return {
+                    latitude: Number(point.latitude),
+                    longitude: Number(point.longitude)
+                };
+            });
+            if (geometry.some(function (point) {
+                return !Number.isFinite(point.latitude) || !Number.isFinite(point.longitude) ||
+                    Math.abs(point.latitude) > 90 || Math.abs(point.longitude) > 180;
+            })) {
+                throw new Error('The road route contained invalid map coordinates.');
+            }
+            routeState.originLatitude = Number(result.route.origin.latitude);
+            routeState.originLongitude = Number(result.route.origin.longitude);
+            routeState.destinationLatitude = Number(result.route.destination.latitude);
+            routeState.destinationLongitude = Number(result.route.destination.longitude);
+            routeState.geometry = geometry;
+            routeState.etaMinutes = result.route.eta_minutes;
+            routeState.pending = false;
+            routeState.retryAt = 0;
+            routeState.error = '';
+            if (window.livemappingMap && window.livemappingData) {
+                var assignmentStillActive = (window.livemappingData.map_people || []).some(function (current) {
+                    return livemappingAssignedPersonKey(current) === key;
+                });
+                if (assignmentStillActive) {
+                    livemappingRender(window.livemappingMap, window.livemappingData);
+                } else {
+                    delete routes[key];
+                }
+            }
+        }).catch(function (error) {
+            routeState.pending = false;
+            routeState.retryAt = Date.now() + 60000;
+            routeState.error = error.message || 'Route calculation failed.';
+            console.warn('[Live Mapping] Assigned-person route unavailable.', error);
+            if (window.livemappingMap && window.livemappingData) {
+                livemappingRender(window.livemappingMap, window.livemappingData);
+            }
+        });
+    });
+
+    Object.keys(routes).forEach(function (key) {
+        if (!activeKeys[key] && !routes[key].pending) delete routes[key];
+    });
 }
 
 function livemappingSetRoadRouteStatus(incidentId, status, message) {
@@ -2960,7 +4629,7 @@ function livemappingRefreshRoadRoutes(data) {
             cached.originLongitude,
             latitude,
             longitude
-        ) >= 0.1;
+        ) >= 0.025;
         if (cached && cached.pending) return;
         if (cached && !destinationChanged && !moved &&
             (!cached.retryAt || Date.now() < cached.retryAt)) return;
@@ -3034,18 +4703,39 @@ function livemappingRefreshRoadRoutes(data) {
 }
 
 // `popup` is HTML the caller has already escaped; `key` identifies the marker across the 5-second redraws.
-function livemappingAddMarker(markers, latitude, longitude, type, icon, popup, key) {
+function livemappingAddMarker(markers, latitude, longitude, type, icon, popup, key, color, staleLocation, tooltipLabel) {
     if (latitude === null || latitude === undefined || latitude === '' ||
         longitude === null || longitude === undefined || longitude === '') return;
     var parsedLatitude = Number(latitude);
     var parsedLongitude = Number(longitude);
     if (!Number.isFinite(parsedLatitude) || !Number.isFinite(parsedLongitude) ||
         Math.abs(parsedLatitude) > 90 || Math.abs(parsedLongitude) > 180) return;
+    var markerColorStyle = /^#[0-9a-f]{6}$/i.test(String(color || ''))
+        ? ' style="--livemapping-marker-color:' + color + '"'
+        : '';
+    var markerClass = 'livemapping-marker livemapping-marker--' + livemappingEscapeClass(type) +
+        (staleLocation ? ' livemapping-marker--stale' : '');
+    var isPersonMarker = type === 'responder' || type === 'volunteer';
     var marker = L.marker([Number(latitude), Number(longitude)], {
-        icon: L.divIcon({ className: '', html: '<span class="livemapping-marker livemapping-marker--' + livemappingEscapeClass(type) + '">' + icon + '</span>', iconSize: [24, 24], iconAnchor: [12, 12] }),
+        icon: L.divIcon({
+            className: '',
+            html: '<span class="' + markerClass + '"' + markerColorStyle + '>' + icon + '</span>',
+            iconSize: isPersonMarker ? [36, 44] : [32, 38],
+            iconAnchor: isPersonMarker ? [18, 40] : [16, 34]
+        }),
         // Incidents sit on top so a vehicle at the same spot cannot hide their popup.
-        zIndexOffset: type === 'incident' ? 1000 : 0,
+        zIndexOffset: type === 'incident' ? 1000 : (type === 'responder' || type === 'volunteer' ? 500 : 0),
     }).bindPopup(popup).addTo(markers);
+    if (isPersonMarker) {
+        marker.bindTooltip(
+            livemappingEscapeHtml(tooltipLabel || (type === 'volunteer' ? 'Volunteer location' : 'Responder location')),
+            {
+                direction: 'top',
+                offset: [0, -30],
+                opacity: 0.96
+            }
+        );
+    }
 
     if (!key) return;
     marker.on('popupopen', function () { window.livemappingOpenPopupKey = key; });
@@ -3389,8 +5079,9 @@ function incomingdispatchBindIncidentPopups() {
             ' · ' + (incident.location || 'Location unavailable');
         var meta = document.createElement('p');
         meta.className = 'incomingdispatch-incident-popup-meta';
-        meta.textContent = 'Incident #' + incidentId + ' · ' +
-            String(incident.status || 'new').replace('_', ' ');
+        meta.textContent = 'Incident #' + incidentId + ' · Category: ' +
+            (incident.triageCategory || 'Unclassified') + ' · Workflow: ' +
+            String(incident.status || 'open').replace('_', ' ');
         var link = document.createElement('a');
         link.href = mapUrl;
         link.textContent = 'View incident on Live Mapping';
@@ -4064,6 +5755,7 @@ function emergencyAlertInit() {
     emergencyAlertBindNavigation();
     emergencyAlertBindActions();
     emergencyAlertBindPagination();
+    livemappingBindAlertDrawer({});
     emergencyAlertLoadData();
     window.setInterval(function () {
         if (document.visibilityState === 'visible') {
@@ -4171,7 +5863,7 @@ function emergencyAlertLoadData(forceRefresh, quiet) {
 
 
                 emergencyAlertRender(
-                    emergencyAlertCurrentStatus()
+                    emergencyAlertCurrentCategory()
                 );
 
 
@@ -4195,7 +5887,7 @@ function emergencyAlertLoadData(forceRefresh, quiet) {
         emergencyAlertRequestUrl(
             'data',
             {
-                status: 'all'
+                triage_category: 'all'
             }
         );
 
@@ -4250,7 +5942,7 @@ function emergencyAlertLoadData(forceRefresh, quiet) {
 
 
             emergencyAlertRender(
-                emergencyAlertCurrentStatus()
+                emergencyAlertCurrentCategory()
             );
 
         })
@@ -4264,7 +5956,7 @@ function emergencyAlertLoadData(forceRefresh, quiet) {
 
             if (!quiet) {
                 emergencyAlertShowToast('Showing current emergency alert data.');
-                emergencyAlertSetActive(emergencyAlertCurrentStatus());
+                emergencyAlertSetActiveCategory(emergencyAlertCurrentCategory());
                 emergencyAlertStaggerRows();
             }
 
@@ -4352,14 +6044,17 @@ function emergencyAlertUpdateSummary(summary) {
         all:
             Number(summary.all) || 0,
 
-        critical:
-            Number(summary.critical) || 0,
+        emergent:
+            Number(summary.emergent) || 0,
 
         urgent:
             Number(summary.urgent) || 0,
 
-        stable:
-            Number(summary.stable) || 0
+        non_urgent:
+            Number(summary.non_urgent) || 0,
+
+        expectant:
+            Number(summary.expectant) || 0
     };
 
 
@@ -4392,14 +6087,14 @@ function emergencyAlertUpdateSummary(summary) {
 
 
     if (dot) {
-        dot.hidden = values.critical + values.urgent <= 0;
+        dot.hidden = values.emergent + values.urgent <= 0;
     }
 
 
     emergencyAlertAnimateSummaryCards();
 
 
-    if (values.critical > 0) {
+    if (values.emergent > 0) {
 
         emergencyAlertPulseBell();
 
@@ -4444,7 +6139,7 @@ function emergencyAlertBindSearch() {
                     function () {
 
                         emergencyAlertRender(
-                            emergencyAlertCurrentStatus()
+                            emergencyAlertCurrentCategory()
                         );
 
                     },
@@ -4510,7 +6205,7 @@ function emergencyAlertBindFilters() {
 
                         emergencyAlertRender(
                             this.getAttribute(
-                                'data-status'
+                                'data-category'
                             ) || 'all'
                         );
 
@@ -4557,20 +6252,20 @@ function emergencyAlertBindSummaryCards() {
                     event.preventDefault();
 
 
-                    var status =
+                    var category =
                         this.getAttribute(
-                            'data-status'
+                            'data-category'
                         ) || 'all';
 
 
                     console.log(
                         '[Emergency Alerts] Summary selected:',
-                        status
+                        category
                     );
 
 
                     emergencyAlertRender(
-                        status
+                        category
                     );
 
                 }
@@ -4583,10 +6278,10 @@ function emergencyAlertBindSummaryCards() {
 
 
 // =========================================================
-// CURRENT EMERGENCY ALERT STATUS
+// CURRENT EMERGENCY ALERT CATEGORY
 // =========================================================
 
-function emergencyAlertCurrentStatus() {
+function emergencyAlertCurrentCategory() {
 
     var active =
         document.querySelector(
@@ -4597,7 +6292,7 @@ function emergencyAlertCurrentStatus() {
     return active
         ? (
             active.getAttribute(
-                'data-status'
+                'data-category'
             ) || 'all'
         )
         : 'all';
@@ -4606,13 +6301,13 @@ function emergencyAlertCurrentStatus() {
 
 
 // =========================================================
-// SET EMERGENCY ACTIVE STATE
+// SET EMERGENCY CATEGORY FILTER
 // =========================================================
 
-function emergencyAlertSetActive(status) {
+function emergencyAlertSetActiveCategory(category) {
 
-    status =
-        String(status || 'all')
+    category =
+        String(category || 'all')
             .toLowerCase()
             .trim();
 
@@ -4628,14 +6323,14 @@ function emergencyAlertSetActive(status) {
         .forEach(
             function (button) {
 
-                var buttonStatus =
+                var buttonCategory =
                     button.getAttribute(
-                        'data-status'
+                        'data-category'
                     );
 
 
                 var active =
-                    buttonStatus === status;
+                    buttonCategory === category;
 
 
                 button.classList.toggle(
@@ -4644,25 +6339,17 @@ function emergencyAlertSetActive(status) {
                 );
 
 
-                button.classList.toggle(
-                    'emergency_alert_filter_active_critical',
-                    active &&
-                    status === 'critical'
-                );
-
-
-                button.classList.toggle(
-                    'emergency_alert_filter_active_urgent',
-                    active &&
-                    status === 'urgent'
-                );
-
-
-                button.classList.toggle(
-                    'emergency_alert_filter_active_stable',
-                    active &&
-                    status === 'stable'
-                );
+                [
+                    'emergent',
+                    'urgent',
+                    'non_urgent',
+                    'expectant'
+                ].forEach(function (triageCategory) {
+                    button.classList.toggle(
+                        'emergency_alert_filter_active_' + triageCategory,
+                        active && category === triageCategory
+                    );
+                });
 
             }
         );
@@ -4679,22 +6366,23 @@ function emergencyAlertSetActive(status) {
         .forEach(
             function (card) {
 
-                var cardStatus =
+                var cardCategory =
                     card.getAttribute(
-                        'data-status'
+                        'data-category'
                     );
 
 
                 var active =
-                    status !== 'all' &&
-                    cardStatus === status;
+                    category !== 'all' &&
+                    cardCategory === category;
 
 
                 card.classList.remove(
                     'emergency_alert_summary_card_active',
-                    'emergency_alert_summary_card_critical_active',
+                    'emergency_alert_summary_card_emergent_active',
                     'emergency_alert_summary_card_urgent_active',
-                    'emergency_alert_summary_card_stable_active'
+                    'emergency_alert_summary_card_non_urgent_active',
+                    'emergency_alert_summary_card_expectant_active'
                 );
 
 
@@ -4705,35 +6393,9 @@ function emergencyAlertSetActive(status) {
                     );
 
 
-                    if (
-                        status === 'critical'
-                    ) {
-
-                        card.classList.add(
-                            'emergency_alert_summary_card_critical_active'
-                        );
-
-                    }
-
-
-                    if (status === 'urgent') {
-
-                        card.classList.add(
-                            'emergency_alert_summary_card_urgent_active'
-                        );
-
-                    }
-
-
-                    if (
-                        status === 'stable'
-                    ) {
-
-                        card.classList.add(
-                            'emergency_alert_summary_card_stable_active'
-                        );
-
-                    }
+                    card.classList.add(
+                        'emergency_alert_summary_card_' + category + '_active'
+                    );
 
                 }
 
@@ -4747,10 +6409,10 @@ function emergencyAlertSetActive(status) {
 // RENDER EMERGENCY ALERTS
 // =========================================================
 
-function emergencyAlertRender(status) {
+function emergencyAlertRender(category) {
 
-    status =
-        String(status || 'all')
+    category =
+        String(category || 'all')
             .toLowerCase()
             .trim();
 
@@ -4758,32 +6420,33 @@ function emergencyAlertRender(status) {
     if (
         [
             'all',
-            'critical',
             'urgent',
-            'stable'
-        ].indexOf(status) === -1
+            'emergent',
+            'non_urgent',
+            'expectant'
+        ].indexOf(category) === -1
     ) {
 
-        status = 'all';
+        category = 'all';
 
     }
 
 
     // IMPORTANT:
     // Only call this once.
-    emergencyAlertSetActive(status);
+    emergencyAlertSetActiveCategory(category);
 
 
     var notice =
         document.getElementById(
-            'emergency_alert_critical_notice'
+            'emergency_alert_emergent_notice'
         );
 
 
     if (notice) {
 
         notice.hidden =
-            status !== 'critical';
+            category !== 'emergent';
 
     }
 
@@ -4818,20 +6481,20 @@ function emergencyAlertRender(status) {
         data.alerts.filter(
             function (alert) {
 
-                var alertStatus =
+                var alertCategory =
                     String(
-                        alert.status || ''
+                        alert.triageCategory || ''
                     )
                         .toLowerCase()
                         .trim();
 
 
-                var statusMatch =
-                    status === 'all' ||
-                    alertStatus === status;
+                var categoryMatch =
+                    category === 'all' ||
+                    alertCategory === category;
 
 
-                if (!statusMatch) {
+                if (!categoryMatch) {
                     return false;
                 }
 
@@ -4842,7 +6505,8 @@ function emergencyAlertRender(status) {
 
 
                 var haystack = [
-                    alert.status,
+                    alert.triageCategoryLabel,
+                    alert.incidentStatus,
                     alert.incidentType,
                     alert.patientInfo,
                     alert.patientName,
@@ -4869,7 +6533,7 @@ function emergencyAlertRender(status) {
 
 
     emergencyAlertRenderTable(
-        status,
+        category,
         alerts
     );
 
@@ -4881,7 +6545,7 @@ function emergencyAlertRender(status) {
 // =========================================================
 
 function emergencyAlertRenderTable(
-    status,
+    category,
     alerts
 ) {
 
@@ -4921,18 +6585,18 @@ function emergencyAlertRenderTable(
     table.className =
         'emergency_alert_table ' +
         'emergency_alert_table_' +
-        status;
+        category;
 
 
     table.setAttribute(
         'data-view',
-        status
+        category
     );
 
 
     head.innerHTML =
         '<tr id="emergency_alert_table_head_row">' +
-        '<th>STATUS</th><th>INCIDENT / PATIENT</th><th>LOCATION</th>' +
+        '<th>CATEGORY</th><th>INCIDENT / PATIENT</th><th>LOCATION</th>' +
         '<th>RESPONDER / TRANSPORT</th><th>REPORTED</th><th>ACTIONS</th></tr>';
 
 
@@ -4984,9 +6648,9 @@ function emergencyAlertRenderTable(
             : '<div class="emergency_alert_reported"><span class="emergency_alert_reported_clock">' + time + '</span></div>';
 
 
-        var alertStatus =
+        var alertCategory =
             String(
-                alert.status || ''
+                alert.triageCategory || ''
             )
                 .toLowerCase();
 
@@ -4997,20 +6661,27 @@ function emergencyAlertRenderTable(
             Number(alert.id) +
             '" data-alert-id="' +
             Number(alert.id) +
-            '" data-status="' +
+            '" data-category="' +
             emergencyAlertEscapeHtml(
-                alertStatus
+                alertCategory
             ) +
             '">';
 
 
-        var statusSelect = '<select class="emergency_alert_status_select" data-action="status" data-alert-id="' + Number(alert.id) + '" aria-label="Change incident status">' +
-            ['critical', 'urgent', 'stable'].map(function (choice) {
-                return '<option value="' + choice + '"' + (choice === alertStatus ? ' selected' : '') + '>' + choice.charAt(0).toUpperCase() + choice.slice(1) + '</option>';
-            }).join('') + '</select>';
+        var categoryOptions = [
+            ['emergent', 'Emergent'],
+            ['urgent', 'Urgent'],
+            ['non_urgent', 'Non-Urgent'],
+            ['expectant', 'Expectant']
+        ];
+        var categorySelect = '<select class="emergency_alert_category_select" data-action="category" data-alert-id="' + Number(alert.id) + '" aria-label="Change emergency category">' +
+            (alertCategory ? '' : '<option value="" selected disabled>Unclassified</option>') +
+            categoryOptions.map(function (choice) {
+                return '<option value="' + choice[0] + '"' + (choice[0] === alertCategory ? ' selected' : '') + '>' + choice[1] + '</option>';
+            }).join('') + '</select><small class="emergency_alert_lifecycle">' + emergencyAlertEscapeHtml(alert.incidentStatus || 'open') + '</small>';
         var responseDetails = '<div class="emergency_alert_response_info"><strong>' + emergencyAlertEscapeHtml(alert.responder || '—') + '</strong><span>' + emergencyAlertEscapeHtml(alert.transport || 'No transport assigned') + '</span></div>';
 
-        html += '<td>' + statusSelect + '</td>' +
+        html += '<td>' + categorySelect + '</td>' +
             '<td class="emergency_alert_incident_cell"><strong class="emergency_alert_incident">' + incident + '</strong>' + patient + '</td>' +
             '<td class="emergency_alert_location">' + location + '</td>' +
             '<td>' + responseDetails + '</td>' +
@@ -5169,31 +6840,31 @@ function emergencyAlertBindActions() {
     );
 
     body.addEventListener('change', function (event) {
-        var select = event.target.closest('.emergency_alert_status_select');
-        if (select) emergencyAlertUpdateStatus(select);
+        var select = event.target.closest('.emergency_alert_category_select');
+        if (select) emergencyAlertUpdateCategory(select);
     });
 
 }
 
-function emergencyAlertUpdateStatus(select) {
+function emergencyAlertUpdateCategory(select) {
     var formData = new FormData();
     formData.append('id', select.getAttribute('data-alert-id'));
-    formData.append('status', select.value);
+    formData.append('triage_category', select.value);
     select.disabled = true;
 
-    fetch(emergencyAlertRequestUrl('status').toString(), {
+    fetch(emergencyAlertRequestUrl('category').toString(), {
         method: 'POST',
         body: formData,
         headers: { 'X-Requested-With': 'XMLHttpRequest' }
     }).then(function (response) {
         return response.json().then(function (data) {
-            if (!response.ok || !data.success) throw new Error(data.message || 'Status update failed.');
+            if (!response.ok || !data.success) throw new Error(data.message || 'Category update failed.');
             emergencyAlertShowToast(data.message);
             emergencyAlertLoadData(true);
         });
     }).catch(function (error) {
         emergencyAlertShowToast(error.message);
-        emergencyAlertRender(emergencyAlertCurrentStatus());
+        emergencyAlertRender(emergencyAlertCurrentCategory());
     }).finally(function () {
         select.disabled = false;
     });
@@ -5205,13 +6876,13 @@ function emergencyAlertBindPagination() {
     if (previous) previous.addEventListener('click', function () {
         if (emergencyAlertCurrentPage > 1) {
             emergencyAlertCurrentPage--;
-            emergencyAlertRenderTable(emergencyAlertCurrentStatus(), emergencyAlertCurrentRows);
+            emergencyAlertRenderTable(emergencyAlertCurrentCategory(), emergencyAlertCurrentRows);
         }
     });
     if (next) next.addEventListener('click', function () {
         if (emergencyAlertCurrentPage * 10 < emergencyAlertCurrentRows.length) {
             emergencyAlertCurrentPage++;
-            emergencyAlertRenderTable(emergencyAlertCurrentStatus(), emergencyAlertCurrentRows);
+            emergencyAlertRenderTable(emergencyAlertCurrentCategory(), emergencyAlertCurrentRows);
         }
     });
 }
@@ -5225,105 +6896,16 @@ function emergencyAlertNotifyStaff(
     id,
     button
 ) {
-
-    button.disabled =
-        true;
-
-
-    var originalText =
-        button.innerHTML;
-
-
-    button.innerHTML =
-        'NOTIFYING...';
-
-
-    var formData =
-        new FormData();
-
-
-    formData.append(
-        'id',
-        id
-    );
-
-
-    var url =
-        emergencyAlertRequestUrl(
-            'notify'
-        );
-
-
-    fetch(
-        url.toString(),
-        {
-            method: 'POST',
-            body: formData,
-            headers: {
-                'X-Requested-With':
-                    'XMLHttpRequest'
-            }
+    if (typeof window.livemappingOpenAlert !== 'function') {
+        emergencyAlertShowToast('The staff notification drawer is unavailable. Refresh the page and try again.');
+        return;
+    }
+    window.livemappingOpenAlert({
+        dataset: {
+            incidentId: String(id || ''),
+            transportName: button.getAttribute('data-transport-name') || ''
         }
-    )
-        .then(function (response) {
-
-            return response
-                .json()
-                .then(function (data) {
-
-                    return {
-                        ok: response.ok,
-                        data: data
-                    };
-
-                });
-
-        })
-        .then(function (result) {
-
-            if (
-                !result.ok ||
-                !result.data.success
-            ) {
-
-                throw new Error(
-                    result.data.message ||
-                    'Notification failed.'
-                );
-
-            }
-
-
-            button.innerHTML =
-                'STAFF NOTIFIED';
-
-
-            button.classList.add(
-                'emergency_alert_action_notified'
-            );
-
-
-            emergencyAlertShowToast(
-                result.data.message ||
-                'Staff notification sent successfully.'
-            );
-
-        })
-        .catch(function (error) {
-
-            button.disabled =
-                false;
-
-
-            button.innerHTML =
-                originalText;
-
-
-            emergencyAlertShowToast(
-                error.message
-            );
-
-        });
+    });
 
 }
 
@@ -5427,8 +7009,12 @@ function emergencyAlertOpenDetails(alert) {
 
     var details = [
         [
-            'Status',
-            alert.status
+            'Emergency category',
+            alert.triageCategoryLabel || 'Unclassified'
+        ],
+        [
+            'Incident lifecycle',
+            alert.incidentStatus || 'Open'
         ],
         [
             'Patient',
@@ -5461,7 +7047,6 @@ function emergencyAlertOpenDetails(alert) {
         ['Resolved', alert.resolvedAt || '—'],
         ['Last updated', alert.updatedAt || '—'],
         ['Nurse vitals', alert.vitals || '—'],
-        ['Nurse preparation', alert.nursePrep || '—'],
         ['Nurse notes', alert.nurseNotes || '—'],
         ['Coordinates', alert.latitude && alert.longitude ? alert.latitude + ', ' + alert.longitude : '—'],
         ['Notes', alert.notes || '—']
@@ -5494,7 +7079,7 @@ function emergencyAlertOpenDetails(alert) {
     document.getElementById('emergency_alert_modal_title').textContent = alert.incidentType || 'Alert Details';
 
     actions.innerHTML = '<a class="emergency_alert_drawer_action emergency_alert_drawer_action_primary" href="hospitalnetworkController.php?incident_id=' + Number(alert.id) + '&open_referral=1">Refer patient <span>&rarr;</span></a>' +
-        (String(alert.status || '').toLowerCase() === 'critical'
+        (String(alert.triageCategory || '').toLowerCase() === 'emergent'
             ? '<button type="button" class="emergency_alert_drawer_action" data-action="notify" data-alert-id="' + Number(alert.id) + '">Notify staff</button>'
             : '');
 
@@ -5697,7 +7282,7 @@ function emergencyAlertRenderNotifications(alerts) {
     if (!list) return;
 
     var active = (alerts || []).filter(function (alert) {
-        return ['critical', 'urgent'].indexOf(String(alert.status || '').toLowerCase()) !== -1;
+        return ['emergent', 'urgent'].indexOf(String(alert.triageCategory || '').toLowerCase()) !== -1;
     });
 
     if (!active.length) {
@@ -5707,7 +7292,7 @@ function emergencyAlertRenderNotifications(alerts) {
 
     list.innerHTML = active.slice(0, 8).map(function (alert) {
         return '<button type="button" class="emergency_alert_notification_item" data-notification-id="' + Number(alert.id) + '">' +
-            '<span class="emergency_alert_notification_status emergency_alert_notification_status_' + String(alert.status).toLowerCase() + '">' + emergencyAlertEscapeHtml(alert.status) + '</span>' +
+            '<span class="emergency_alert_notification_category emergency_alert_notification_category_' + String(alert.triageCategory || 'unclassified').toLowerCase() + '">' + emergencyAlertEscapeHtml(alert.triageCategoryLabel || 'Unclassified') + '</span>' +
             '<strong>' + emergencyAlertEscapeHtml(alert.incidentType || 'Emergency case') + '</strong>' +
             '<small>' + emergencyAlertEscapeHtml(alert.location || 'Unknown location') + ' · ' + emergencyAlertEscapeHtml(alert.timeAgo || '') + '</small>' +
             '</button>';
@@ -5977,81 +7562,6 @@ function initSettingsPage() {
 
 
     // -------------------------------------------------------
-    // Editable account fields
-    // -------------------------------------------------------
-
-    var editButtons =
-        document.querySelectorAll(
-            '[data-settings-edit]'
-        );
-
-
-    editButtons.forEach(function (button) {
-
-        button.addEventListener(
-            'click',
-            function () {
-
-                var targetId =
-                    button.getAttribute(
-                        'data-settings-edit'
-                    );
-
-                var input =
-                    document.getElementById(
-                        targetId
-                    );
-
-
-                if (!input) {
-                    return;
-                }
-
-
-                var currentlyReadonly =
-                    input.hasAttribute('readonly');
-
-
-                if (currentlyReadonly) {
-
-                    input.removeAttribute(
-                        'readonly'
-                    );
-
-                    input.classList.add(
-                        'settings-input--editable'
-                    );
-
-                    input.focus();
-
-                    var length =
-                        input.value.length;
-
-                    input.setSelectionRange(
-                        length,
-                        length
-                    );
-
-                } else {
-
-                    input.setAttribute(
-                        'readonly',
-                        'readonly'
-                    );
-
-                    input.classList.remove(
-                        'settings-input--editable'
-                    );
-
-                }
-
-            }
-        );
-
-    });
-
-
-    // -------------------------------------------------------
     // Change password
     // -------------------------------------------------------
 
@@ -6121,50 +7631,6 @@ function initSettingsPage() {
     // -------------------------------------------------------
     // Submit settings through the MVC controller.
     // -------------------------------------------------------
-
-    var saveButton =
-        document.getElementById(
-            'settings-save-button'
-        );
-
-
-    if (saveButton) {
-
-        saveButton.form.addEventListener(
-            'submit',
-            function () {
-
-                var editableInputs =
-                    document.querySelectorAll(
-                        '.settings-input:not([readonly])'
-                    );
-
-
-                editableInputs.forEach(
-                    function (input) {
-
-                        input.setAttribute(
-                            'readonly',
-                            'readonly'
-                        );
-
-                        input.classList.remove(
-                            'settings-input--editable'
-                        );
-
-                    }
-                );
-
-
-                saveButton.classList.add(
-                    'settings-save-button--saved'
-                );
-
-            }
-        );
-
-    }
-
 
     // -------------------------------------------------------
     // Logout confirmation drawer
@@ -6339,7 +7805,9 @@ function initDoctorNurseModulePages() {
         var values = {
             drawerCaseTitle: selectedCase.title,
             drawerCaseLocation: selectedCase.location,
-            drawerCaseStatus: selectedCase.statusLabel,
+            drawerCaseCategory: selectedCase.triageCategoryLabel || 'Unclassified',
+            drawerCaseLifecycle: String(selectedCase.incidentStatus || selectedCase.status || 'open')
+                .replace('_', ' '),
             drawerCasePatient: selectedCase.patient,
             drawerCaseHospital: selectedCase.hospital,
             drawerCaseResponder: selectedCase.responder || 'Not recorded',
@@ -6351,13 +7819,18 @@ function initDoctorNurseModulePages() {
             var element = document.getElementById(elementId);
             if (element) element.textContent = values[elementId];
         });
-        var statusElement = document.getElementById('drawerCaseStatus');
+        var statusElement = document.getElementById('drawerCaseCategory');
         if (statusElement) {
-            statusElement.classList.remove('status-critical', 'status-urgent', 'status-stable');
-            var statusClass = selectedCase.status === 'dispatched' ? 'urgent' : selectedCase.status;
-            if (['critical', 'urgent', 'stable'].indexOf(statusClass) !== -1) {
-                statusElement.classList.add('status-' + statusClass);
-            }
+            statusElement.classList.remove(
+                'category-emergent',
+                'category-urgent',
+                'category-non_urgent',
+                'category-expectant',
+                'category-unclassified'
+            );
+            statusElement.classList.add(
+                'category-' + (selectedCase.triageCategory || 'unclassified')
+            );
         }
     }
 
@@ -6428,8 +7901,10 @@ function initDoctorNurseModulePages() {
         });
     }
 
-    var caseFilterButtons = document.querySelectorAll('[data-case-filter]');
-    var doctorCaseCards = Array.prototype.slice.call(document.querySelectorAll('.case-card[data-case-status]'));
+    var caseFilterButtons = document.querySelectorAll(
+        '.notified-page:not(.nurse-notified-page) [data-category-filter]'
+    );
+    var doctorCaseCards = Array.prototype.slice.call(document.querySelectorAll('.case-card[data-case-category]'));
     var doctorCasesEmpty = document.getElementById('doctor-cases-empty');
     var casePagination = document.getElementById('doctor-case-pagination');
     var previousCasesButton = document.getElementById('doctor-cases-previous');
@@ -6441,7 +7916,7 @@ function initDoctorNurseModulePages() {
 
     function renderDoctorCases() {
         var matchingCards = Array.prototype.filter.call(doctorCaseCards, function (card) {
-            return activeCaseFilter === 'all' || card.dataset.caseStatus === activeCaseFilter;
+            return activeCaseFilter === 'all' || card.dataset.caseCategory === activeCaseFilter;
         });
         var pageCount = Math.max(1, Math.ceil(matchingCards.length / casesPerPage));
         currentCasePage = Math.min(currentCasePage, pageCount);
@@ -6476,7 +7951,8 @@ function initDoctorNurseModulePages() {
             card.remove();
         });
         doctorCases.forEach(function (item) {
-            var status = item.status === 'dispatched' ? 'urgent' : item.status;
+            var category = item.triageCategory || 'unclassified';
+            var categoryLabel = item.triageCategoryLabel || 'Unclassified';
             var reportedAt = new Date(String(item.reportedAt).replace(' ', 'T') + '+08:00');
             var reportedLabel = Number.isNaN(reportedAt.getTime())
                 ? item.reportedAt
@@ -6492,27 +7968,28 @@ function initDoctorNurseModulePages() {
             var eta = item.eta === null ? 'ETA unavailable' : 'ETA ' + item.eta + ' min';
             var card = document.createElement('article');
             card.className = 'case-card';
-            card.dataset.caseStatus = status;
+            card.dataset.caseCategory = category;
             card.innerHTML = '<div class="case-card-top"><h2>' + escapeIncomingDispatchText(item.title) + '</h2>' +
-                '<span class="severity ' + escapeIncomingDispatchText(status) + '">' + escapeIncomingDispatchText(item.statusLabel) + '</span></div>' +
+                '<span class="severity ' + escapeIncomingDispatchText(category) + '">' + escapeIncomingDispatchText(categoryLabel) + '</span></div>' +
                 '<p>' + escapeIncomingDispatchText(item.location) + escapeIncomingDispatchText(patient) + '</p>' +
                 '<small class="case-reported">Reported ' + escapeIncomingDispatchText(reportedLabel) + '</small>' +
+                '<small class="case-lifecycle">Lifecycle: ' + escapeIncomingDispatchText(item.incidentStatus || 'open') + '</small>' +
                 '<div class="case-card-bottom"><span>' + escapeIncomingDispatchText(eta + ' · ' + item.hospital) + '</span>' +
                 '<button type="button" class="details-btn" data-case-id="' + Number(item.id) + '">View details</button></div>';
             caseList.insertBefore(card, doctorCasesEmpty);
         });
 
-        Object.keys(summary || {}).forEach(function (statusKey) {
-            var value = document.querySelector('[data-case-filter="' + statusKey + '"] .case-summary-value');
-            if (value) value.textContent = String(summary[statusKey]);
+        Object.keys(summary || {}).forEach(function (categoryKey) {
+            var value = document.querySelector('[data-category-filter="' + categoryKey + '"] .case-summary-value');
+            if (value) value.textContent = String(summary[categoryKey]);
         });
-        doctorCaseCards = Array.prototype.slice.call(caseList.querySelectorAll('.case-card[data-case-status]'));
+        doctorCaseCards = Array.prototype.slice.call(caseList.querySelectorAll('.case-card[data-case-category]'));
         renderDoctorCases();
     }
 
     caseFilterButtons.forEach(function (button) {
         button.addEventListener('click', function () {
-            activeCaseFilter = button.dataset.caseFilter;
+            activeCaseFilter = button.dataset.categoryFilter;
             currentCasePage = 1;
             caseFilterButtons.forEach(function (filterButton) {
                 var active = filterButton === button;
@@ -6545,21 +8022,24 @@ function initDoctorNurseModulePages() {
         var queuedDoctorAlerts = window.doctorInitialAlerts || [];
         var knownDoctorAlertIds = {};
         var activeDoctorAlert = null;
+        var staleDoctorAlertNotice = false;
         queuedDoctorAlerts.forEach(function (alert) {
             knownDoctorAlertIds[String(alert.alertId)] = true;
         });
 
         function showNextDoctorAlert() {
-            if (activeDoctorAlert || !queuedDoctorAlerts.length) return;
+            if (activeDoctorAlert || staleDoctorAlertNotice || !queuedDoctorAlerts.length) return;
             activeDoctorAlert = queuedDoctorAlerts.shift();
             document.getElementById('incoming-alert-type').textContent = activeDoctorAlert.title;
             document.getElementById('incoming-alert-location').textContent = activeDoctorAlert.location;
-            document.getElementById('incoming-alert-status').textContent = activeDoctorAlert.statusLabel;
+            document.getElementById('incoming-alert-category').textContent = activeDoctorAlert.triageCategoryLabel || 'Unclassified';
+            document.getElementById('incoming-alert-lifecycle').textContent = activeDoctorAlert.incidentStatus || 'open';
             document.getElementById('incoming-alert-patient').textContent = activeDoctorAlert.patient;
             document.getElementById('incoming-alert-hospital').textContent = activeDoctorAlert.hospital;
             document.getElementById('incoming-alert-description').textContent =
                 'Review the incident details, then close this alert to continue.';
             incomingAlertError.hidden = true;
+            incomingAlertClose.textContent = 'Close';
             incomingAlertBackdrop.hidden = false;
             incomingAlertClose.focus();
         }
@@ -6577,6 +8057,9 @@ function initDoctorNurseModulePages() {
                 });
             }).then(function (result) {
                 if (Array.isArray(result.cases)) refreshDoctorCases(result.cases, result.summary || {});
+                if (!Array.isArray(result.alerts)) {
+                    throw new Error('Incoming alerts could not be loaded because the response was invalid.');
+                }
                 result.alerts.forEach(function (alert) {
                     var id = String(alert.alertId);
                     if (!knownDoctorAlertIds[id]) {
@@ -6591,7 +8074,16 @@ function initDoctorNurseModulePages() {
         }
 
         incomingAlertClose.addEventListener('click', function () {
-            if (!activeDoctorAlert) return;
+            if (!activeDoctorAlert) {
+                if (!staleDoctorAlertNotice) return;
+                staleDoctorAlertNotice = false;
+                incomingAlertBackdrop.hidden = true;
+                incomingAlertError.hidden = true;
+                incomingAlertClose.textContent = 'Close';
+                showNextDoctorAlert();
+                loadDoctorAlerts();
+                return;
+            }
             incomingAlertClose.disabled = true;
             incomingAlertClose.setAttribute('aria-busy', 'true');
             incomingAlertError.hidden = true;
@@ -6606,11 +8098,24 @@ function initDoctorNurseModulePages() {
             }).then(function (response) {
                 return response.json().then(function (result) {
                     if (!response.ok || !result.success) {
-                        throw new Error(result.message || 'The alert could not be acknowledged.');
+                        var error = new Error(result.message || 'The alert could not be acknowledged.');
+                        error.code = result.code || '';
+                        throw error;
                     }
                     window.location.reload();
                 });
             }).catch(function (error) {
+                if (error.code === 'already_processed' || error.code === 'not_found') {
+                    activeDoctorAlert = null;
+                    staleDoctorAlertNotice = true;
+                    incomingAlertError.textContent = error.message;
+                    incomingAlertError.hidden = false;
+                    incomingAlertClose.textContent = 'Dismiss';
+                    loadDoctorAlerts();
+                    incomingAlertClose.disabled = false;
+                    incomingAlertClose.removeAttribute('aria-busy');
+                    return;
+                }
                 incomingAlertError.textContent = error.message;
                 incomingAlertError.hidden = false;
                 incomingAlertClose.disabled = false;
@@ -6627,7 +8132,7 @@ function initDoctorNurseModulePages() {
     }
 
     var caseButtons = document.querySelectorAll('.case-filters button');
-    var caseCards = document.querySelectorAll('.prep-case');
+    var caseCards = document.querySelectorAll('.nurse-case');
     var caseDetail = document.getElementById('caseDetail');
     var nurseCases = window.nurseCases || [];
     var detailSeverity = document.getElementById('detailSeverity');
@@ -6652,8 +8157,8 @@ function initDoctorNurseModulePages() {
         });
 
         if (detailSeverity) {
-            detailSeverity.className = 'severity-label ' + selected.severity.toLowerCase();
-            detailSeverity.innerHTML = '<i></i>' + selected.severity;
+            detailSeverity.className = 'severity-label ' + (selected.triageCategory || 'unclassified');
+            detailSeverity.innerHTML = '<i></i>' + selected.triageCategoryLabel;
         }
         if (detailArrival) detailArrival.textContent = selected.arrival;
         if (detailTitle) detailTitle.textContent = selected.title;
@@ -6675,12 +8180,12 @@ function initDoctorNurseModulePages() {
     function filterCases(filter) {
         var firstVisible = null;
         caseCards.forEach(function (card) {
-            var visible = filter === 'all' || card.dataset.severity === filter;
+            var visible = filter === 'all' || card.dataset.category === filter;
             card.classList.toggle('hidden', !visible);
             if (visible && firstVisible === null) firstVisible = card.dataset.caseId;
         });
         caseButtons.forEach(function (button) {
-            button.classList.toggle('active', button.dataset.filter === filter);
+            button.classList.toggle('active', button.dataset.categoryFilter === filter);
         });
 
         if (firstVisible !== null) {
@@ -6693,7 +8198,7 @@ function initDoctorNurseModulePages() {
 
     caseButtons.forEach(function (button) {
         button.addEventListener('click', function () {
-            filterCases(button.dataset.filter);
+            filterCases(button.dataset.categoryFilter);
         });
     });
     document.querySelectorAll('.case-select').forEach(function (button) {
@@ -6724,6 +8229,7 @@ function initDoctorNurseModulePages() {
     var calendarHint = document.getElementById('calendarHint');
     var selectedDateLabel = document.getElementById('scheduleSelectedDate');
     var dateButtons = document.querySelectorAll('.day-select');
+    var typeScheduleDate = document.getElementById('typeScheduleDate');
 
     function setScheduleTimes() {
         var noTime = scheduleType.value === 'oncall' || scheduleType.value === 'leave';
@@ -6752,6 +8258,7 @@ function initDoctorNurseModulePages() {
         scheduleAction.value = isEdit ? 'update' : 'add';
         scheduleId.value = isEdit ? data.id : '';
         scheduleDate.value = data.date;
+        bindScheduleDateOptions(scheduleForm, data.date, isEdit);
         scheduleModalTitle.textContent = isEdit ? 'Edit schedule' : 'Add schedule';
         scheduleSubmit.textContent = isEdit ? 'Save changes' : 'Add schedule';
         scheduleType.value = data.type || 'morning';
@@ -6832,6 +8339,16 @@ function initDoctorNurseModulePages() {
                 type: 'morning'
             });
         });
+        if (typeScheduleDate) {
+            typeScheduleDate.addEventListener('click', function () {
+                setAddMode(false);
+                openScheduleModal({
+                    action: 'add',
+                    date: scheduleLocalDate(),
+                    type: 'morning'
+                });
+            });
+        }
     });
     document.querySelectorAll('.shift[data-open-schedule="edit"]').forEach(function (button) {
         button.addEventListener('click', function () {
@@ -6879,14 +8396,15 @@ function initDoctorNurseModulePages() {
 function initNurseNotifiedCases() {
     var caseList = document.getElementById('nurse-case-list');
     var dutyForm = document.getElementById('nurse-duty-form');
-    var prepForm = document.getElementById('patientPrepForm');
-    if (!caseList || !prepForm) return;
+    var clinicalForm = document.getElementById('nurse-clinical-record-form');
+    if (!caseList || !clinicalForm) return;
 
     var cases = Array.isArray(window.nurseCases) ? window.nurseCases.slice() : [];
-    var beds = Array.isArray(window.nurseBeds) ? window.nurseBeds.slice() : [];
     var endpoint = window.nurseNotifiedCasesEndpoint || '';
     var csrfToken = window.nurseCasesCsrfToken || '';
-    var caseButtons = Array.prototype.slice.call(document.querySelectorAll('.case-filters button'));
+    var caseButtons = Array.prototype.slice.call(
+        document.querySelectorAll('.nurse-case-summary [data-category-filter]')
+    );
     var emptyState = document.getElementById('nurse-cases-empty');
     var pagination = document.getElementById('nurse-case-pagination');
     var previousButton = document.getElementById('nurse-case-previous');
@@ -6895,368 +8413,336 @@ function initNurseNotifiedCases() {
     var dutyValue = document.getElementById('nurse-duty-value');
     var dutyButton = document.getElementById('nurse-duty-toggle');
     var dutyFeedback = document.getElementById('nurse-duty-feedback');
-    var prepModal = document.getElementById('patientPrepModal');
-    var prepIncidentId = document.getElementById('prepIncidentId');
-    var prepIncidentTitle = document.getElementById('patientPrepIncident');
-    var modalFeedback = document.getElementById('prepModalFeedback');
-    var savePrepButton = document.getElementById('savePatientPrep');
+    var clinicalModal = document.getElementById('nurse-clinical-record-modal');
+    var clinicalIncidentId = document.getElementById('nurse-clinical-incident-id');
+    var clinicalIncidentTitle = document.getElementById('nurse-clinical-record-incident');
+    var modalFeedback = document.getElementById('nurse-clinical-modal-feedback');
+    var saveClinicalButton = document.getElementById('nurse-clinical-save-button');
+    var drawer = document.getElementById('nurse-case-drawer');
+    var drawerBackdrop = document.getElementById('nurse-drawer-backdrop');
+    var drawerClose = document.getElementById('nurse-drawer-close');
+    var drawerTrigger = null;
     var selectedCaseId = null;
     var activeFilter = 'all';
     var currentPage = 1;
-    var pageSize = 3;
+    var pageSize = 6;
     var refreshing = false;
 
-    function createTextElement(tagName, className, text) {
+    function createNurseTextElement(tagName, className, text) {
         var element = document.createElement(tagName);
         if (className) element.className = className;
         element.textContent = text || '';
         return element;
     }
 
-    function matchingCases() {
+    function matchingNurseCases() {
         return cases.filter(function (item) {
-            return activeFilter === 'all' || item.severity === activeFilter;
+            return activeFilter === 'all' || item.triageCategory === activeFilter;
         });
     }
 
-    function updateSummary(summary, nextArrival, freeBeds) {
-        var incoming = document.getElementById('nurse-summary-incoming');
-        var prepared = document.getElementById('nurse-summary-prepared');
-        var arrival = document.getElementById('nurse-summary-arrival');
-        var arrivalCase = document.getElementById('nurse-summary-arrival-case');
-        var erBeds = document.getElementById('nurse-summary-er');
-        var pediatricBeds = document.getElementById('nurse-summary-pediatric');
-        var incomingCount = Number(summary.incoming) || 0;
-        if (incoming) {
-            incoming.textContent = '';
-            incoming.appendChild(document.createTextNode(String(incomingCount) + ' '));
-            incoming.appendChild(createTextElement('small', '', 'cases'));
-        }
-        if (prepared) {
-            prepared.textContent = '';
-            prepared.appendChild(document.createTextNode(String(Number(summary.prepCompleted) || 0) + ' '));
-            prepared.appendChild(createTextElement('small', '', 'of ' + incomingCount));
-        }
-        if (nextArrival !== undefined) {
-            if (arrival) arrival.textContent = nextArrival ? nextArrival.arrival : 'No en-route cases';
-            if (arrivalCase) arrivalCase.textContent = nextArrival ? nextArrival.incident : 'Waiting for transport update';
-        }
-        if (erBeds) erBeds.textContent = String(Number(freeBeds.er) || 0);
-        if (pediatricBeds) pediatricBeds.textContent = String(Number(freeBeds.pediatric) || 0);
-    }
-
-    function updateBedOptions(selectedBedId) {
-        var select = document.getElementById('prepBed');
-        if (!select) return;
-        var currentCase = cases.find(function (item) {
-            return String(item.id) === String(selectedCaseId);
-        });
-        select.replaceChildren(createTextElement('option', '', 'Choose an available bed'));
-        select.options[0].value = '';
-        beds.forEach(function (bed) {
-            var available = bed.status === 'ready' ||
-                (currentCase && String(currentCase.bedId) === String(bed.id));
-            if (!available) return;
-            var option = createTextElement('option', '', bed.label);
-            option.value = String(bed.id);
-            select.appendChild(option);
-        });
-        select.value = selectedBedId === null || selectedBedId === undefined ? '' : String(selectedBedId);
-    }
-
-    function updateFilterCounts() {
-        var counts = { all: cases.length, Critical: 0, Urgent: 0, Stable: 0 };
+    function updateNurseFilterCounts() {
+        var counts = { all: cases.length, emergent: 0, urgent: 0, non_urgent: 0, expectant: 0 };
         cases.forEach(function (item) {
-            counts[item.severity] = (counts[item.severity] || 0) + 1;
+            if (item.triageCategory) {
+                counts[item.triageCategory] = (counts[item.triageCategory] || 0) + 1;
+            }
         });
         caseButtons.forEach(function (button) {
-            var count = button.querySelector('b');
-            if (count) count.textContent = String(counts[button.dataset.filter] || 0);
+            var count = button.querySelector('[data-summary-count]');
+            if (count) count.textContent = String(counts[button.dataset.categoryFilter] || 0);
         });
     }
 
-    function makeCaseCard(item) {
-        var article = createTextElement('article', 'prep-case');
-        article.dataset.severity = item.severity;
+    function makeNurseCaseCard(item) {
+        var article = createNurseTextElement('article', 'case-card');
+        var triageCategory = item.triageCategory || 'unclassified';
+        article.dataset.caseCategory = triageCategory;
         article.dataset.caseId = String(item.id);
 
-        var selectButton = document.createElement('button');
-        selectButton.type = 'button';
-        selectButton.className = 'case-select';
-        selectButton.dataset.caseId = String(item.id);
-        selectButton.setAttribute('aria-pressed', 'false');
-        selectButton.setAttribute('aria-label', 'View ' + item.title);
+        var top = createNurseTextElement('div', 'case-card-top');
+        top.appendChild(createNurseTextElement('h2', '', item.title));
+        top.appendChild(createNurseTextElement(
+            'span',
+            'severity ' + triageCategory,
+            item.triageCategoryLabel
+        ));
+        article.appendChild(top);
+        article.appendChild(createNurseTextElement(
+            'p',
+            'nurse-case-patient',
+            item.patient === 'Patient details unavailable'
+                ? item.location
+                : item.location + ' · ' + item.patient
+        ));
 
-        var severityLine = createTextElement('span', 'severity-line ' + item.severity.toLowerCase());
-        var main = createTextElement('div', 'case-main');
-        var meta = createTextElement('div', 'case-meta');
-        var severity = createTextElement('span', 'severity-label ' + item.severity.toLowerCase());
-        severity.appendChild(document.createElement('i'));
-        severity.appendChild(document.createTextNode(item.severity));
-        meta.appendChild(severity);
-        meta.appendChild(createTextElement('span', '', item.unit));
-        main.appendChild(meta);
-        main.appendChild(createTextElement('h2', '', item.title));
-        main.appendChild(createTextElement('p', '', item.patient));
-        main.appendChild(createTextElement('strong', 'arriving-text', item.arrivalStatus));
-        var prepState = createTextElement('small', 'prep-state' + (item.prepCompleted ? ' is-complete' : ''),
-            item.prepCompleted ? 'Prep complete' : 'Preparation pending');
-        main.appendChild(prepState);
-        selectButton.appendChild(severityLine);
-        selectButton.appendChild(main);
-        article.appendChild(selectButton);
+        var reportedAt = new Date(String(item.reportedAt).replace(' ', 'T') + '+08:00');
+        var reportedLabel = Number.isNaN(reportedAt.getTime())
+            ? item.reportedAt
+            : reportedAt.toLocaleString('en-US', {
+                timeZone: 'Asia/Manila',
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit'
+            });
+        article.appendChild(createNurseTextElement(
+            'small',
+            'case-reported',
+            'Reported ' + reportedLabel
+        ));
+        article.appendChild(createNurseTextElement(
+            'small',
+            'case-lifecycle',
+            item.arrivalStatus + ' · Lifecycle: ' + item.status
+        ));
+
+        var bottom = createNurseTextElement('div', 'case-card-bottom');
+        var eta = item.etaMinutes === null ? 'ETA unavailable' : 'ETA ' + item.etaMinutes + ' min';
+        bottom.appendChild(createNurseTextElement(
+            'span',
+            '',
+            eta + ' · ' + item.hospital + ' · ' + item.unit
+        ));
+        var detailsButton = createNurseTextElement('button', 'details-btn', 'View details');
+        detailsButton.type = 'button';
+        detailsButton.dataset.caseId = String(item.id);
+        bottom.appendChild(detailsButton);
+        article.appendChild(bottom);
         return article;
     }
 
-    function renderCases() {
-        var matching = matchingCases();
+    function renderNurseCases() {
+        var matching = matchingNurseCases();
         var pageCount = Math.max(1, Math.ceil(matching.length / pageSize));
         currentPage = Math.min(currentPage, pageCount);
         var start = (currentPage - 1) * pageSize;
         var visibleCases = matching.slice(start, start + pageSize);
-        caseList.querySelectorAll('.prep-case').forEach(function (card) {
+        caseList.querySelectorAll('.case-card').forEach(function (card) {
             card.remove();
         });
         visibleCases.forEach(function (item) {
-            var card = makeCaseCard(item);
-            card.classList.toggle('selected', String(item.id) === String(selectedCaseId));
-            var button = card.querySelector('.case-select');
-            button.setAttribute('aria-pressed', String(String(item.id) === String(selectedCaseId)));
+            var card = makeNurseCaseCard(item);
             caseList.insertBefore(card, emptyState);
         });
         if (emptyState) {
             emptyState.hidden = matching.length > 0;
             emptyState.textContent = cases.length
-                ? 'No ' + activeFilter.toLowerCase() + ' cases are currently active.'
+                ? 'No ' + activeFilter.replace('_', ' ') + ' cases are currently active.'
                 : 'No active cases have been notified to your account.';
         }
         if (pageStatus) pageStatus.textContent = 'Page ' + currentPage + ' of ' + pageCount;
         if (previousButton) previousButton.disabled = currentPage <= 1;
         if (nextButton) nextButton.disabled = currentPage >= pageCount;
-        if (pagination) pagination.hidden = matching.length <= pageSize;
+        if (pagination) pagination.hidden = matching.length === 0;
 
-        if (visibleCases.length) {
-            if (!visibleCases.some(function (item) { return String(item.id) === String(selectedCaseId); })) {
-                selectedCaseId = visibleCases[0].id;
-            }
-            updateDetails(selectedCaseId);
-            var selectedCard = caseList.querySelector('.prep-case.selected .case-select');
-            if (selectedCard) selectedCard.setAttribute('aria-pressed', 'true');
-        } else {
+        if (selectedCaseId && !cases.some(function (item) {
+            return String(item.id) === String(selectedCaseId);
+        })) {
+            closeNurseDrawer();
             selectedCaseId = null;
-            showEmptyDetails();
+        } else if (drawer && drawer.classList.contains('open') && selectedCaseId) {
+            updateNurseCaseDetails(selectedCaseId);
         }
-        updateFilterCounts();
+        updateNurseFilterCounts();
     }
 
-    function setMeasurement(elementId, value, unit) {
-        var element = document.getElementById(elementId);
-        if (!element) return;
-        element.textContent = value === null || value === '' ? '—' : String(value);
-        element.appendChild(createTextElement('small', '', unit));
-    }
-
-    function showEmptyDetails() {
-        var detailContent = document.getElementById('detailContent');
-        var detail = document.getElementById('caseDetail');
-        var emptyMessage = document.getElementById('detailEmptyMessage');
-        if (detailContent) detailContent.hidden = true;
-        if (emptyMessage) {
-            emptyMessage.hidden = false;
-            emptyMessage.textContent = cases.length
-                ? 'No cases match this filter.'
-                : 'No incoming cases are currently assigned to your account.';
-        }
-        if (detail) detail.classList.add('empty');
-    }
-
-    function updateDetails(id) {
+    function updateNurseCaseDetails(id) {
         var item = cases.find(function (entry) { return String(entry.id) === String(id); });
-        if (!item) {
-            showEmptyDetails();
-            return;
-        }
+        if (!item) return;
         selectedCaseId = item.id;
-        caseList.querySelectorAll('.prep-case').forEach(function (card) {
-            var selected = card.dataset.caseId === String(item.id);
-            card.classList.toggle('selected', selected);
-            var button = card.querySelector('.case-select');
-            if (button) button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+        var values = {
+            'nurse-drawer-title': item.title,
+            'nurse-drawer-location': item.location,
+            'nurse-drawer-category': item.triageCategoryLabel || 'Unclassified',
+            'nurse-drawer-patient': item.patient,
+            'nurse-drawer-lifecycle': item.status,
+            'nurse-drawer-transport-status': item.arrivalStatus || 'Awaiting transport',
+            'nurse-drawer-hospital': item.hospital,
+            'nurse-drawer-responder': item.responder + ' · ' + item.unit,
+            'nurse-drawer-eta': item.etaMinutes === null
+                ? 'Not available'
+                : (item.arrival || 'ETA ' + item.etaMinutes + ' min'),
+            'nurse-drawer-reported': item.reportedAt
+        };
+        Object.keys(values).forEach(function (elementId) {
+            var element = document.getElementById(elementId);
+            if (element) element.textContent = values[elementId];
         });
-
-        var detailContent = document.getElementById('detailContent');
-        var emptyMessage = document.getElementById('detailEmptyMessage');
-        var detail = document.getElementById('caseDetail');
-        if (detailContent) detailContent.hidden = false;
-        if (emptyMessage) emptyMessage.hidden = true;
-        if (detail) detail.classList.remove('empty');
-
-        var severity = document.getElementById('detailSeverity');
-        if (severity) {
-            severity.className = 'severity-label ' + item.severity.toLowerCase();
-            severity.textContent = '';
-            severity.appendChild(document.createElement('i'));
-            severity.appendChild(document.createTextNode(item.severity));
+        var categoryElement = document.getElementById('nurse-drawer-category');
+        if (categoryElement) {
+            var category = ['emergent', 'urgent', 'non_urgent', 'expectant'].indexOf(
+                item.triageCategory
+            ) >= 0 ? item.triageCategory : 'unclassified';
+            categoryElement.classList.remove(
+                'category-emergent',
+                'category-urgent',
+                'category-non_urgent',
+                'category-expectant',
+                'category-unclassified'
+            );
+            categoryElement.classList.add('category-' + category);
         }
-        document.getElementById('detailArrivalStatus').textContent = item.arrivalStatus || 'Awaiting transport';
-        document.getElementById('detailArrival').textContent = item.arrival || 'Not available';
-        document.getElementById('detailTitle').textContent = item.title;
-        document.getElementById('detailPatient').textContent = item.patient;
-        document.getElementById('detailLocation').textContent = item.location + ' · ' + item.hospital;
-        document.getElementById('handoverSource').textContent = 'Sent from ' + item.responder;
-        setMeasurement('detailHr', item.heartRate, 'bpm');
-        setMeasurement('detailBp', item.bp, 'mmHg');
-        setMeasurement('detailSpo2', item.spo2, '%');
-        setMeasurement('detailConscious', item.consciousness, ' GCS');
-        document.getElementById('detailNote').textContent = item.note || 'No responder handover notes recorded.';
-        document.getElementById('detailNurseNote').textContent = item.nurseNote || 'No nurse notes recorded.';
-        var completeButton = document.getElementById('togglePrepComplete');
-        completeButton.textContent = item.prepCompleted ? 'Mark prep incomplete' : 'Mark prep complete';
-        completeButton.classList.toggle('is-complete', item.prepCompleted);
-        var feedback = document.getElementById('nurse-prep-feedback');
-        if (feedback) feedback.textContent = item.prepCompleted && item.prepCompletedByName
-            ? 'Preparation completed by ' + item.prepCompletedByName + '.'
-            : '';
     }
 
-    function openPrepModal(item) {
-        if (!item || !prepModal) return;
-        prepIncidentId.value = String(item.id);
-        prepIncidentTitle.textContent = item.title + ' · ' + item.patient;
-        document.getElementById('prepHeartRate').value = item.heartRate;
-        document.getElementById('prepBloodPressure').value = item.bp;
-        document.getElementById('prepSpo2').value = item.spo2;
-        document.getElementById('prepGcs').value = item.consciousness;
-        document.getElementById('prepNurseNote').value = item.nurseNote || '';
-        updateBedOptions(item.bedId);
-        document.getElementById('prepCompleted').checked = item.prepCompleted;
+    function openNurseDrawer(id) {
+        updateNurseCaseDetails(id);
+        if (!drawer) return;
+        drawerTrigger = document.activeElement;
+        drawer.classList.add('open');
+        drawer.setAttribute('aria-hidden', 'false');
+        if (drawerBackdrop) {
+            drawerBackdrop.classList.add('open');
+            drawerBackdrop.setAttribute('aria-hidden', 'false');
+        }
+        document.body.classList.add('drawer-open');
+        if (drawerClose) drawerClose.focus();
+    }
+
+    function closeNurseDrawer() {
+        if (drawer) {
+            drawer.classList.remove('open');
+            drawer.setAttribute('aria-hidden', 'true');
+        }
+        if (drawerBackdrop) {
+            drawerBackdrop.classList.remove('open');
+            drawerBackdrop.setAttribute('aria-hidden', 'true');
+        }
+        document.body.classList.remove('drawer-open');
+        if (drawerTrigger && drawerTrigger.isConnected) drawerTrigger.focus();
+        drawerTrigger = null;
+    }
+    function openNurseClinicalRecordModal(item) {
+        if (!item || !clinicalModal) return;
+        clinicalIncidentId.value = String(item.id);
+        clinicalIncidentTitle.textContent = item.title + ' · ' + item.patient;
+        document.getElementById('nurse-clinical-heart-rate').value = item.heartRate;
+        document.getElementById('nurse-clinical-blood-pressure').value = item.bp;
+        document.getElementById('nurse-clinical-spo2').value = item.spo2;
+        document.getElementById('nurse-clinical-gcs').value = item.consciousness;
+        document.getElementById('nurse-clinical-note').value = item.nurseNote || '';
         modalFeedback.textContent = '';
-        prepModal.classList.add('open');
-        prepModal.setAttribute('aria-hidden', 'false');
-        prepModal.removeAttribute('inert');
-        document.getElementById('prepHeartRate').focus();
+        clinicalModal.classList.add('open');
+        clinicalModal.setAttribute('aria-hidden', 'false');
+        clinicalModal.removeAttribute('inert');
+        document.getElementById('nurse-clinical-heart-rate').focus();
     }
 
-    function closePrepModal() {
-        if (!prepModal) return;
-        prepModal.classList.remove('open');
-        prepModal.setAttribute('aria-hidden', 'true');
-        prepModal.setAttribute('inert', '');
-        var selectedButton = caseList.querySelector('.prep-case.selected .case-select');
+    function closeNurseClinicalModal() {
+        if (!clinicalModal) return;
+        clinicalModal.classList.remove('open');
+        clinicalModal.setAttribute('aria-hidden', 'true');
+        clinicalModal.setAttribute('inert', '');
+        var selectedButton = caseList.querySelector(
+            '.case-card[data-case-id="' + String(selectedCaseId) + '"] .details-btn'
+        );
         if (selectedButton) selectedButton.focus();
+        else if (drawerClose) drawerClose.focus();
     }
 
-    function submitPreparation(formData, button) {
+    function saveNurseClinicalRecord(formData, button) {
         if (button) button.disabled = true;
-        return fetch(prepForm.action, {
+        return fetch(clinicalForm.action, {
             method: 'POST',
             body: formData,
             headers: { Accept: 'application/json' }
         }).then(function (response) {
             return response.json().then(function (result) {
                 if (!response.ok || !result.success) {
-                    throw new Error(result.message || 'Patient preparation could not be saved.');
+                    throw new Error(result.message || 'Clinical record could not be saved.');
                 }
                 return result;
             });
         }).then(function (result) {
             cases = result.cases;
-            beds = result.beds || beds;
             window.nurseCases = cases;
-            window.nurseBeds = beds;
-            updateSummary(result.summary, undefined, result.freeBeds);
-            renderCases();
-            var feedback = document.getElementById('nurse-prep-feedback');
+            renderNurseCases();
+            var feedback = document.getElementById('nurse-clinical-feedback');
             if (feedback) feedback.textContent = result.message;
-            closePrepModal();
+            closeNurseClinicalModal();
         }).catch(function (error) {
             modalFeedback.textContent = error.message;
-            var detailFeedback = document.getElementById('nurse-prep-feedback');
+            var detailFeedback = document.getElementById('nurse-clinical-feedback');
             if (detailFeedback) detailFeedback.textContent = error.message;
-            console.error('[PulseAlert] Nurse patient preparation update failed.', error);
+            console.error('[PulseAlert] Nurse clinical record update failed.', error);
         }).finally(function () {
             if (button) button.disabled = false;
         });
     }
 
     caseList.addEventListener('click', function (event) {
-        var button = event.target.closest('.case-select');
+        var button = event.target.closest('.details-btn');
         if (!button) return;
-        updateDetails(button.dataset.caseId);
+        openNurseDrawer(button.dataset.caseId);
     });
 
     caseButtons.forEach(function (button) {
         button.addEventListener('click', function () {
-            activeFilter = button.dataset.filter;
+            activeFilter = button.dataset.categoryFilter;
             currentPage = 1;
             caseButtons.forEach(function (item) {
                 var selected = item === button;
-                item.classList.toggle('active', selected);
-                item.setAttribute('aria-selected', selected ? 'true' : 'false');
+                item.classList.toggle('is-active', selected);
+                item.setAttribute('aria-pressed', selected ? 'true' : 'false');
             });
-            renderCases();
+            renderNurseCases();
         });
     });
 
     if (previousButton) previousButton.addEventListener('click', function () {
         if (currentPage > 1) {
             currentPage -= 1;
-            renderCases();
+            renderNurseCases();
         }
     });
     if (nextButton) nextButton.addEventListener('click', function () {
         currentPage += 1;
-        renderCases();
+        renderNurseCases();
     });
 
-    document.getElementById('editPatientPrep').addEventListener('click', function () {
-        openPrepModal(cases.find(function (item) { return String(item.id) === String(selectedCaseId); }));
-    });
+    if (drawerClose) drawerClose.addEventListener('click', closeNurseDrawer);
+    if (drawerBackdrop) drawerBackdrop.addEventListener('click', closeNurseDrawer);
 
-    document.getElementById('togglePrepComplete').addEventListener('click', function () {
-        var item = cases.find(function (entry) { return String(entry.id) === String(selectedCaseId); });
-        if (!item) return;
-        if (!item.prepCompleted && (
-            !item.heartRate ||
-            !item.bp ||
-            !item.spo2 ||
-            !item.consciousness ||
-            !item.bedId
-        )) {
-            openPrepModal(item);
-            document.getElementById('prepCompleted').checked = true;
-            modalFeedback.textContent = 'Enter all vital signs and assign a bed before completing preparation.';
-            return;
-        }
-        var data = new FormData();
-        data.append('csrf_token', csrfToken);
-        data.append('incident_id', String(item.id));
-        data.append('heart_rate', item.heartRate);
-        data.append('blood_pressure', item.bp);
-        data.append('spo2', item.spo2);
-        data.append('gcs', item.consciousness);
-        data.append('nurse_note', item.nurseNote || '');
-        data.append('bed_id', item.bedId || '');
-        data.append('prep_completed', item.prepCompleted ? '0' : '1');
-        var feedback = document.getElementById('nurse-prep-feedback');
-        feedback.textContent = '';
-        submitPreparation(data, this);
-    });
-
-    prepForm.addEventListener('submit', function (event) {
+    clinicalForm.addEventListener('submit', function (event) {
         event.preventDefault();
         modalFeedback.textContent = '';
-        var data = new FormData(prepForm);
+        var data = new FormData(clinicalForm);
         data.set('csrf_token', csrfToken);
-        data.set('prep_completed', document.getElementById('prepCompleted').checked ? '1' : '0');
-        submitPreparation(data, savePrepButton);
+        saveNurseClinicalRecord(data, saveClinicalButton);
     });
 
-    document.querySelectorAll('[data-close-prep-modal]').forEach(function (button) {
-        button.addEventListener('click', closePrepModal);
+    document.querySelectorAll('[data-close-nurse-clinical-modal]').forEach(function (button) {
+        button.addEventListener('click', closeNurseClinicalModal);
     });
     document.addEventListener('keydown', function (event) {
-        if (event.key === 'Escape' && prepModal.classList.contains('open')) closePrepModal();
+        if (event.key === 'Escape') {
+            if (clinicalModal.classList.contains('open')) {
+                closeNurseClinicalModal();
+            } else if (drawer && drawer.classList.contains('open')) {
+                closeNurseDrawer();
+            }
+            return;
+        }
+        if (
+            event.key !== 'Tab' ||
+            !drawer ||
+            !drawer.classList.contains('open') ||
+            clinicalModal.classList.contains('open')
+        ) return;
+        var focusable = drawer.querySelectorAll(
+            'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        );
+        if (!focusable.length) return;
+        var first = focusable[0];
+        var last = focusable[focusable.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+            event.preventDefault();
+            last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault();
+            first.focus();
+        }
     });
 
     if (dutyForm && dutyValue && dutyButton) {
@@ -7308,10 +8794,7 @@ function initNurseNotifiedCases() {
             });
         }).then(function (result) {
             cases = result.cases;
-            beds = result.beds || beds;
             window.nurseCases = cases;
-            window.nurseBeds = beds;
-            updateSummary(result.summary, result.nextArrival, result.freeBeds);
             var refreshFeedback = document.getElementById('nurse-refresh-feedback');
             if (refreshFeedback) refreshFeedback.textContent = '';
             if (result.nurse && dutyButton && dutyValue) {
@@ -7322,7 +8805,7 @@ function initNurseNotifiedCases() {
                 dutyButton.classList.toggle('is-off-duty', !isAvailable);
                 dutyButton.setAttribute('aria-pressed', isAvailable ? 'true' : 'false');
             }
-            renderCases();
+            renderNurseCases();
         }).catch(function (error) {
             var feedback = document.getElementById('nurse-refresh-feedback');
             if (feedback) feedback.textContent = error.message;
@@ -7332,207 +8815,9 @@ function initNurseNotifiedCases() {
         });
     }
 
-    renderCases();
+    renderNurseCases();
     refreshCases();
     window.setInterval(refreshCases, 15000);
-}
-
-function initNurseBedStatus() {
-    var page = document.getElementById('nurse-bed-status-page');
-    var form = document.getElementById('bedStatusForm');
-    var modal = document.getElementById('bedStatusModal');
-    if (!page || !form || !modal) return;
-
-    var state = window.nurseBedStatus || {};
-    var csrfToken = window.nurseBedStatusCsrf || '';
-    var statusInput = document.getElementById('bedStatusValue');
-    var bedIdInput = document.getElementById('bedStatusBedId');
-    var incidentAssignment = document.getElementById('bedIncidentAssignment');
-    var incidentInput = document.getElementById('bedStatusIncident');
-    var bedLabel = document.getElementById('bedStatusBedLabel');
-    var modalFeedback = document.getElementById('bedStatusModalFeedback');
-    var pageFeedback = document.getElementById('bedStatusFeedback');
-    var saveButton = document.getElementById('bedStatusSave');
-    var activeFilter = 'all';
-    var previousTrigger = null;
-    var bedIcon = '<svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="M6 24V10M6 20H27V25M9 20V14H27C28.1 14 29 14.9 29 16V20M10 14V10H15C17.2 10 19 11.8 19 14" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-
-    function createOption(label, value) {
-        var option = document.createElement('option');
-        option.value = value;
-        option.textContent = label;
-        return option;
-    }
-
-    function statusLabel(status) {
-        return status.charAt(0).toUpperCase() + status.slice(1);
-    }
-
-    function updateIncidentOptions(bedId, selectedIncidentId) {
-        if (!incidentInput) return;
-        var eligibleIncidents = (state.incidentOptions || []).filter(function (incident) {
-            return incident.bedId === null || String(incident.bedId) === String(bedId);
-        });
-        incidentInput.replaceChildren(createOption(
-            eligibleIncidents.length ? 'Choose an incident' : 'No active incidents available',
-            ''
-        ));
-        eligibleIncidents.forEach(function (incident) {
-            var label = incident.title + ' — ' + incident.patient + ' (' + statusLabel(incident.status) + ')';
-            incidentInput.appendChild(createOption(label, String(incident.id)));
-        });
-        incidentInput.value = selectedIncidentId ? String(selectedIncidentId) : '';
-    }
-
-    function updateIncidentAssignment() {
-        var isOccupied = statusInput.value === 'occupied';
-        if (incidentAssignment) incidentAssignment.hidden = !isOccupied;
-        if (incidentInput) {
-            incidentInput.required = isOccupied;
-            if (!isOccupied) incidentInput.value = '';
-        }
-    }
-
-    function renderSummary() {
-        document.querySelectorAll('.bed-stat').forEach(function (button) {
-            var status = button.dataset.bedFilter;
-            var count = status === 'all'
-                ? Object.keys(state.counts || {}).reduce(function (total, key) {
-                    return total + (Number(state.counts[key]) || 0);
-                }, 0)
-                : Number((state.counts || {})[status]) || 0;
-            var value = button.querySelector('strong');
-            if (value) value.textContent = String(count);
-        });
-    }
-
-    function makeBedCard(bed) {
-        var typeLabel = bed.type === 'er' ? 'ER' : 'Pediatric';
-        var button = document.createElement('button');
-        button.type = 'button';
-        button.className = 'bed-card ' + bed.status;
-        button.dataset.bedId = String(bed.id);
-        button.dataset.bedType = bed.type;
-        button.dataset.bedNumber = String(bed.number);
-        button.dataset.bedStatus = bed.status;
-        button.dataset.incidentId = bed.incidentId ? String(bed.incidentId) : '';
-        button.setAttribute('aria-label', typeLabel + ' Bed ' + bed.number + ', ' + statusLabel(bed.status) + '. Edit status.');
-        button.insertAdjacentHTML('afterbegin', bedIcon);
-        button.querySelector('svg').className = 'bed-icon-svg';
-        var name = document.createElement('strong');
-        name.textContent = 'Bed ' + bed.number;
-        var status = document.createElement('small');
-        status.textContent = statusLabel(bed.status).toUpperCase();
-        button.appendChild(name);
-        button.appendChild(status);
-        button.hidden = activeFilter !== 'all' && activeFilter !== bed.status;
-        return button;
-    }
-
-    function renderBeds() {
-        [
-            { id: 'erBedGrid', beds: state.erBeds || [] },
-            { id: 'pediatricBedGrid', beds: state.pediatricBeds || [] }
-        ].forEach(function (gridData) {
-            var grid = document.getElementById(gridData.id);
-            if (!grid) return;
-            grid.replaceChildren();
-            gridData.beds.forEach(function (bed) {
-                grid.appendChild(makeBedCard(bed));
-            });
-            var section = grid.closest('.bed-section');
-            if (section) {
-                section.hidden = activeFilter !== 'all' &&
-                    !gridData.beds.some(function (bed) { return bed.status === activeFilter; });
-            }
-        });
-    }
-
-    function openModal(button) {
-        previousTrigger = button;
-        bedIdInput.value = button.dataset.bedId;
-        statusInput.value = button.dataset.bedStatus;
-        bedLabel.textContent = (button.dataset.bedType === 'er' ? 'ER' : 'Pediatric') +
-            ' Bed ' + button.dataset.bedNumber;
-        updateIncidentOptions(button.dataset.bedId, button.dataset.incidentId);
-        updateIncidentAssignment();
-        modalFeedback.textContent = '';
-        modal.classList.add('open');
-        modal.setAttribute('aria-hidden', 'false');
-        modal.removeAttribute('inert');
-        statusInput.focus();
-    }
-
-    function closeModal() {
-        modal.classList.remove('open');
-        modal.setAttribute('aria-hidden', 'true');
-        modal.setAttribute('inert', '');
-        if (previousTrigger && document.contains(previousTrigger)) previousTrigger.focus();
-    }
-
-    page.addEventListener('click', function (event) {
-        var bed = event.target.closest('.bed-card');
-        if (bed) {
-            openModal(bed);
-            return;
-        }
-        var filterButton = event.target.closest('.bed-stat');
-        if (!filterButton) return;
-        activeFilter = activeFilter === filterButton.dataset.bedFilter
-            ? 'all'
-            : filterButton.dataset.bedFilter;
-        document.querySelectorAll('.bed-stat').forEach(function (button) {
-            var selected = activeFilter === button.dataset.bedFilter;
-            button.classList.toggle('active', selected);
-            button.setAttribute('aria-pressed', selected ? 'true' : 'false');
-        });
-        renderBeds();
-    });
-
-    document.querySelectorAll('[data-close-bed-modal]').forEach(function (button) {
-        button.addEventListener('click', closeModal);
-    });
-    statusInput.addEventListener('change', updateIncidentAssignment);
-    document.addEventListener('keydown', function (event) {
-        if (event.key === 'Escape' && modal.classList.contains('open')) closeModal();
-    });
-
-    form.addEventListener('submit', function (event) {
-        event.preventDefault();
-        modalFeedback.textContent = '';
-        pageFeedback.textContent = '';
-        saveButton.disabled = true;
-        var payload = new FormData(form);
-        payload.set('csrf_token', csrfToken);
-        fetch(form.action, {
-            method: 'POST',
-            body: payload,
-            headers: { Accept: 'application/json' }
-        }).then(function (response) {
-            return response.json().then(function (result) {
-                if (!response.ok || !result.success) {
-                    throw new Error(result.message || 'Bed status could not be updated.');
-                }
-                return result;
-            });
-        }).then(function (result) {
-            state = result;
-            state.incidentOptions = result.incidentOptions || [];
-            window.nurseBedStatus = state;
-            renderSummary();
-            renderBeds();
-            closeModal();
-            pageFeedback.textContent = result.message;
-        }).catch(function (error) {
-            modalFeedback.textContent = error.message;
-            console.error('[PulseAlert] Nurse bed status update failed.', error);
-        }).finally(function () {
-            saveButton.disabled = false;
-        });
-    });
-
-    renderSummary();
-    renderBeds();
 }
 
 function initDoctorCaseHistory() {
@@ -7547,8 +8832,6 @@ function initDoctorCaseHistory() {
     var previousButton = document.getElementById('doctor-history-previous');
     var nextButton = document.getElementById('doctor-history-next');
     var pageStatus = document.getElementById('doctor-history-page-status');
-    var feedback = document.getElementById('history-status-feedback');
-    var resolvedCount = document.querySelector('.history-stats > div:nth-child(3) strong');
     var resolvedRate = document.querySelector('.history-stats > div:nth-child(3) small');
     var currentPage = 1;
     var pageSize = 6;
@@ -7618,35 +8901,12 @@ function initDoctorCaseHistory() {
                     row.appendChild(cell);
                 });
 
-                var statusCell = document.createElement('td');
-                var statusSelect = document.createElement('select');
-                statusSelect.className = 'history-status-select status-' + item.status;
-                statusSelect.dataset.incidentId = String(item.id);
-                statusSelect.setAttribute('aria-label', 'Change status for ' + item.case);
-
-                if (item.status === 'urgent' || item.status === 'dispatched') {
-                    var currentOption = document.createElement('option');
-                    currentOption.value = item.status;
-                    currentOption.textContent = item.status.charAt(0).toUpperCase() + item.status.slice(1) + ' (current)';
-                    currentOption.disabled = true;
-                    currentOption.selected = true;
-                    statusSelect.appendChild(currentOption);
-                }
-
-                [
-                    ['critical', 'Critical'],
-                    ['stable', 'Stable'],
-                    ['resolved', 'Resolved']
-                ].forEach(function (optionData) {
-                    var option = document.createElement('option');
-                    option.value = optionData[0];
-                    option.textContent = optionData[1];
-                    option.selected = item.status === optionData[0];
-                    statusSelect.appendChild(option);
-                });
-                statusSelect.dataset.savedStatus = item.status;
-                statusCell.appendChild(statusSelect);
-                row.appendChild(statusCell);
+                var triageCell = document.createElement('td');
+                var triageValue = document.createElement('span');
+                triageValue.className = 'history-category-value category-' + (item.triageCategory || 'unclassified');
+                triageValue.textContent = item.triageCategoryLabel || 'Unclassified';
+                triageCell.appendChild(triageValue);
+                row.appendChild(triageCell);
 
                 var outcomeCell = document.createElement('td');
                 var outcome = document.createElement('span');
@@ -7702,82 +8962,6 @@ function initDoctorCaseHistory() {
         });
     }
 
-    tableBody.addEventListener('change', function (event) {
-        var select = event.target.closest('.history-status-select');
-        if (!select) return;
-
-        var previousStatus = select.dataset.savedStatus || select.value;
-        var requestedStatus = select.value;
-        var payload = new FormData();
-        payload.append('id', select.dataset.incidentId || '');
-        payload.append('status', requestedStatus);
-        payload.append('csrf_token', window.doctorHistoryCsrfToken || '');
-        select.disabled = true;
-        if (feedback) feedback.textContent = '';
-
-        fetch(window.doctorHistoryEndpoint, {
-            method: 'POST',
-            body: payload,
-            headers: {
-                Accept: 'application/json',
-                'X-Requested-With': 'XMLHttpRequest'
-            }
-        }).then(function (response) {
-            return response.json().then(function (result) {
-                if (!response.ok || !result.success) {
-                    throw new Error(result.message || 'Could not save the selected status.');
-                }
-                return result;
-            });
-        }).then(function (result) {
-            var row = select.closest('tr');
-            var outcome = row ? row.querySelector('.history-outcome') : null;
-            if (outcome) {
-                outcome.classList.remove(
-                    'status-critical',
-                    'status-dispatched',
-                    'status-urgent',
-                    'status-stable',
-                    'status-resolved'
-                );
-                outcome.classList.add('status-' + result.status);
-                outcome.textContent = result.status.charAt(0).toUpperCase() + result.status.slice(1);
-            }
-            select.classList.remove(
-                'status-critical',
-                'status-dispatched',
-                'status-urgent',
-                'status-stable',
-                'status-resolved'
-            );
-            select.classList.add('status-' + result.status);
-            select.dataset.savedStatus = result.status;
-
-            if (resolvedCount && previousStatus !== result.status) {
-                var resolved = Number(resolvedCount.textContent) || 0;
-                if (previousStatus === 'resolved') resolved -= 1;
-                if (result.status === 'resolved') resolved += 1;
-                resolvedCount.textContent = String(resolved);
-
-                var received = Number(document.querySelector('.history-stats > div:first-child strong').textContent) || 0;
-                if (resolvedRate) {
-                    resolvedRate.textContent = (received > 0 ? Math.round((resolved / received) * 100) : 0) +
-                        '% of cases in this date range';
-                }
-            }
-        }).catch(function (error) {
-            select.value = previousStatus;
-            if (feedback) feedback.textContent = error.message;
-            console.error('[PulseAlert] Doctor case-history status update failed.', error);
-        }).finally(function () {
-            select.disabled = false;
-        });
-    });
-
-    rows.forEach(function (row) {
-        var select = row.querySelector('.history-status-select');
-        if (select) select.dataset.savedStatus = select.value;
-    });
     renderRows();
     refreshHistory();
     window.setInterval(function () {
@@ -7795,11 +8979,6 @@ document.addEventListener('DOMContentLoaded', function () {
         initNurseNotifiedCases();
     } catch (error) {
         console.error('[PulseAlert] Nurse notified-cases initialization failed.', error);
-    }
-    try {
-        initNurseBedStatus();
-    } catch (error) {
-        console.error('[PulseAlert] Nurse bed-status initialization failed.', error);
     }
     try {
         initDoctorCaseHistory();
@@ -7840,7 +9019,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function poll() {
-        if (checking || currentAlert || document.visibilityState !== 'visible') return;
+        if (checking || currentAlert || !backdrop.hidden || document.visibilityState !== 'visible') return;
         checking = true;
         fetch(window.staffIncomingAlertsEndpoint + '&action=pending', {
             headers: { Accept: 'application/json' },
@@ -7864,7 +9043,12 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     closeButton.addEventListener('click', function () {
-        if (!currentAlert) return;
+        if (!currentAlert) {
+            backdrop.hidden = true;
+            errorMessage.hidden = true;
+            poll();
+            return;
+        }
         closeButton.disabled = true;
         errorMessage.hidden = true;
         var payload = new FormData();
@@ -7877,7 +9061,9 @@ document.addEventListener('DOMContentLoaded', function () {
         }).then(function (response) {
             return response.json().then(function (result) {
                 if (!response.ok || !result.success) {
-                    throw new Error(result.message || 'The notification could not be acknowledged.');
+                    var error = new Error(result.message || 'The notification could not be acknowledged.');
+                    error.code = result.code || '';
+                    throw error;
                 }
             });
         }).then(function () {
@@ -7885,6 +9071,12 @@ document.addEventListener('DOMContentLoaded', function () {
             backdrop.hidden = true;
             poll();
         }).catch(function (error) {
+            if (error.code === 'already_processed' || error.code === 'not_found') {
+                currentAlert = null;
+                errorMessage.textContent = error.message;
+                errorMessage.hidden = false;
+                return;
+            }
             errorMessage.textContent = error.message;
             errorMessage.hidden = false;
             console.error('[PulseAlert] Staff incoming alert acknowledgement failed.', error);
@@ -7901,7 +9093,16 @@ document.addEventListener('DOMContentLoaded', function () {
     var settingsPage = document.getElementById('settings-card');
     if (!settingsPage) return;
 
-    var toast = document.getElementById('settings-toast');
+    var notificationCard = document.getElementById('settings-notification-card');
+    var notificationIcon = notificationCard && notificationCard.querySelector('.settings-notification-icon');
+    var notificationTitle = notificationCard && notificationCard.querySelector('.settings-notification-title');
+    var notificationMessage = notificationCard && notificationCard.querySelector('.settings-notification-message');
+    var notificationClose = notificationCard && notificationCard.querySelector('.settings-notification-close');
+    var settingsToast = document.getElementById('settings-toast');
+    var confirmationOverlay = document.getElementById('settings-confirmation-overlay');
+    var confirmationTitle = document.getElementById('settings-confirmation-title');
+    var confirmationMessage = document.getElementById('settings-confirmation-message');
+    var confirmationClose = document.getElementById('settings-confirmation-close');
     var photoDrawer = document.getElementById('settings-photo-drawer');
     var passwordDrawer = document.getElementById('settings-password-drawer');
     var locationDrawer = document.getElementById('settings-location-drawer');
@@ -7934,20 +9135,73 @@ document.addEventListener('DOMContentLoaded', function () {
     var locationMap = null;
     var locationMarker = null;
     var pendingCoordinates = null;
+    var confirmationLastFocusedElement = null;
+    var settingsToastTimer = null;
 
-    function showToast(message, kind) {
-        if (!toast) return;
-        toast.textContent = message;
-        toast.classList.remove('is-success', 'is-error');
-        toast.classList.add(kind === 'error' ? 'is-error' : 'is-success', 'is-visible');
-        window.clearTimeout(window.settingsToastTimer);
-        window.settingsToastTimer = window.setTimeout(function () {
-            toast.classList.remove('is-visible');
-        }, 3600);
+    function showSettingsNotification(message, kind) {
+        if (!notificationCard) {
+            if (!settingsToast) return;
+            settingsToast.textContent = message;
+            settingsToast.classList.remove('is-success', 'is-error');
+            settingsToast.classList.add(kind === 'error' ? 'is-error' : 'is-success', 'is-visible');
+            window.clearTimeout(settingsToastTimer);
+            settingsToastTimer = window.setTimeout(function () {
+                settingsToast.classList.remove('is-visible');
+            }, 3600);
+            return;
+        }
+        var stateKind = ['error', 'warning'].indexOf(kind) === -1 ? 'success' : kind;
+        var presentation = {
+            success: { title: 'Action completed', icon: '✓', role: 'status' },
+            error: { title: 'Unable to complete action', icon: '!', role: 'alert' },
+            warning: { title: 'Please review', icon: '⚠', role: 'status' }
+        }[stateKind];
+        notificationCard.classList.remove('is-success', 'is-error', 'is-warning');
+        notificationCard.classList.add('is-' + stateKind);
+        notificationCard.setAttribute('role', presentation.role);
+        notificationIcon.textContent = presentation.icon;
+        notificationTitle.textContent = presentation.title;
+        notificationMessage.textContent = message;
+        notificationCard.hidden = false;
     }
 
-    if (toast && toast.dataset.message) {
-        showToast(toast.dataset.message, toast.dataset.kind || 'success');
+    function showConfirmation(title, message) {
+        if (!confirmationTitle || !confirmationMessage || !confirmationOverlay || !confirmationClose) return;
+        confirmationLastFocusedElement = document.activeElement;
+        confirmationTitle.textContent = title;
+        confirmationMessage.textContent = message;
+        confirmationOverlay.hidden = false;
+        confirmationOverlay.setAttribute('aria-hidden', 'false');
+        document.body.classList.add('settings-confirmation-open');
+        confirmationClose.focus();
+    }
+
+    function closeConfirmation() {
+        confirmationOverlay.hidden = true;
+        confirmationOverlay.setAttribute('aria-hidden', 'true');
+        document.body.classList.remove('settings-confirmation-open');
+        if (confirmationLastFocusedElement && typeof confirmationLastFocusedElement.focus === 'function') {
+            confirmationLastFocusedElement.focus();
+        }
+    }
+
+    if (notificationCard && notificationCard.dataset.message) {
+        var flashKind = notificationCard.dataset.kind || 'success';
+        showSettingsNotification(notificationCard.dataset.message, flashKind);
+        if (flashKind === 'success') {
+            showConfirmation('Settings saved', notificationCard.dataset.message);
+        }
+    }
+    if (notificationClose) {
+        notificationClose.addEventListener('click', function () { notificationCard.hidden = true; });
+    }
+    if (confirmationClose) {
+        confirmationClose.addEventListener('click', closeConfirmation);
+    }
+    if (confirmationOverlay) {
+        confirmationOverlay.addEventListener('click', function (event) {
+            if (event.target === confirmationOverlay) closeConfirmation();
+        });
     }
 
     function resetPhotoPreview() {
@@ -8007,7 +9261,14 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     document.addEventListener('keydown', function (event) {
-        if (event.key === 'Escape' && activeDrawer) closeDrawer(activeDrawer);
+        if (event.key === 'Tab' && confirmationOverlay && !confirmationOverlay.hidden) {
+            event.preventDefault();
+            confirmationClose.focus();
+            return;
+        }
+        if (event.key !== 'Escape') return;
+        if (confirmationOverlay && !confirmationOverlay.hidden) closeConfirmation();
+        else if (activeDrawer) closeDrawer(activeDrawer);
     });
 
     function postSettingsAction(formData, submitButton) {
@@ -8017,7 +9278,9 @@ document.addEventListener('DOMContentLoaded', function () {
             body: formData,
             headers: { 'Accept': 'application/json' }
         }).then(function (response) {
-            return response.json().then(function (result) {
+            return response.json().catch(function () {
+                throw new Error('The server returned an unreadable response. Please try again.');
+            }).then(function (result) {
                 if (!response.ok || !result.success) {
                     throw new Error(result.message || 'The request could not be completed.');
                 }
@@ -8043,7 +9306,7 @@ document.addEventListener('DOMContentLoaded', function () {
             if (!selectedPhoto) return;
             if (!/^image\/(jpeg|png|webp)$/.test(selectedPhoto.type) || selectedPhoto.size > 5 * 1024 * 1024) {
                 resetPhotoPreview();
-                showToast('Choose a JPG, PNG, or WebP image smaller than 5 MB.', 'error');
+                showSettingsNotification('Choose a JPG, PNG, or WebP image smaller than 5 MB.', 'error');
                 return;
             }
             if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
@@ -8081,10 +9344,11 @@ document.addEventListener('DOMContentLoaded', function () {
                         avatar.appendChild(camera);
                     }
                 });
-                showToast(result.message, 'success');
+                showSettingsNotification(result.message, 'success');
                 closeDrawer(photoDrawer);
+                showConfirmation('Profile photo updated', result.message);
             }).catch(function (error) {
-                showToast(error.message, 'error');
+                showSettingsNotification(error.message, 'error');
             });
         });
     }
@@ -8095,14 +9359,64 @@ document.addEventListener('DOMContentLoaded', function () {
 
     var settingsForm = document.getElementById('settings-form');
     if (settingsForm) {
+        var cancelSettingsButton = document.getElementById('settings-cancel-button');
+        var profileInputs = Array.prototype.slice.call(
+            settingsForm.querySelectorAll('input:not([type="hidden"])')
+        );
+        var savedProfileValues = profileInputs.map(function (input) { return input.value; });
+        var settingsSaving = false;
+
+        function profileHasUnsavedChanges() {
+            return profileInputs.some(function (input, index) {
+                return input.value !== savedProfileValues[index];
+            });
+        }
+
+        window.addEventListener('beforeunload', function (event) {
+            if (!profileHasUnsavedChanges()) return;
+            event.preventDefault();
+            event.returnValue = '';
+        });
+
+        if (cancelSettingsButton) {
+            cancelSettingsButton.addEventListener('click', function () {
+                if (settingsSaving) return;
+                profileInputs.forEach(function (input, index) {
+                    input.value = savedProfileValues[index];
+                });
+                var hospitalNameInput = document.getElementById('settings-hospital-name');
+                if (hospitalNameInput) {
+                    hospitalNameInput.setAttribute('readonly', 'readonly');
+                    hospitalNameInput.classList.remove('settings-input--editable');
+                }
+                if (notificationCard) notificationCard.hidden = true;
+            });
+        }
+
         settingsForm.addEventListener('submit', function (event) {
             event.preventDefault();
+            if (settingsSaving) return;
             if (!settingsForm.reportValidity()) return;
             var submitButton = settingsForm.querySelector('button[type="submit"]');
-            postSettingsAction(new FormData(settingsForm), submitButton).then(function (result) {
-                showToast(result.message, 'success');
+            var formData = new FormData(settingsForm);
+            settingsSaving = true;
+            if (cancelSettingsButton) cancelSettingsButton.disabled = true;
+            profileInputs.forEach(function (input) { input.disabled = true; });
+            postSettingsAction(formData, submitButton).then(function (result) {
+                savedProfileValues = profileInputs.map(function (input) { return input.value; });
+                var hospitalNameInput = document.getElementById('settings-hospital-name');
+                if (hospitalNameInput) {
+                    hospitalNameInput.setAttribute('readonly', 'readonly');
+                    hospitalNameInput.classList.remove('settings-input--editable');
+                }
+                showSettingsNotification(result.message, 'success');
+                showConfirmation('Settings saved', result.message);
             }).catch(function (error) {
-                showToast(error.message, 'error');
+                showSettingsNotification(error.message, 'error');
+            }).finally(function () {
+                profileInputs.forEach(function (input) { input.disabled = false; });
+                if (cancelSettingsButton) cancelSettingsButton.disabled = false;
+                settingsSaving = false;
             });
         });
     }
@@ -8120,10 +9434,11 @@ document.addEventListener('DOMContentLoaded', function () {
             var button = passwordForm.querySelector('button[type="submit"]');
             postSettingsAction(new FormData(passwordForm), button).then(function (result) {
                 passwordForm.reset();
-                showToast(result.message, 'success');
+                showSettingsNotification(result.message, 'success');
                 closeDrawer(passwordDrawer);
+                showConfirmation('Password updated', result.message);
             }).catch(function (error) {
-                showToast(error.message, 'error');
+                showSettingsNotification(error.message, 'error');
             });
         });
         passwordForm.elements.confirm_password.addEventListener('input', function () {
@@ -8180,7 +9495,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (useLocationButton) {
         useLocationButton.addEventListener('click', function () {
             if (!navigator.geolocation) {
-                showToast('This browser does not support location.', 'error');
+                showSettingsNotification('This browser does not support location.', 'error');
                 return;
             }
             useLocationButton.disabled = true;
@@ -8189,20 +9504,20 @@ document.addEventListener('DOMContentLoaded', function () {
                 useLocationButton.disabled = false;
             }, function () {
                 useLocationButton.disabled = false;
-                showToast('Location is unavailable. Allow access or pin the map manually.', 'error');
+                showSettingsNotification('Location is unavailable. Allow access or pin the map manually.', 'error');
             }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
         });
     }
     if (confirmLocationButton) {
         confirmLocationButton.addEventListener('click', function () {
             if (!pendingCoordinates) {
-                showToast('Click the map or locate this device to set a pin.', 'error');
+                showSettingsNotification('Click the map or locate this device to set a pin.', 'error');
                 return;
             }
             latitudeInput.value = pendingCoordinates.latitude.toFixed(8);
             longitudeInput.value = pendingCoordinates.longitude.toFixed(8);
             closeDrawer(locationDrawer);
-            showToast('Location pinned. Save changes to update the hospital profile.', 'success');
+            showSettingsNotification('Location pinned. Save changes to update the hospital profile.', 'warning');
         });
     }
 });
@@ -8232,6 +9547,7 @@ document.addEventListener('DOMContentLoaded', function () {
         var calendarHint = document.getElementById('nurseCalendarHint');
         var selectedDateLabel = document.getElementById('nurseScheduleSelectedDate');
         var dateButtons = document.querySelectorAll('.nurse-day-select');
+        var typeScheduleDate = document.getElementById('nurseTypeScheduleDate');
 
         function setScheduleTimes() {
             var noTime = scheduleType.value === 'oncall' || scheduleType.value === 'leave';
@@ -8268,6 +9584,7 @@ document.addEventListener('DOMContentLoaded', function () {
             action.value = editing ? 'update' : 'add';
             scheduleId.value = editing ? data.id : '';
             scheduleDate.value = data.date;
+            bindScheduleDateOptions(form, data.date, editing);
             modalTitle.textContent = editing ? 'Edit schedule' : 'Add schedule';
             submitButton.textContent = editing ? 'Save changes' : 'Add schedule';
             scheduleType.value = data.type || 'morning';
@@ -8307,6 +9624,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (!button.disabled) openSchedule({ action: 'add', date: button.dataset.date });
             });
         });
+        if (typeScheduleDate) {
+            typeScheduleDate.addEventListener('click', function () {
+                setAddMode(false);
+                openSchedule({ action: 'add', date: scheduleLocalDate() });
+            });
+        }
         document.querySelectorAll('[data-nurse-open-schedule="edit"]').forEach(function (button) {
             button.addEventListener('click', function () {
                 openSchedule({
@@ -8341,7 +9664,10 @@ document.addEventListener('DOMContentLoaded', function () {
             if (pendingDeleteForm) HTMLFormElement.prototype.submit.call(pendingDeleteForm);
         });
         scheduleType.addEventListener('change', setScheduleTimes);
+        bindScheduleDateOptions(form, scheduleDate.value, false);
         form.addEventListener('submit', function () {
+            var datePreview = form.querySelector('[data-schedule-date-preview]');
+            if (datePreview && datePreview.hasAttribute('data-invalid')) return;
             submitButton.disabled = true;
             submitButton.setAttribute('aria-busy', 'true');
         });
@@ -8387,6 +9713,12 @@ document.addEventListener('DOMContentLoaded', function () {
         var activeDrawer = null;
         var lastFocus = null;
         var toastTimer = null;
+        var cancelSettingsButton = document.getElementById('nurse-settings-cancel-button');
+        var profileInputs = Array.prototype.slice.call(
+            settingsForm.querySelectorAll('input:not([type="hidden"])')
+        );
+        var savedProfileValues = profileInputs.map(function (field) { return field.value; });
+        var savingProfile = false;
 
         function showToast(message, kind) {
             toast.textContent = message;
@@ -8454,30 +9786,49 @@ document.addEventListener('DOMContentLoaded', function () {
             });
         }
 
-        document.querySelectorAll('[data-nurse-settings-edit]').forEach(function (button) {
-            button.addEventListener('click', function () {
-                var field = document.getElementById(button.dataset.nurseSettingsEdit);
-                if (!field) return;
-                if (field.hasAttribute('readonly')) {
-                    field.removeAttribute('readonly');
-                    field.focus();
-                } else {
-                    field.setAttribute('readonly', 'readonly');
-                }
+        function profileHasUnsavedChanges() {
+            return profileInputs.some(function (field, index) {
+                return field.value !== savedProfileValues[index];
             });
+        }
+
+        window.addEventListener('beforeunload', function (event) {
+            if (!profileHasUnsavedChanges()) return;
+            event.preventDefault();
+            event.returnValue = '';
+        });
+
+        if (cancelSettingsButton) {
+            cancelSettingsButton.addEventListener('click', function () {
+                if (savingProfile) return;
+                profileInputs.forEach(function (field, index) {
+                    field.value = savedProfileValues[index];
+                });
+            });
+        }
+
+        settingsForm.addEventListener('input', function () {
+            if (toast) toast.textContent = '';
         });
         settingsForm.addEventListener('submit', function (event) {
             event.preventDefault();
+            if (savingProfile) return;
             if (!settingsForm.reportValidity()) return;
             var button = settingsForm.querySelector('button[type="submit"]');
-            postAction(new FormData(settingsForm), button).then(function (result) {
-                settingsForm.querySelectorAll('input:not([type="hidden"])').forEach(function (field) {
-                    field.setAttribute('readonly', 'readonly');
-                });
+            var formData = new FormData(settingsForm);
+            savingProfile = true;
+            profileInputs.forEach(function (field) { field.disabled = true; });
+            if (cancelSettingsButton) cancelSettingsButton.disabled = true;
+            postAction(formData, button).then(function (result) {
+                savedProfileValues = profileInputs.map(function (field) { return field.value; });
                 showToast(result.message, 'success');
             }).catch(function (error) {
                 showToast(error.message, 'error');
                 console.error('[PulseAlert] Nurse settings update failed.', error);
+            }).finally(function () {
+                profileInputs.forEach(function (field) { field.disabled = false; });
+                if (cancelSettingsButton) cancelSettingsButton.disabled = false;
+                savingProfile = false;
             });
         });
         avatarButton.addEventListener('click', function () {
@@ -8591,4 +9942,423 @@ document.addEventListener('DOMContentLoaded', function () {
 
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initNurseSettings);
     else initNurseSettings();
+}());
+
+// =========================================================
+// MANAGE ACCOUNTS
+// =========================================================
+
+(function () {
+function initManageAccounts() {
+    var pageRoot = document.querySelector('.manageaccounts-body');
+    if (!pageRoot) {
+        return;
+    }
+    var tableBody = pageRoot.querySelector('#manageaccounts-table-body');
+    var config = window.manageAccountsConfig;
+    if (!tableBody || !config || tableBody.dataset.manageAccountsBound === 'true') {
+        return;
+    }
+
+    var emptyState = pageRoot.querySelector('#manageaccounts-empty-state');
+    var feedback = pageRoot.querySelector('#manageaccounts-feedback');
+    var searchInput = pageRoot.querySelector('#manageaccounts-search');
+    var roleFilterButtons = pageRoot.querySelectorAll('[data-role-filter]');
+    var pageInfo = pageRoot.querySelector('#manageaccounts-page-info');
+    var prevButton = pageRoot.querySelector('#manageaccounts-prev');
+    var nextButton = pageRoot.querySelector('#manageaccounts-next');
+    var backdrop = pageRoot.querySelector('#manageaccounts-modal-backdrop');
+    var confirmationBackdrop = pageRoot.querySelector('#manageaccounts-confirmation-backdrop');
+    var confirmationTitle = pageRoot.querySelector('#manageaccounts-confirmation-title');
+    var confirmationMessage = pageRoot.querySelector('#manageaccounts-confirmation-message');
+    var confirmationClose = pageRoot.querySelector('#manageaccounts-confirmation-close');
+    var createButton = pageRoot.querySelector('#manageaccounts-create-btn');
+    var cancelButton = pageRoot.querySelector('#manageaccounts-cancel-btn');
+    var closeButton = pageRoot.querySelector('#manageaccounts-modal-close');
+    var form = pageRoot.querySelector('#manageaccounts-form');
+    if (!emptyState || !feedback || !searchInput || !pageInfo || !prevButton ||
+        !nextButton || !backdrop || !confirmationBackdrop || !confirmationTitle ||
+        !confirmationMessage || !confirmationClose || !createButton || !cancelButton ||
+        !closeButton || !form) {
+        return;
+    }
+    tableBody.dataset.manageAccountsBound = 'true';
+
+    var roleInput = form.elements.role;
+    var licenseInput = form.elements.license_number;
+    var state = {
+        search: '',
+        role: 'all',
+        status: 'all',
+        page: 1,
+        totalPages: 1,
+        controller: null,
+        requestId: 0
+    };
+    var lastFocusedElement = null;
+    var confirmationLastFocusedElement = null;
+    var searchTimer = null;
+
+    function announce(message, kind) {
+        var icon = feedback.querySelector('.manageaccounts-feedback-icon');
+        var title = feedback.querySelector('.manageaccounts-feedback-title');
+        var messageNode = feedback.querySelector('.manageaccounts-feedback-message');
+        feedback.classList.remove(
+            'manageaccounts-feedback--success',
+            'manageaccounts-feedback--error',
+            'manageaccounts-feedback--warning'
+        );
+        if (!message) {
+            feedback.hidden = true;
+            return;
+        }
+
+        var stateKind = ['error', 'warning'].indexOf(kind) === -1 ? 'success' : kind;
+        var presentation = {
+            success: { title: 'Action completed', icon: '✓', role: 'status' },
+            error: { title: 'Unable to complete action', icon: '!', role: 'alert' },
+            warning: { title: 'Please review', icon: '⚠', role: 'status' }
+        }[stateKind];
+        feedback.classList.add('manageaccounts-feedback--' + stateKind);
+        feedback.setAttribute('role', presentation.role);
+        icon.textContent = presentation.icon;
+        title.textContent = presentation.title;
+        messageNode.textContent = message;
+        feedback.hidden = false;
+    }
+
+    function showConfirmation(title, message, isWarning) {
+        confirmationLastFocusedElement = document.activeElement;
+        confirmationTitle.textContent = title;
+        confirmationMessage.textContent = message;
+        confirmationBackdrop.classList.toggle('manageaccounts-confirmation-backdrop--warning', Boolean(isWarning));
+        confirmationBackdrop.querySelector('.manageaccounts-confirmation-icon').textContent = isWarning ? '!' : '✓';
+        confirmationBackdrop.hidden = false;
+        confirmationBackdrop.setAttribute('aria-hidden', 'false');
+        document.body.classList.add('manageaccounts-confirmation-open');
+        confirmationClose.focus();
+    }
+
+    function closeConfirmation() {
+        confirmationBackdrop.hidden = true;
+        confirmationBackdrop.setAttribute('aria-hidden', 'true');
+        document.body.classList.remove('manageaccounts-confirmation-open');
+        if (confirmationLastFocusedElement && typeof confirmationLastFocusedElement.focus === 'function') {
+            confirmationLastFocusedElement.focus();
+        }
+    }
+
+    function setFieldErrors(errors) {
+        Object.keys(errors || {}).forEach(function (name) {
+            var errorNode = form.querySelector('[data-error-for="' + name + '"]');
+            var field = form.elements[name];
+            if (errorNode) errorNode.textContent = errors[name];
+            if (field) field.setAttribute('aria-invalid', 'true');
+        });
+    }
+
+    function clearFieldError(field) {
+        var errorNode = form.querySelector('[data-error-for="' + field.name + '"]');
+        if (errorNode) errorNode.textContent = '';
+        field.removeAttribute('aria-invalid');
+    }
+
+    function appendCell(row, value) {
+        var cell = document.createElement('td');
+        cell.textContent = value === null || value === undefined || value === '' ? '—' : String(value);
+        row.appendChild(cell);
+    }
+
+    function render(result) {
+        var accounts = Array.isArray(result.accounts) ? result.accounts : [];
+        tableBody.replaceChildren();
+
+        accounts.forEach(function (account) {
+            var row = document.createElement('tr');
+            var nameCell = document.createElement('td');
+            var nameContent = document.createElement('div');
+            nameContent.className = 'manageaccounts-person';
+            var fullName = String(account.full_name || '').trim();
+            var displayName = fullName;
+            if (fullName && String(account.role || '').toLowerCase() === 'doctor') {
+                displayName = 'Dr. ' + fullName.replace(/^(?:Dr\.\s*)+/i, '');
+            }
+            var avatar = document.createElement('span');
+            avatar.className = 'manageaccounts-avatar';
+            var nameParts = fullName.split(/\s+/).filter(Boolean);
+            avatar.textContent = nameParts.slice(0, 2).map(function (part) {
+                return part.charAt(0).toUpperCase();
+            }).join('') || '—';
+            var name = document.createElement('span');
+            var nameDetails = document.createElement('span');
+            nameDetails.className = 'manageaccounts-user-details';
+            name.className = 'manageaccounts-user-name';
+            name.textContent = displayName;
+            var specialty = document.createElement('span');
+            specialty.className = 'manageaccounts-user-specialty';
+            specialty.textContent = account.specialty || '—';
+            nameDetails.appendChild(name);
+            nameDetails.appendChild(specialty);
+            nameContent.appendChild(avatar);
+            nameContent.appendChild(nameDetails);
+            nameCell.appendChild(nameContent);
+            nameCell.title = [displayName, account.specialty].filter(Boolean).join(' · ');
+            row.appendChild(nameCell);
+
+            var roleCell = document.createElement('td');
+            var roleTag = document.createElement('span');
+            roleTag.className = 'manageaccounts-role-tag';
+            roleTag.textContent = account.role === 'doctor' ? 'Doctor' : 'Nurse';
+            roleCell.appendChild(roleTag);
+            row.appendChild(roleCell);
+            appendCell(row, account.work_email);
+
+            var status = String(account.status || 'pending').toLowerCase();
+            var statusCell = document.createElement('td');
+            var statusTag = document.createElement('span');
+            statusTag.className = 'manageaccounts-status manageaccounts-status--' +
+                (['approved', 'pending', 'rejected'].indexOf(status) === -1 ? 'pending' : status);
+            statusTag.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+            statusCell.appendChild(statusTag);
+            row.appendChild(statusCell);
+
+            var actionCell = document.createElement('td');
+            var resetButton = document.createElement('button');
+            resetButton.type = 'button';
+            resetButton.className = 'manageaccounts-reset-btn';
+            resetButton.dataset.accountId = String(account.id);
+            resetButton.textContent = 'Reset Password';
+            actionCell.appendChild(resetButton);
+            row.appendChild(actionCell);
+            tableBody.appendChild(row);
+        });
+
+        emptyState.hidden = accounts.length !== 0;
+        var total = Number(result.total || 0);
+        state.page = Number(result.page || 1);
+        state.totalPages = Number(result.totalPages || 1);
+        pageInfo.textContent = total === 0
+            ? '0 accounts'
+            : 'Page ' + state.page + ' of ' + state.totalPages + ' · ' + total + ' accounts';
+        prevButton.disabled = total === 0 || state.page <= 1;
+        nextButton.disabled = total === 0 || state.page >= state.totalPages;
+    }
+
+    async function loadAccounts() {
+        if (state.controller) state.controller.abort();
+        state.controller = new AbortController();
+        var currentRequest = ++state.requestId;
+        var parameters = new URLSearchParams({
+            action: 'list',
+            search: state.search,
+            role: state.role,
+            status: state.status,
+            page: String(state.page)
+        });
+
+        try {
+            var response = await fetch(config.endpoint + '?' + parameters.toString(), {
+                credentials: 'same-origin',
+                headers: { Accept: 'application/json' },
+                signal: state.controller.signal
+            });
+            var payload = await response.json();
+            if (!response.ok || !payload.success) {
+                throw new Error(payload.message || 'Accounts could not be loaded.');
+            }
+            if (currentRequest !== state.requestId) return;
+            render(payload);
+            announce('');
+            return true;
+        } catch (error) {
+            if (error.name !== 'AbortError') {
+                announce(error.message || 'Accounts could not be loaded. Please try again.', 'error');
+            }
+            return false;
+        }
+    }
+
+    async function postAction(payload) {
+        var response = await fetch(config.endpoint, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': config.csrfToken
+            },
+            body: JSON.stringify(payload)
+        });
+        var result;
+        try {
+            result = await response.json();
+        } catch (error) {
+            throw new Error('The server returned an unreadable response. Please try again.');
+        }
+        if (!response.ok || !result.success) {
+            var requestError = new Error(result.message || 'The request could not be completed.');
+            requestError.errors = result.errors || null;
+            throw requestError;
+        }
+        return result;
+    }
+
+    function openModal() {
+        lastFocusedElement = document.activeElement;
+        backdrop.classList.add('manageaccounts-modal-backdrop--open');
+        backdrop.setAttribute('aria-hidden', 'false');
+        document.body.classList.add('manageaccounts-modal-open');
+        form.elements.full_name.focus();
+    }
+
+    function closeModal(resetForm) {
+        backdrop.classList.remove('manageaccounts-modal-backdrop--open');
+        backdrop.setAttribute('aria-hidden', 'true');
+        document.body.classList.remove('manageaccounts-modal-open');
+        if (resetForm) {
+            form.reset();
+            form.querySelectorAll('[data-error-for]').forEach(function (node) {
+                node.textContent = '';
+            });
+            form.querySelectorAll('[aria-invalid]').forEach(function (field) {
+                field.removeAttribute('aria-invalid');
+            });
+        }
+        if (lastFocusedElement) lastFocusedElement.focus();
+    }
+
+    searchInput.addEventListener('input', function () {
+        state.search = searchInput.value.trim();
+        state.page = 1;
+        window.clearTimeout(searchTimer);
+        searchTimer = window.setTimeout(loadAccounts, 250);
+    });
+
+    roleFilterButtons.forEach(function (button) {
+        button.addEventListener('click', function () {
+            state.role = button.dataset.roleFilter;
+            state.page = 1;
+            roleFilterButtons.forEach(function (filterButton) {
+                var selected = filterButton === button;
+                filterButton.classList.toggle('manageaccounts-role-filter--active', selected);
+                filterButton.setAttribute('aria-pressed', selected ? 'true' : 'false');
+            });
+            loadAccounts();
+        });
+    });
+
+    prevButton.addEventListener('click', function () {
+        if (state.page > 1) {
+            state.page -= 1;
+            loadAccounts();
+        }
+    });
+
+    nextButton.addEventListener('click', function () {
+        if (state.page < state.totalPages) {
+            state.page += 1;
+            loadAccounts();
+        }
+    });
+
+    createButton.addEventListener('click', openModal);
+    feedback.querySelector('.manageaccounts-feedback-close').addEventListener('click', function () {
+        feedback.hidden = true;
+    });
+    cancelButton.addEventListener('click', function () { closeModal(true); });
+    closeButton.addEventListener('click', function () { closeModal(true); });
+    confirmationClose.addEventListener('click', closeConfirmation);
+    confirmationBackdrop.addEventListener('click', function (event) {
+        if (event.target === confirmationBackdrop) closeConfirmation();
+    });
+    backdrop.addEventListener('click', function (event) {
+        if (event.target === backdrop) closeModal(true);
+    });
+    window.addEventListener('keydown', function (event) {
+        if (event.key === 'Tab' && !confirmationBackdrop.hidden) {
+            event.preventDefault();
+            confirmationClose.focus();
+            return;
+        }
+        if (event.key === 'Escape' && backdrop.classList.contains('manageaccounts-modal-backdrop--open')) {
+            closeModal(true);
+        } else if (event.key === 'Escape' && !confirmationBackdrop.hidden) {
+            closeConfirmation();
+        }
+    });
+
+    roleInput.addEventListener('change', function () {
+        licenseInput.required = roleInput.value === 'doctor';
+        clearFieldError(licenseInput);
+    });
+
+    form.querySelectorAll('input, select').forEach(function (field) {
+        field.addEventListener('input', function () { clearFieldError(field); });
+        field.addEventListener('change', function () { clearFieldError(field); });
+    });
+
+    form.addEventListener('submit', async function (event) {
+        event.preventDefault();
+        if (!form.reportValidity()) return;
+
+        var submitButton = form.querySelector('[type="submit"]');
+        var payload = Object.fromEntries(new FormData(form).entries());
+        payload.action = 'create';
+        submitButton.disabled = true;
+        announce('');
+        form.querySelectorAll('[data-error-for]').forEach(function (node) {
+            node.textContent = '';
+        });
+
+        try {
+            var result = await postAction(payload);
+            closeModal(true);
+            state.page = 1;
+            var refreshed = await loadAccounts();
+            var emailFailed = result.emailSent === false;
+            if (refreshed) announce(result.message, emailFailed ? 'warning' : 'success');
+            showConfirmation(
+                emailFailed ? 'Account created; email not sent' : 'Account created',
+                result.message,
+                emailFailed
+            );
+        } catch (error) {
+            setFieldErrors(error.errors);
+            announce(error.message, 'error');
+        } finally {
+            submitButton.disabled = false;
+        }
+    });
+
+    tableBody.addEventListener('click', async function (event) {
+        var button = event.target.closest('.manageaccounts-reset-btn');
+        if (!button || button.disabled) return;
+        if (!window.confirm('Send temporary sign-in details to this staff member’s registered work email?')) {
+            return;
+        }
+
+        button.disabled = true;
+        announce('');
+        try {
+            var result = await postAction({
+                action: 'reset_password',
+                account_id: button.dataset.accountId
+            });
+            announce(result.message, 'success');
+            showConfirmation('Password reset email sent', result.message);
+        } catch (error) {
+            announce(error.message, 'error');
+        } finally {
+            button.disabled = false;
+        }
+    });
+
+    render(config.initialResult || { accounts: [], page: 1, total: 0, totalPages: 1 });
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initManageAccounts);
+} else {
+    initManageAccounts();
+}
 }());

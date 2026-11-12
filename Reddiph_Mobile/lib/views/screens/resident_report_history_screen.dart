@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme.dart';
 import '../../models/incident_history.dart';
+import '../../models/triage_category.dart';
 import '../../services/mobile_api_client.dart';
 
 enum _HistoryFilter { all, active, closed }
@@ -243,7 +244,6 @@ class _ResidentReportHistoryScreenState
 
   Widget _reportCard(IncidentHistoryEntry entry) {
     final incident = entry.incident;
-    final closed = entry.isClosed;
     final date = incident.reportedAt;
     final subtitle = [
       'Case #RS-${incident.incidentId}',
@@ -301,10 +301,7 @@ class _ResidentReportHistoryScreenState
                   ),
                 ),
                 const SizedBox(width: 8),
-                if (closed)
-                  _statusPill('Closed', closed: true)
-                else
-                  _severityLabel(incident.status),
+                _incidentState(entry),
               ],
             ),
           ),
@@ -443,10 +440,7 @@ class _ResidentReportHistoryScreenState
               ),
             ),
             const SizedBox(width: 10),
-            if (closed)
-              _statusPill('Closed', closed: true)
-            else
-              _severityLabel(incident.status),
+            _incidentState(entry),
           ],
         ),
         const SizedBox(height: 4),
@@ -733,44 +727,43 @@ class _ResidentReportHistoryScreenState
     return '$barangayLabel · $place';
   }
 
-  Widget _statusPill(String label, {required bool closed}) {
-    return Container(
-      constraints: const BoxConstraints(maxWidth: 100),
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: const Color(0xFFE0E0E0)),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        label,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          color: closed ? const Color(0xFF545454) : const Color(0xFF397B43),
-          fontSize: 8,
-          fontWeight: FontWeight.w600,
+  Widget _incidentState(IncidentHistoryEntry entry) {
+    final category = EmergencyCategory.fromValue(entry.incident.triageCategory);
+    final label = category?.label ?? 'Unclassified';
+    final color = category?.color ?? const Color(0xFF6B7280);
+    final lifecycle = entry.isClosed
+        ? entry.closureLabel
+        : _lifecycleLabel(entry.incident.status);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: category?.textColor ?? Colors.white,
+              fontSize: 8,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
         ),
-      ),
-    );
-  }
-
-  Widget _severityLabel(String status) {
-    final (label, color) = switch (status) {
-      'critical' => ('Critical', const Color(0xFFC62828)),
-      'urgent' => ('Urgent', const Color(0xFFEF6C00)),
-      'stable' => ('Stable', const Color(0xFF2E7D32)),
-      _ => (_statusLabel(status), const Color(0xFF565D63)),
-    };
-    return Text(
-      label,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: TextStyle(
-        color: color,
-        fontSize: 9,
-        fontWeight: FontWeight.w700,
-      ),
+        const SizedBox(height: 3),
+        Text(
+          lifecycle,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            color: Color(0xFF565D63),
+            fontSize: 8,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
     );
   }
 
@@ -846,11 +839,11 @@ class _ResidentReportHistoryScreenState
     return '${months[date.toLocal().month - 1]} ${date.toLocal().year}';
   }
 
-  String _statusLabel(String status) => switch (status) {
-        'critical' => 'Critical',
-        'urgent' => 'Urgent',
-        'stable' => 'Stable',
+  String _lifecycleLabel(String status) => switch (status) {
+        'open' => 'Open',
         'dispatched' => 'Responder dispatched',
+        'referred' => 'Referred',
+        'resolved' => 'Resolved',
         _ => _capitalize(status.replaceAll('_', ' ')),
       };
 

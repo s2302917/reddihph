@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../../config/config.php';
+require_once __DIR__ . '/../services/AuditLogService.php';
+require_once __DIR__ . '/../services/IncidentTriageCategory.php';
 require_once __DIR__ . '/VolunteerModel.php';
 
 /** Database operations for patients and responder actions on a filed incident. */
@@ -12,6 +14,8 @@ final class IncidentSceneArrivalUnavailableException extends RuntimeException
 
 final class ResponderIncidentWorkflowModel
 {
+    private static array $columnCache = [];
+
     public const SCENE_CONDITIONS = [
         'conscious',
         'unconscious',
@@ -50,14 +54,14 @@ final class ResponderIncidentWorkflowModel
             $firstPatient = $patients[0];
             $incident = $pdo->prepare(
                 'INSERT INTO incidents
-                    (incident_type, reported_by, status, location, barangay_id, hospital_id,
+                    (incident_type, reported_by, status, triage_category, location, barangay_id, hospital_id,
                      latitude, longitude, responder_name, hospital_name, patient_name,
                      assigned_responder_user_id, assigned_ambulance_id,
                      patient_age, patient_gender,
                      nurse_heart_rate, nurse_blood_pressure,
                      nurse_spo2, notes, eta_minutes, transport_name, transport_type, driver_name)
                  VALUES
-                    (:incident_type, :reported_by, :status, :location, :barangay_id, :hospital_id,
+                    (:incident_type, :reported_by, \'open\', :triage_category, :location, :barangay_id, :hospital_id,
                      :latitude, :longitude, :responder_name, :hospital_name, :patient_name,
                      :responder_user_id, NULL, :patient_age, :patient_gender,
                      :heart_rate, :blood_pressure, :spo2, :notes,
@@ -66,7 +70,7 @@ final class ResponderIncidentWorkflowModel
             $incident->execute([
                 'incident_type' => $report['incident_type'],
                 'reported_by' => $report['reported_by'],
-                'status' => $report['status'],
+                'triage_category' => $report['triage_category'],
                 'location' => $report['location'],
                 'barangay_id' => $report['barangay_id'],
                 'hospital_id' => $report['hospital_id'],
@@ -88,6 +92,13 @@ final class ResponderIncidentWorkflowModel
                 'driver_name' => $report['driver_name'],
             ]);
             $incidentId = (int) $pdo->lastInsertId();
+            AuditLogService::record(
+                $pdo,
+                $responderUserId,
+                'incident.created',
+                'incident',
+                (string) $incidentId
+            );
             if ($volunteerUserId !== null) {
                 VolunteerModel::requestAssistance(
                     $pdo,
@@ -126,6 +137,14 @@ final class ResponderIncidentWorkflowModel
             $patientLookup->execute([$incidentId]);
             $patientIds = $patientLookup->fetchAll(PDO::FETCH_COLUMN);
             foreach ($patients as $index => $patient) {
+                AuditLogService::record(
+                    $pdo,
+                    $responderUserId,
+                    'patient.created',
+                    'patient',
+                    (string) $patientIds[$index],
+                    ['incident_id' => $incidentId]
+                );
                 foreach ($patient['scene_conditions'] ?? [] as $condition) {
                     $conditionInsert->execute([(int) $patientIds[$index], $condition]);
                 }
@@ -178,34 +197,119 @@ final class ResponderIncidentWorkflowModel
     ): bool {
         $pdo = Database::connection();
         $where = "incident_id = ?
-            AND status IN ('critical', 'urgent', 'dispatched', 'stable')
+            AND status IN ('open', 'dispatched', 'referred')
             AND (assigned_responder_user_id = ?
                 OR (assigned_responder_user_id IS NULL
                     AND hospital_id <=> ? AND responder_name = ?))";
-        $stmt = $pdo->prepare("UPDATE incidents SET incident_type = ? WHERE {$where}");
-        $stmt->execute([
-            $incidentType,
-            $incidentId,
-            $responderUserId,
-            $hospitalId,
-            $responderName,
-        ]);
-        if ($stmt->rowCount() > 0) {
-            return true;
+        $pdo->beginTransaction();
+        try {
+            $stmt = $pdo->prepare("UPDATE incidents SET incident_type = ? WHERE {$where}");
+            $stmt->execute([
+                $incidentType,
+                $incidentId,
+                $responderUserId,
+                $hospitalId,
+                $responderName,
+            ]);
+            if ($stmt->rowCount() > 0) {
+                AuditLogService::record(
+                    $pdo,
+                    $responderUserId,
+                    'incident.updated',
+                    'incident',
+                    (string) $incidentId
+                );
+                $pdo->commit();
+                return true;
+            }
+
+            $verify = $pdo->prepare(
+                "SELECT 1 FROM incidents WHERE {$where} AND incident_type = ? LIMIT 1"
+            );
+            $verify->execute([
+                $incidentId,
+                $responderUserId,
+                $hospitalId,
+                $responderName,
+                $incidentType,
+            ]);
+            $unchanged = $verify->fetchColumn() !== false;
+            $pdo->commit();
+            return $unchanged;
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
         }
+    }
 
-        $verify = $pdo->prepare(
-            "SELECT 1 FROM incidents WHERE {$where} AND incident_type = ? LIMIT 1"
-        );
-        $verify->execute([
-            $incidentId,
-            $responderUserId,
-            $hospitalId,
-            $responderName,
-            $incidentType,
-        ]);
+    public static function updateIncidentDetails(
+        int $incidentId,
+        int $responderUserId,
+        ?int $hospitalId,
+        string $responderName,
+        string $incidentType,
+        string $triageCategory
+    ): bool {
+        if (!IncidentTriageCategory::isValid($triageCategory)) {
+            throw new InvalidArgumentException(
+                'Choose a valid emergency category.'
+            );
+        }
+        $pdo = Database::connection();
+        $where = "incident_id = ?
+            AND hospital_sent_at IS NOT NULL
+            AND status IN ('dispatched', 'referred')
+            AND (assigned_responder_user_id = ?
+                OR (assigned_responder_user_id IS NULL
+                    AND hospital_id <=> ? AND responder_name = ?))";
+        $pdo->beginTransaction();
+        try {
+            $stmt = $pdo->prepare(
+                "UPDATE incidents SET incident_type = ?, triage_category = ? WHERE {$where}"
+            );
+            $stmt->execute([
+                $incidentType,
+                $triageCategory,
+                $incidentId,
+                $responderUserId,
+                $hospitalId,
+                $responderName,
+            ]);
+            if ($stmt->rowCount() > 0) {
+                AuditLogService::record(
+                    $pdo,
+                    $responderUserId,
+                    'incident.updated',
+                    'incident',
+                    (string) $incidentId
+                );
+                $pdo->commit();
+                return true;
+            }
 
-        return $verify->fetchColumn() !== false;
+            $verify = $pdo->prepare(
+                "SELECT 1 FROM incidents
+                 WHERE {$where} AND incident_type = ? AND triage_category = ? LIMIT 1"
+            );
+            $verify->execute([
+                $incidentId,
+                $responderUserId,
+                $hospitalId,
+                $responderName,
+                $incidentType,
+                $triageCategory,
+            ]);
+            $unchanged = $verify->fetchColumn() !== false;
+            $pdo->commit();
+            return $unchanged;
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
+        }
     }
 
     public static function sendIncidentToHospital(
@@ -213,14 +317,20 @@ final class ResponderIncidentWorkflowModel
         int $responderUserId,
         ?int $hospitalId,
         string $responderName,
-        string $status,
+        string $triageCategory,
         ?int $volunteerUserId
     ): array {
+        if (!IncidentTriageCategory::isValid($triageCategory)) {
+            throw new InvalidArgumentException(
+                'Choose a valid emergency category.'
+            );
+        }
         $pdo = Database::connection();
         $pdo->beginTransaction();
         try {
             $incidentQuery = $pdo->prepare(
                 "SELECT i.incident_type, i.location, i.latitude, i.longitude,
+                        i.triage_category,
                         COALESCE(referred_hospital.id, i.hospital_id) AS destination_hospital_id,
                         destination.name AS hospital_name,
                         destination.latitude AS hospital_latitude,
@@ -237,7 +347,7 @@ final class ResponderIncidentWorkflowModel
                  INNER JOIN hospitals destination
                     ON destination.id = COALESCE(referred_hospital.id, i.hospital_id)
                  WHERE i.incident_id = ?
-                   AND i.status IN ('critical', 'urgent', 'dispatched', 'stable')
+                   AND i.status IN ('open', 'dispatched', 'referred')
                    AND (i.assigned_responder_user_id = ?
                         OR (i.assigned_responder_user_id IS NULL
                             AND i.hospital_id <=> ? AND i.responder_name = ?))
@@ -267,17 +377,13 @@ final class ResponderIncidentWorkflowModel
             );
             $patients->execute([$incidentId]);
             $patientRows = $patients->fetchAll();
-            if ($patientRows === []) {
-                throw new InvalidArgumentException(
-                    'Add at least one patient before sending this incident to the hospital.'
-                );
-            }
-
-            $pdo->prepare(
+            $statusUpdate = $pdo->prepare(
                 'UPDATE incidents
-                 SET status = ?, hospital_sent_at = COALESCE(hospital_sent_at, NOW())
+                 SET status = \'dispatched\', triage_category = ?,
+                     hospital_sent_at = COALESCE(hospital_sent_at, NOW())
                  WHERE incident_id = ?'
-            )->execute([$status, $incidentId]);
+            );
+            $statusUpdate->execute([$triageCategory, $incidentId]);
 
             if ($volunteerUserId !== null) {
                 $existingAssistance = $pdo->prepare(
@@ -306,8 +412,18 @@ final class ResponderIncidentWorkflowModel
                 $incidentId,
                 $incident,
                 $patientRows,
-                $status
+                $triageCategory
             );
+            if ($statusUpdate->rowCount() > 0) {
+                AuditLogService::record(
+                    $pdo,
+                    $responderUserId,
+                    'incident.status_updated',
+                    'incident',
+                    (string) $incidentId,
+                    ['status' => 'dispatched', 'triage_category' => $triageCategory]
+                );
+            }
             $pdo->commit();
 
             $distanceKm = DispatchModel::distanceKm(
@@ -340,12 +456,182 @@ final class ResponderIncidentWorkflowModel
         }
     }
 
+    public static function routableHospitals(): array
+    {
+        $statement = Database::connection()->query(
+            'SELECT id, name, latitude, longitude
+             FROM hospitals
+             WHERE 1 = 1'
+             . self::activeHospitalFilter()
+             . ' ORDER BY name, id'
+        );
+
+        return array_map(static function (array $hospital): array {
+            $latitude = $hospital['latitude'] === null
+                ? null
+                : (float) $hospital['latitude'];
+            $longitude = $hospital['longitude'] === null
+                ? null
+                : (float) $hospital['longitude'];
+
+            return [
+                'id' => (int) $hospital['id'],
+                'name' => (string) $hospital['name'],
+                'can_route' => $latitude !== null
+                    && $longitude !== null
+                    && $latitude >= -90
+                    && $latitude <= 90
+                    && $longitude >= -180
+                    && $longitude <= 180,
+            ];
+        }, $statement->fetchAll());
+    }
+
+    public static function rerouteIncident(
+        int $incidentId,
+        int $responderUserId,
+        int $hospitalId,
+        ?int $assignedHospitalId,
+        string $responderName
+    ): array {
+        $pdo = Database::connection();
+        $pdo->beginTransaction();
+        try {
+            $incidentQuery = $pdo->prepare(
+                "SELECT i.incident_type, i.location, i.latitude, i.longitude,
+                        i.status,
+                        i.triage_category,
+                        COALESCE(active_hospital.id, i.hospital_id) AS current_hospital_id
+                 FROM incidents i
+                 LEFT JOIN referrals latest_referral ON latest_referral.id = (
+                    SELECT r.id FROM referrals r
+                    WHERE r.incident_id = i.incident_id
+                    ORDER BY r.created_at DESC, r.id DESC
+                    LIMIT 1
+                 )
+                 LEFT JOIN hospitals active_hospital
+                    ON active_hospital.id = latest_referral.receiving_hospital_id
+                    AND latest_referral.status IN ('pending', 'accepted')
+                 INNER JOIN hospitals current_hospital
+                    ON current_hospital.id = COALESCE(active_hospital.id, i.hospital_id)
+                 WHERE i.incident_id = ?
+                   AND i.status IN ('dispatched', 'referred')
+                   AND i.hospital_sent_at IS NOT NULL
+                   AND (i.assigned_responder_user_id = ?
+                        OR (i.assigned_responder_user_id IS NULL
+                            AND i.hospital_id <=> ? AND i.responder_name = ?))
+                 LIMIT 1 FOR UPDATE"
+            );
+            $incidentQuery->execute([
+                $incidentId,
+                $responderUserId,
+                $assignedHospitalId,
+                $responderName,
+            ]);
+            $incident = $incidentQuery->fetch();
+            if ($incident === false) {
+                throw new InvalidArgumentException(
+                    'This sent incident is no longer assigned to you.'
+                );
+            }
+
+            $targetQuery = $pdo->prepare(
+                'SELECT id, name, latitude, longitude
+                 FROM hospitals WHERE id = ?'
+                 . self::activeHospitalFilter()
+                 . ' LIMIT 1 FOR UPDATE'
+            );
+            $targetQuery->execute([$hospitalId]);
+            $hospital = $targetQuery->fetch();
+            if ($hospital === false) {
+                throw new InvalidArgumentException('Choose a registered hospital.');
+            }
+            $latitude = $hospital['latitude'] === null
+                ? null
+                : (float) $hospital['latitude'];
+            $longitude = $hospital['longitude'] === null
+                ? null
+                : (float) $hospital['longitude'];
+            if ($latitude === null || $longitude === null
+                || $latitude < -90 || $latitude > 90
+                || $longitude < -180 || $longitude > 180) {
+                throw new InvalidArgumentException(
+                    'This hospital has no routing coordinates yet.'
+                );
+            }
+            if ((int) $incident['current_hospital_id'] === $hospitalId) {
+                $pdo->commit();
+                return [
+                    'hospital' => [
+                        'id' => $hospitalId,
+                        'name' => (string) $hospital['name'],
+                    ],
+                    'changed' => false,
+                ];
+            }
+
+            $referral = $pdo->prepare(
+                "INSERT INTO referrals
+                    (incident_id, receiving_hospital_id, referral_reason, status, created_by_user_id)
+                 VALUES (?, ?, 'Responder rerouted incident to selected hospital.', 'pending', ?)"
+            );
+            $referral->execute([$incidentId, $hospitalId, $responderUserId]);
+            $referralId = (int) $pdo->lastInsertId();
+            $pdo->prepare(
+                "UPDATE incidents SET status = 'referred' WHERE incident_id = ?"
+            )->execute([$incidentId]);
+
+            $patientsQuery = $pdo->prepare(
+                'SELECT patient_name, patient_age, patient_gender
+                 FROM incident_patients WHERE incident_id = ? ORDER BY id'
+            );
+            $patientsQuery->execute([$incidentId]);
+            $incident['destination_hospital_id'] = $hospitalId;
+            $incident['hospital_name'] = (string) $hospital['name'];
+            self::queueExistingIncidentHospitalAlerts(
+                $pdo,
+                $incidentId,
+                $incident,
+                $patientsQuery->fetchAll(),
+                (string) ($incident['triage_category'] ?? ''),
+                true
+            );
+            AuditLogService::record(
+                $pdo,
+                $responderUserId,
+                'referral.created',
+                'referral',
+                (string) $referralId,
+                [
+                    'incident_id' => $incidentId,
+                    'hospital_id' => $hospitalId,
+                    'operation' => 'responder_reroute',
+                ]
+            );
+            $pdo->commit();
+
+            return [
+                'hospital' => [
+                    'id' => $hospitalId,
+                    'name' => (string) $hospital['name'],
+                ],
+                'changed' => true,
+            ];
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
+        }
+    }
+
     private static function queueExistingIncidentHospitalAlerts(
         PDO $pdo,
         int $incidentId,
         array $incident,
         array $patients,
-        string $status
+        string $status,
+        bool $rerouted = false
     ): void {
         $hospitalId = (int) $incident['destination_hospital_id'];
         $now = new DateTimeImmutable('now', new DateTimeZone('Asia/Manila'));
@@ -382,12 +668,16 @@ final class ResponderIncidentWorkflowModel
             $patients
         );
         $message = implode("\n", [
-            'Responder sent incident #' . $incidentId . ' to the hospital.',
+            $rerouted
+                ? 'Responder changed the destination hospital for incident #' . $incidentId . '.'
+                : 'Responder sent incident #' . $incidentId . ' to the hospital.',
             'Incident: ' . $incident['incident_type'],
-            'Condition: ' . ucfirst($status),
+            'Emergency category: ' . IncidentTriageCategory::label($status),
             'Location: ' . $incident['location'],
             'Hospital: ' . $incident['hospital_name'],
-            'Patients: ' . implode('; ', $patientSummary),
+            'Patients: ' . ($patientSummary === []
+                ? 'Awaiting responder assessment.'
+                : implode('; ', $patientSummary)),
         ]);
         $existingAlert = $pdo->prepare(
             "SELECT 1 FROM staff_alerts
@@ -435,7 +725,7 @@ final class ResponderIncidentWorkflowModel
                AND (assigned_responder_user_id = ?
                     OR (assigned_responder_user_id IS NULL
                         AND hospital_id <=> ? AND responder_name = ?))
-               AND status IN ('critical', 'urgent', 'dispatched', 'stable')
+               AND status IN ('open', 'dispatched', 'referred')
              LIMIT 1"
         );
         $stmt->execute([$incidentId, $responderUserId, $hospitalId, $responderName]);
@@ -470,7 +760,7 @@ final class ResponderIncidentWorkflowModel
                    AND (assigned_responder_user_id = ?
                         OR (assigned_responder_user_id IS NULL
                             AND hospital_id <=> ? AND responder_name = ?))
-                   AND status IN ('critical', 'urgent', 'dispatched', 'stable')
+                   AND status IN ('open', 'dispatched', 'referred')
                  LIMIT 1 FOR UPDATE"
             );
             $incidentQuery->execute([
@@ -506,11 +796,12 @@ final class ResponderIncidentWorkflowModel
                 'now',
                 new DateTimeZone('Asia/Manila')
             ))->format('Y-m-d H:i:s');
-            $pdo->prepare(
+            $arrivalUpdate = $pdo->prepare(
                 'UPDATE incidents
                  SET responder_arrived_at = COALESCE(responder_arrived_at, ?)
                  WHERE incident_id = ?'
-            )->execute([$arrivedAt, $incidentId]);
+            );
+            $arrivalUpdate->execute([$arrivedAt, $incidentId]);
 
             $alert = $pdo->prepare(
                 "INSERT IGNORE INTO incident_scene_arrival_alerts
@@ -527,6 +818,16 @@ final class ResponderIncidentWorkflowModel
                 $alert->execute([$incidentId, $responderUserId, $adminId, $message]);
             }
 
+            if ($arrivalUpdate->rowCount() > 0) {
+                AuditLogService::record(
+                    $pdo,
+                    $responderUserId,
+                    'incident.arrival_recorded',
+                    'incident',
+                    (string) $incidentId,
+                    ['arrival_stage' => 'scene']
+                );
+            }
             $pdo->commit();
             return true;
         } catch (Throwable $e) {
@@ -564,16 +865,37 @@ final class ResponderIncidentWorkflowModel
         int $adminUserId,
         int $barangayId
     ): bool {
-        $stmt = Database::connection()->prepare(
-            "UPDATE incident_scene_arrival_alerts alert
-             INNER JOIN user_type admin ON admin.id = alert.barangay_admin_user_id
-             SET alert.status = 'read', alert.read_at = NOW()
-             WHERE alert.id = ? AND alert.barangay_admin_user_id = ?
-               AND admin.role = 'barangay_admin' AND admin.barangay_id = ?
-               AND alert.status = 'queued'"
-        );
-        $stmt->execute([$alertId, $adminUserId, $barangayId]);
-        return $stmt->rowCount() === 1;
+        $pdo = Database::connection();
+        $pdo->beginTransaction();
+        try {
+            $stmt = $pdo->prepare(
+                "UPDATE incident_scene_arrival_alerts alert
+                 INNER JOIN user_type admin ON admin.id = alert.barangay_admin_user_id
+                 SET alert.status = 'read', alert.read_at = NOW()
+                 WHERE alert.id = ? AND alert.barangay_admin_user_id = ?
+                   AND admin.role = 'barangay_admin' AND admin.barangay_id = ?
+                   AND alert.status = 'queued'"
+            );
+            $stmt->execute([$alertId, $adminUserId, $barangayId]);
+            if ($stmt->rowCount() !== 1) {
+                $pdo->commit();
+                return false;
+            }
+            AuditLogService::record(
+                $pdo,
+                $adminUserId,
+                'staff.alert_acknowledged',
+                'incident_scene_arrival_alert',
+                (string) $alertId
+            );
+            $pdo->commit();
+            return true;
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
+        }
     }
 
     public static function addIncidentNoteUpdate(
@@ -651,6 +973,13 @@ final class ResponderIncidentWorkflowModel
                 $authorName,
                 $reporterOwnsIncident
             );
+            AuditLogService::record(
+                $pdo,
+                $authorUserId,
+                'incident.note_added',
+                'incident',
+                (string) $incidentId
+            );
             $pdo->commit();
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) {
@@ -700,7 +1029,7 @@ final class ResponderIncidentWorkflowModel
         return $patients;
     }
 
-    public static function addPatient(int $incidentId, array $patient): int
+    public static function addPatient(int $incidentId, array $patient, int $authorUserId): int
     {
         $pdo = Database::connection();
         $pdo->beginTransaction();
@@ -747,6 +1076,14 @@ final class ResponderIncidentWorkflowModel
                 $patient['notes'],
                 $incidentId,
             ]);
+            AuditLogService::record(
+                $pdo,
+                $authorUserId,
+                'patient.created',
+                'patient',
+                (string) $patientId,
+                ['incident_id' => $incidentId]
+            );
             $pdo->commit();
 
             return $patientId;
@@ -758,7 +1095,7 @@ final class ResponderIncidentWorkflowModel
         }
     }
 
-    public static function deletePatient(int $incidentId, int $patientId): string|false|null
+    public static function deletePatient(int $incidentId, int $patientId, int $authorUserId): string|false|null
     {
         $pdo = Database::connection();
         $pdo->beginTransaction();
@@ -800,6 +1137,14 @@ final class ResponderIncidentWorkflowModel
                      WHERE incident_id = ?"
                 )->execute([$incidentId]);
             }
+            AuditLogService::record(
+                $pdo,
+                $authorUserId,
+                'patient.deleted',
+                'patient',
+                (string) $patientId,
+                ['incident_id' => $incidentId]
+            );
             $pdo->commit();
 
             return $filename === null ? null : (string) $filename;
@@ -817,40 +1162,59 @@ final class ResponderIncidentWorkflowModel
         string $responderName
     ): void
     {
-        $pickedUpAt = (new DateTimeImmutable(
-            'now',
-            new DateTimeZone('Asia/Manila')
-        ))->format('Y-m-d H:i:s');
-        $stmt = Database::connection()->prepare(
-            "UPDATE incidents
-             SET status = 'dispatched',
-                 patient_picked_up_at = COALESCE(patient_picked_up_at, ?)
-             WHERE incident_id = ?
-               AND (assigned_responder_user_id = ?
-                    OR (assigned_responder_user_id IS NULL
-                        AND responder_name = ?))
-               AND status IN ('critical', 'urgent', 'stable', 'dispatched')
-             LIMIT 1"
-        );
-        $stmt->execute([
-            $pickedUpAt,
-            $incidentId,
-            $responderUserId,
-            $responderName,
-        ]);
-        if ($stmt->rowCount() === 0) {
-            $check = Database::connection()->prepare(
-                "SELECT status FROM incidents
+        $pdo = Database::connection();
+        $pdo->beginTransaction();
+        try {
+            $pickedUpAt = (new DateTimeImmutable(
+                'now',
+                new DateTimeZone('Asia/Manila')
+            ))->format('Y-m-d H:i:s');
+            $stmt = $pdo->prepare(
+                "UPDATE incidents
+                 SET status = 'dispatched',
+                     patient_picked_up_at = COALESCE(patient_picked_up_at, ?)
                  WHERE incident_id = ?
                    AND (assigned_responder_user_id = ?
                         OR (assigned_responder_user_id IS NULL
                             AND responder_name = ?))
+                   AND status IN ('dispatched', 'referred')
                  LIMIT 1"
             );
-            $check->execute([$incidentId, $responderUserId, $responderName]);
-            if ($check->fetchColumn() !== 'dispatched') {
-                throw new RuntimeException('Incident is not available for pickup.');
+            $stmt->execute([
+                $pickedUpAt,
+                $incidentId,
+                $responderUserId,
+                $responderName,
+            ]);
+            if ($stmt->rowCount() === 0) {
+                $check = $pdo->prepare(
+                    "SELECT status FROM incidents
+                     WHERE incident_id = ?
+                       AND (assigned_responder_user_id = ?
+                            OR (assigned_responder_user_id IS NULL
+                                AND responder_name = ?))
+                     LIMIT 1"
+                );
+                $check->execute([$incidentId, $responderUserId, $responderName]);
+                if ($check->fetchColumn() !== 'dispatched') {
+                    throw new RuntimeException('Incident is not available for pickup.');
+                }
+            } else {
+                AuditLogService::record(
+                    $pdo,
+                    $responderUserId,
+                    'incident.status_updated',
+                    'incident',
+                    (string) $incidentId,
+                    ['status' => 'dispatched']
+                );
             }
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
         }
     }
 
@@ -899,7 +1263,7 @@ final class ResponderIncidentWorkflowModel
                    AND (i.assigned_responder_user_id = ?
                         OR (i.assigned_responder_user_id IS NULL
                             AND i.hospital_id = ? AND i.responder_name = ?))
-                   AND i.status IN ('critical', 'urgent', 'dispatched', 'stable')
+                   AND i.status IN ('open', 'dispatched', 'referred')
                  LIMIT 1 FOR UPDATE"
             );
             $incident->execute([
@@ -922,6 +1286,7 @@ final class ResponderIncidentWorkflowModel
             $recordedArrivalAt = $assignment['hospital_arrived_at'] !== null
                 ? (string) $assignment['hospital_arrived_at']
                 : $arrivedAt;
+            $newArrival = $assignment['hospital_arrived_at'] === null;
             $volunteerStatus = (string) (
                 $assignment['volunteer_assistance_status'] ?? ''
             );
@@ -942,6 +1307,16 @@ final class ResponderIncidentWorkflowModel
                      resolved_at = COALESCE(resolved_at, ?)
                  WHERE incident_id = ?'
             )->execute([$recordedArrivalAt, $recordedArrivalAt, $incidentId]);
+            if ($newArrival) {
+                AuditLogService::record(
+                    $pdo,
+                    $responderUserId,
+                    'incident.arrival_recorded',
+                    'incident',
+                    (string) $incidentId,
+                    ['arrival_stage' => 'hospital']
+                );
+            }
 
             $transportName = trim((string) ($assignment['transport_name'] ?? ''));
             if ($transportName !== '') {
@@ -1099,7 +1474,7 @@ final class ResponderIncidentWorkflowModel
                    AND (i.assigned_responder_user_id = ?
                         OR (i.assigned_responder_user_id IS NULL
                             AND i.hospital_id = ? AND i.responder_name = ?))
-                   AND i.status IN ('critical', 'urgent', 'dispatched', 'stable')
+                   AND i.status IN ('dispatched', 'referred')
                  LIMIT 1 FOR UPDATE"
             );
             $incident->execute([
@@ -1426,5 +1801,36 @@ final class ResponderIncidentWorkflowModel
         }
 
         return $now >= $start && $now < $end;
+    }
+
+    private static function activeHospitalFilter(): string
+    {
+        $pdo = Database::connection();
+        $conditions = [];
+        foreach (['is_active', 'archived_at'] as $column) {
+            if (!self::hasColumn($pdo, 'hospitals', $column)) {
+                continue;
+            }
+            $conditions[] = $column === 'is_active'
+                ? 'is_active = 1'
+                : 'archived_at IS NULL';
+        }
+
+        return $conditions ? ' AND ' . implode(' AND ', $conditions) : '';
+    }
+
+    private static function hasColumn(PDO $pdo, string $table, string $column): bool
+    {
+        $cacheKey = $table . '.' . $column;
+        if (!array_key_exists($cacheKey, self::$columnCache)) {
+            $statement = $pdo->prepare(
+                'SELECT COUNT(*) FROM information_schema.columns
+                 WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?'
+            );
+            $statement->execute([$table, $column]);
+            self::$columnCache[$cacheKey] = (int) $statement->fetchColumn() > 0;
+        }
+
+        return self::$columnCache[$cacheKey];
     }
 }

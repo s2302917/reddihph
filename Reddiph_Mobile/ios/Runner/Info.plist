@@ -50,6 +50,6 @@
 	<key>NSCameraUsageDescription</key>
 	<string>Reddiph uses the camera to attach patient photos to incident reports.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Reddiph accesses selected photos to attach them to incident reports.</string>
+	<string>Reddiph accesses selected photos for incident reports and responder profile images.</string>
 </dict>
 </plist>

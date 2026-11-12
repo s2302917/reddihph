@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/ApiController.php';
 require_once __DIR__ . '/../models/DispatchModel.php';
 require_once __DIR__ . '/../models/ResponderDashboardModel.php';
+require_once __DIR__ . '/../services/IncidentTriageCategory.php';
 require_once __DIR__ . '/../services/TokenService.php';
 
 /**
@@ -25,6 +26,7 @@ final class ResponderDashboardController extends ApiController
 
         try {
             $profile = self::responder($userId);
+            $monthlyCounts = ResponderDashboardModel::monthlyCounts($userId);
             ResponderDashboardModel::updatePresence($userId, $origin);
             $hospitalId = $profile['hospital_id'];
             $origin ??= ResponderDashboardModel::hospitalPoint($hospitalId);
@@ -41,9 +43,20 @@ final class ResponderDashboardController extends ApiController
                 $page
             );
 
+            $dispatchCount = (int) $monthlyCounts['dispatches'];
+            $arrivalCount = (int) $monthlyCounts['hospital_arrivals'];
             self::respond(200, [
                 'success' => true,
-                'responder' => ['full_name' => $profile['full_name'], 'vehicle' => $profile['vehicle']],
+                'responder' => [
+                    'full_name' => $profile['full_name'],
+                    'vehicle' => $profile['vehicle'],
+                    'monthly_dispatch_count' => $dispatchCount,
+                    'dispatches_this_month' => $dispatchCount,
+                    'hospital_arrivals_this_month' => $arrivalCount,
+                ],
+                'monthly_dispatch_count' => $dispatchCount,
+                'dispatches_this_month' => $dispatchCount,
+                'hospital_arrivals_this_month' => $arrivalCount,
                 'active_case' => $active === null ? null : self::incident($active, $origin),
                 'queue' => [
                     'items' => array_map(static fn (array $row): array => self::incident($row, $origin), $rows),
@@ -66,9 +79,11 @@ final class ResponderDashboardController extends ApiController
         $userId = self::userId($data);
         $page = self::page($data);
         $origin = self::origin($data);
-        $status = $data['status'] ?? 'all';
-        if (!in_array($status, ['all', 'critical', 'urgent', 'stable'], true)) {
-            self::respond(422, ['success' => false, 'message' => 'Unknown filter.']);
+        $triageCategory = $data['triage_category'] ?? 'all';
+        if (!is_string($triageCategory)
+            || ($triageCategory !== 'all'
+                && !IncidentTriageCategory::isValid($triageCategory))) {
+            self::respond(422, ['success' => false, 'message' => 'Unknown category filter.']);
         }
 
         try {
@@ -81,7 +96,7 @@ final class ResponderDashboardController extends ApiController
                 $hospitalId,
                 $userId,
                 $profile['full_name'],
-                $status === 'all' ? null : $status,
+                $triageCategory === 'all' ? null : $triageCategory,
                 $page,
                 self::QUEUE_PAGE_SIZE
             );
@@ -89,7 +104,7 @@ final class ResponderDashboardController extends ApiController
             self::respond(200, [
                 'success' => true,
                 'responder' => ['full_name' => $profile['full_name']],
-                'counts' => ResponderDashboardModel::statusCounts(
+                'counts' => ResponderDashboardModel::categoryCounts(
                     $barangayId,
                     $hospitalId,
                     $userId,
@@ -183,6 +198,7 @@ final class ResponderDashboardController extends ApiController
             'incident_id' => (int) $row['incident_id'],
             'incident_type' => $row['incident_type'],
             'status' => $row['status'],
+            'triage_category' => $row['triage_category'],
             'sent_to_hospital' => (bool) $row['sent_to_hospital'],
             'reported_by' => $row['reported_by'],
             'responder_name' => $row['responder_name'],

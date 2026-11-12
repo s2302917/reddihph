@@ -186,7 +186,9 @@ body {
   line-height: 1.2;
 }
 
-.hospitaladmin-login-errors {
+.hospitaladmin-login-errors,
+.doctor-login-errors,
+.nurse-login-errors {
   margin: -1rem 0 1.25rem;
   padding: 0.75rem 1rem;
   border: 1px solid #e5b8bc;
@@ -749,7 +751,7 @@ body {
   font-weight: 800;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--color-primary-red);
+  color: var(--bg-sidebar-nurse);
   margin-bottom: 0.45rem;
 }
 
@@ -808,7 +810,7 @@ body {
 .nurse-login-submit-btn {
   width: 100%;
   padding: 0.75rem 1.25rem;
-  background-color: var(--color-primary-red);
+  background-color: var(--bg-sidebar-nurse);
   color: var(--color-white);
   border: none;
   border-radius: 9999px;
@@ -821,7 +823,7 @@ body {
 }
 
 .nurse-login-submit-btn:hover {
-  background-color: var(--color-primary-red-hover);
+  background-color: var(--bg-sidebar-nurse-alt);
   box-shadow: 0 4px 12px rgba(111, 14, 19, 0.25);
 }
 
@@ -838,7 +840,7 @@ body {
 .nurse-forgot-password-link {
   font-size: 0.68rem;
   font-weight: 700;
-  color: var(--color-primary-red);
+  color: var(--bg-sidebar-nurse);
   text-decoration: none;
   transition: opacity 0.2s ease;
 }
@@ -1117,5 +1119,11 @@ body {
 
   .nurseforgotpass-subtitle {
     font-size: 0.74rem;
+  }
+}
+
+@media (max-width: 680px) {
+  .hospitaladmin-login-container {
+    display: none;
   }
 }

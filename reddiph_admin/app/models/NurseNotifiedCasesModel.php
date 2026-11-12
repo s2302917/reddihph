@@ -1,13 +1,41 @@
 <?php
 
 require_once __DIR__ . '/../../config/config.php';
-require_once __DIR__ . '/HospitalBedInventoryModel.php';
+require_once __DIR__ . '/AuditLogModel.php';
+require_once __DIR__ . '/../services/IncidentTriageCategory.php';
 
 class NurseNotifiedCasesModel
 {
     private static function connection(): PDO
     {
         return Database::connection();
+    }
+
+    public static function activeCount(int $nurseId): int
+    {
+        $statement = self::connection()->prepare(
+            "SELECT COUNT(DISTINCT i.incident_id)
+            FROM incidents i
+            INNER JOIN user_type nurse
+                ON nurse.id = :nurse_id
+                AND nurse.role = 'nurse'
+                AND (
+                    nurse.hospital_id = i.hospital_id
+                    OR (i.hospital_id IS NULL AND nurse.hospital_name = i.hospital_name)
+                )
+            WHERE i.status IN ('open', 'dispatched', 'referred')
+              AND EXISTS (
+                    SELECT 1
+                    FROM staff_alerts alert
+                    WHERE alert.incident_id = i.incident_id
+                      AND alert.recipient_user_id = nurse.id
+                      AND alert.recipient_role = 'nurse'
+                      AND alert.channel = 'admin'
+              )"
+        );
+        $statement->execute(['nurse_id' => $nurseId]);
+
+        return (int) $statement->fetchColumn();
     }
 
     public static function profile(int $nurseId): ?array
@@ -58,6 +86,7 @@ class NurseNotifiedCasesModel
                 i.incident_id,
                 i.incident_type,
                 i.status,
+                i.triage_category,
                 i.location,
                 i.patient_name,
                 i.patient_gender,
@@ -72,19 +101,12 @@ class NurseNotifiedCasesModel
                 i.nurse_spo2,
                 i.nurse_gcs,
                 i.nurse_notes,
-                i.nurse_bed_id,
-                i.nurse_prep_completed,
-                i.nurse_prep_completed_by,
-                i.nurse_prep_completed_at,
-                preparer.full_name AS prep_completed_by_name,
                 i.transport_name,
                 i.transport_type,
                 a.status AS ambulance_status,
                 a.eta_minutes AS ambulance_eta_minutes,
                 a.updated_at AS ambulance_updated_at,
                 a.arrived_at AS ambulance_arrived_at,
-                assigned_bed.bed_type AS nurse_bed_type,
-                assigned_bed.bed_number AS nurse_bed_number,
                 COALESCE(h.name, i.hospital_name) AS registered_hospital
             FROM incidents i
             INNER JOIN user_type nurse
@@ -94,17 +116,11 @@ class NurseNotifiedCasesModel
                     nurse.hospital_id = i.hospital_id
                     OR (i.hospital_id IS NULL AND nurse.hospital_name = i.hospital_name)
                 )
-            LEFT JOIN hospitals h ON h.id = nurse.hospital_id
-            LEFT JOIN user_type preparer
-                ON preparer.id = i.nurse_prep_completed_by
-                AND preparer.role = 'nurse'
-            LEFT JOIN ambulances a
-                ON a.call_sign = i.transport_name
-                AND a.hospital_id = nurse.hospital_id
-            LEFT JOIN hospital_beds assigned_bed
-                ON assigned_bed.id = i.nurse_bed_id
-                AND assigned_bed.hospital_id = nurse.hospital_id
-            WHERE i.status IN ('critical', 'urgent', 'dispatched', 'stable')
+                LEFT JOIN hospitals h ON h.id = nurse.hospital_id
+                LEFT JOIN ambulances a
+                    ON a.call_sign = i.transport_name
+                    AND a.hospital_id = nurse.hospital_id
+                WHERE i.status IN ('open', 'dispatched', 'referred')
               AND EXISTS (
                     SELECT 1
                     FROM incident_patients submitted_patient
@@ -140,12 +156,12 @@ class NurseNotifiedCasesModel
                       )
               )
             ORDER BY
-                CASE i.status
-                    WHEN 'critical' THEN 1
+                CASE i.triage_category
+                    WHEN 'emergent' THEN 1
                     WHEN 'urgent' THEN 2
-                    WHEN 'dispatched' THEN 2
-                    WHEN 'stable' THEN 3
-                    ELSE 4
+                    WHEN 'non_urgent' THEN 3
+                    WHEN 'expectant' THEN 4
+                    ELSE 5
                 END,
                 i.reported_at DESC,
                 i.incident_id DESC"
@@ -185,7 +201,10 @@ class NurseNotifiedCasesModel
 
             return [
                 'id' => (int) $row['incident_id'],
-                'severity' => $status === 'dispatched' ? 'Urgent' : ucfirst($status),
+                'triageCategory' => $row['triage_category'],
+                'triageCategoryLabel' => IncidentTriageCategory::label(
+                    $row['triage_category'] !== null ? (string) $row['triage_category'] : null
+                ),
                 'status' => $status,
                 'unit' => trim((string) ($row['transport_name'] ?? '')) !== ''
                     ? (string) $row['transport_name']
@@ -206,63 +225,28 @@ class NurseNotifiedCasesModel
                 'consciousness' => $row['nurse_gcs'] === null ? '' : (string) $row['nurse_gcs'],
                 'note' => (string) ($row['notes'] ?? ''),
                 'nurseNote' => (string) ($row['nurse_notes'] ?? ''),
-                'bedId' => $row['nurse_bed_id'] === null ? null : (int) $row['nurse_bed_id'],
-                'bedLabel' => $row['nurse_bed_type'] === null
-                    ? 'Not assigned'
-                    : (($row['nurse_bed_type'] === 'er' ? 'ER Bed ' : 'Pediatric Bed ') . (int) $row['nurse_bed_number']),
-                'prepCompleted' => (bool) $row['nurse_prep_completed'],
-                'prepCompletedBy' => $row['nurse_prep_completed_by'] === null ? null : (int) $row['nurse_prep_completed_by'],
-                'prepCompletedByName' => (string) ($row['prep_completed_by_name'] ?? ''),
-                'prepCompletedAt' => $row['nurse_prep_completed_at'],
             ];
         }, $statement->fetchAll());
     }
 
-    public static function summary(int $nurseId): array
+    public static function summary(int $nurseId, ?array $cases = null): array
     {
-        $statement = self::connection()->prepare(
-            "SELECT
-                COUNT(*) AS incoming_count,
-                COALESCE(SUM(
-                    i.nurse_prep_completed = 1
-                ), 0) AS prep_completed_count
-            FROM incidents i
-            INNER JOIN user_type nurse
-                ON nurse.id = :nurse_id
-                AND nurse.role = 'nurse'
-                AND (
-                    nurse.hospital_id = i.hospital_id
-                    OR (i.hospital_id IS NULL AND nurse.hospital_name = i.hospital_name)
-                )
-            WHERE i.status IN ('critical', 'urgent', 'dispatched', 'stable')
-              AND EXISTS (
-                    SELECT 1
-                    FROM incident_patients submitted_patient
-                    WHERE submitted_patient.incident_id = i.incident_id
-              )
-              AND COALESCE((
-                    SELECT current_staff.is_available
-                    FROM staff current_staff
-                    WHERE current_staff.user_id = nurse.id
-                      AND (current_staff.hospital_id = nurse.hospital_id OR current_staff.hospital_id IS NULL)
-                    ORDER BY (current_staff.hospital_id = nurse.hospital_id) DESC, current_staff.id DESC
-                    LIMIT 1
-              ), 1) = 1
-              AND EXISTS (
-                    SELECT 1 FROM staff_alerts received_alert
-                    WHERE received_alert.incident_id = i.incident_id
-                      AND received_alert.recipient_user_id = nurse.id
-                      AND received_alert.recipient_role = 'nurse'
-                      AND received_alert.channel = 'admin'
-              )"
-        );
-        $statement->execute(['nurse_id' => $nurseId]);
-        $row = $statement->fetch() ?: [];
-
-        return [
-            'incoming' => (int) ($row['incoming_count'] ?? 0),
-            'prepCompleted' => (int) ($row['prep_completed_count'] ?? 0),
+        $cases ??= self::cases($nurseId);
+        $summary = [
+            'all' => count($cases),
+            'emergent' => 0,
+            'urgent' => 0,
+            'non_urgent' => 0,
+            'expectant' => 0,
         ];
+        foreach ($cases as $case) {
+            $category = $case['triageCategory'] ?? null;
+            if (isset($summary[$category])) {
+                $summary[$category]++;
+            }
+        }
+
+        return $summary;
     }
 
     public static function nextArrival(int $nurseId): ?array
@@ -285,7 +269,7 @@ class NurseNotifiedCasesModel
                 ON a.call_sign = i.transport_name
                 AND a.hospital_id = nurse.hospital_id
                 AND a.status IN ('en_route', 'arrived')
-            WHERE i.status IN ('critical', 'urgent', 'dispatched', 'stable')
+            WHERE i.status IN ('open', 'dispatched', 'referred')
               AND EXISTS (
                     SELECT 1
                     FROM incident_patients submitted_patient
@@ -335,71 +319,6 @@ class NurseNotifiedCasesModel
             'arrival' => $arrivalTime,
             'etaMinutes' => $etaMinutes,
         ];
-    }
-
-    public static function bedAvailability(int $nurseId): array
-    {
-        $connection = self::connection();
-        $hospitalQuery = $connection->prepare(
-            "SELECT hospital_id
-             FROM user_type
-             WHERE id = :nurse_id AND role = 'nurse'
-             LIMIT 1"
-        );
-        $hospitalQuery->execute(['nurse_id' => $nurseId]);
-        $hospitalId = $hospitalQuery->fetchColumn();
-        if ($hospitalId === false || $hospitalId === null) {
-            return ['er' => 0, 'pediatric' => 0];
-        }
-        $inventoryQuery = $connection->prepare(
-            'SELECT COUNT(*) FROM hospital_beds WHERE hospital_id = :hospital_id'
-        );
-        $inventoryQuery->execute(['hospital_id' => (int) $hospitalId]);
-        if ((int) $inventoryQuery->fetchColumn() === 0) {
-            HospitalBedInventoryModel::initialize($connection, (int) $hospitalId);
-        }
-
-        $statement = self::connection()->prepare(
-            "SELECT bed_type, COUNT(*) AS available_count
-             FROM hospital_beds
-            WHERE hospital_id = :hospital_id AND status IN ('ready', 'preparing')
-             GROUP BY bed_type"
-        );
-        $statement->execute(['hospital_id' => (int) $hospitalId]);
-        $counts = ['er' => 0, 'pediatric' => 0];
-        foreach ($statement->fetchAll() as $row) {
-            $counts[(string) $row['bed_type']] = (int) $row['available_count'];
-        }
-
-        return $counts;
-    }
-
-    public static function beds(int $nurseId): array
-    {
-        $connection = self::connection();
-        $statement = $connection->prepare(
-            "SELECT b.id, b.bed_type, b.bed_number, b.status
-             FROM hospital_beds b
-             INNER JOIN user_type nurse
-                ON nurse.hospital_id = b.hospital_id
-               AND nurse.id = :nurse_id
-               AND nurse.role = 'nurse'
-             ORDER BY FIELD(b.bed_type, 'er', 'pediatric'), b.bed_number"
-        );
-        $statement->execute(['nurse_id' => $nurseId]);
-
-        return array_map(static function (array $bed): array {
-            $type = (string) $bed['bed_type'];
-            $status = (string) $bed['status'];
-            return [
-                'id' => (int) $bed['id'],
-                'type' => $type,
-                'number' => (int) $bed['bed_number'],
-                'status' => $status,
-                'label' => ($type === 'er' ? 'ER Bed ' : 'Pediatric Bed ') . (int) $bed['bed_number'] .
-                    ' · ' . ucfirst($status),
-            ];
-        }, $statement->fetchAll());
     }
 
     public static function setAvailability(int $nurseId, bool $available): void
@@ -482,6 +401,9 @@ class NurseNotifiedCasesModel
                 'shift_status' => $available ? 'on_duty' : 'off_duty',
             ]);
 
+            AuditLogModel::record($connection, $nurseId, 'staff.availability_updated', 'staff', (string) $staffId, [
+                'fields' => ['is_available', 'shift_status'],
+            ]);
             $connection->commit();
         } catch (Throwable $exception) {
             if ($connection->inTransaction()) {
@@ -491,23 +413,14 @@ class NurseNotifiedCasesModel
         }
     }
 
-    public static function updatePreparation(int $nurseId, int $incidentId, array $preparation): bool
+    public static function updateClinicalRecord(int $nurseId, int $incidentId, array $clinicalRecord): bool
     {
         $connection = self::connection();
         $connection->beginTransaction();
 
         try {
             $access = $connection->prepare(
-                "SELECT
-                    i.nurse_bed_id,
-                    i.nurse_prep_completed,
-                    nurse.hospital_id,
-                    EXISTS (
-                        SELECT 1 FROM ambulances arrived_transport
-                        WHERE arrived_transport.call_sign = i.transport_name
-                          AND arrived_transport.hospital_id = nurse.hospital_id
-                          AND arrived_transport.status = 'arrived'
-                    ) AS transport_arrived
+                "SELECT i.incident_id
                 FROM incidents i
                 INNER JOIN user_type nurse
                     ON nurse.id = :nurse_id
@@ -517,7 +430,7 @@ class NurseNotifiedCasesModel
                         OR (i.hospital_id IS NULL AND nurse.hospital_name = i.hospital_name)
                     )
                 WHERE i.incident_id = :incident_id
-                  AND i.status IN ('critical', 'urgent', 'dispatched', 'stable')
+                  AND i.status IN ('open', 'dispatched', 'referred')
                   AND EXISTS (
                       SELECT 1
                       FROM incident_patients submitted_patient
@@ -548,79 +461,6 @@ class NurseNotifiedCasesModel
                 return false;
             }
 
-            $completed = !empty($preparation['prepCompleted']);
-            $bedId = $preparation['bedId'] === null ? null : (int) $preparation['bedId'];
-            if ($completed && (
-                $preparation['heartRate'] === '' ||
-                $preparation['bloodPressure'] === '' ||
-                $preparation['spo2'] === '' ||
-                $preparation['gcs'] === '' ||
-                $bedId === null
-            )) {
-                throw new InvalidArgumentException('Enter all vital signs and assign a bed before completing preparation.');
-            }
-
-            $hospitalId = $incident['hospital_id'] === null ? null : (int) $incident['hospital_id'];
-            $previousBedId = $incident['nurse_bed_id'] === null ? null : (int) $incident['nurse_bed_id'];
-            $bedStatus = null;
-            if ($bedId !== null) {
-                if ($hospitalId === null) {
-                    throw new InvalidArgumentException('A registered hospital is required to assign a bed.');
-                }
-                $bedQuery = $connection->prepare(
-                    'SELECT status FROM hospital_beds
-                     WHERE id = :bed_id AND hospital_id = :hospital_id
-                     LIMIT 1 FOR UPDATE'
-                );
-                $bedQuery->execute(['bed_id' => $bedId, 'hospital_id' => $hospitalId]);
-                $bedStatus = $bedQuery->fetchColumn();
-                if ($bedStatus === false) {
-                    throw new InvalidArgumentException('Choose a bed belonging to your hospital.');
-                }
-                if ($bedId !== $previousBedId && $bedStatus !== 'ready') {
-                    throw new InvalidArgumentException('The selected bed is no longer ready. Choose another bed.');
-                }
-
-                $usage = $connection->prepare(
-                    "SELECT COUNT(*)
-                     FROM incidents
-                     WHERE nurse_bed_id = :bed_id
-                       AND incident_id <> :incident_id
-                       AND status IN ('critical', 'urgent', 'dispatched', 'stable')"
-                );
-                $usage->execute(['bed_id' => $bedId, 'incident_id' => $incidentId]);
-                if ((int) $usage->fetchColumn() > 0) {
-                    throw new InvalidArgumentException('That bed is already assigned to another active incident.');
-                }
-            }
-
-            if ($previousBedId !== null && $previousBedId !== $bedId) {
-                $release = $connection->prepare(
-                    "UPDATE hospital_beds
-                     SET status = 'ready'
-                     WHERE id = :bed_id
-                       AND hospital_id = :hospital_id
-                       AND status = 'preparing'"
-                );
-                $release->execute(['bed_id' => $previousBedId, 'hospital_id' => $hospitalId]);
-            }
-
-            if ($bedId !== null) {
-                $nextBedStatus = $completed && (bool) $incident['transport_arrived']
-                    ? 'occupied'
-                    : 'preparing';
-                $setBedStatus = $connection->prepare(
-                    'UPDATE hospital_beds
-                     SET status = :status
-                     WHERE id = :bed_id AND hospital_id = :hospital_id'
-                );
-                $setBedStatus->execute([
-                    'status' => $nextBedStatus,
-                    'bed_id' => $bedId,
-                    'hospital_id' => $hospitalId,
-                ]);
-            }
-
             $update = $connection->prepare(
                 "UPDATE incidents i
                 INNER JOIN user_type nurse
@@ -634,37 +474,22 @@ class NurseNotifiedCasesModel
                     i.nurse_blood_pressure = :blood_pressure,
                     i.nurse_spo2 = :spo2,
                     i.nurse_gcs = :gcs,
-                    i.nurse_notes = :nurse_notes,
-                    i.nurse_bed_id = :bed_id,
-                    i.nurse_prep_completed = :prep_completed,
-                    i.nurse_prep_completed_by = CASE
-                        WHEN :completed_by_flag = 1 THEN :completed_by
-                        ELSE NULL
-                    END,
-                    i.nurse_prep_completed_at = CASE
-                        WHEN :completed_at_flag = 1 THEN COALESCE(i.nurse_prep_completed_at, NOW())
-                        ELSE NULL
-                    END
+                    i.nurse_notes = :nurse_notes
                 WHERE i.incident_id = :incident_id
-                  AND i.status IN ('critical', 'urgent', 'dispatched', 'stable')"
+                  AND i.status IN ('open', 'dispatched', 'referred')"
             );
             $update->execute([
                 'nurse_id' => $nurseId,
-                'heart_rate' => $preparation['heartRate'] !== '' ? (int) $preparation['heartRate'] : null,
-                'blood_pressure' => $preparation['bloodPressure'] !== '' ? $preparation['bloodPressure'] : null,
-                'spo2' => $preparation['spo2'] !== '' ? (int) $preparation['spo2'] : null,
-                'gcs' => $preparation['gcs'] !== '' ? (int) $preparation['gcs'] : null,
-                'nurse_notes' => $preparation['nurseNote'] !== '' ? $preparation['nurseNote'] : null,
-                'bed_id' => $bedId,
-                'prep_completed' => $completed ? 1 : 0,
-                'completed_by_flag' => $completed ? 1 : 0,
-                'completed_by' => $nurseId,
-                'completed_at_flag' => $completed ? 1 : 0,
+                'heart_rate' => $clinicalRecord['heartRate'] !== '' ? (int) $clinicalRecord['heartRate'] : null,
+                'blood_pressure' => $clinicalRecord['bloodPressure'] !== '' ? $clinicalRecord['bloodPressure'] : null,
+                'spo2' => $clinicalRecord['spo2'] !== '' ? (int) $clinicalRecord['spo2'] : null,
+                'gcs' => $clinicalRecord['gcs'] !== '' ? (int) $clinicalRecord['gcs'] : null,
+                'nurse_notes' => $clinicalRecord['nurseNote'] !== '' ? $clinicalRecord['nurseNote'] : null,
                 'incident_id' => $incidentId,
             ]);
-            if ($previousBedId !== $bedId || $bedId !== null) {
-                HospitalBedInventoryModel::synchronizeAggregates($connection, (int) $hospitalId);
-            }
+            AuditLogModel::record($connection, $nurseId, 'nurse.clinical_note_saved', 'incident', (string) $incidentId, [
+                'fields' => ['vital_signs', 'nurse_note'],
+            ]);
             $connection->commit();
 
             return true;

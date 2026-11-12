@@ -109,8 +109,9 @@ void main() {
 Map<String, dynamic> _caseJson() => {
       'id': 42,
       'title': 'Medical emergency',
-      'status': 'critical',
-      'status_label': 'Critical',
+      'status': 'open',
+      'triage_category': 'emergent',
+      'triage_category_label': 'Emergent',
       'location': 'Purok 4',
       'latitude': '10.2000',
       'longitude': '122.4000',

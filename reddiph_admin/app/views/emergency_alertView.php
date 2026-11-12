@@ -24,6 +24,8 @@ if (!isset($alerts) || !isset($summary)) {
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet"
         href="<?php echo htmlspecialchars(assetUrl('public/css/emergency_alert.css')); ?>?v=<?php echo filemtime(__DIR__ . '/../../public/css/emergency_alert.css'); ?>">
+    <link rel="stylesheet"
+        href="<?php echo htmlspecialchars(assetUrl('public/css/livemapping.css')); ?>?v=<?php echo filemtime(__DIR__ . '/../../public/css/livemapping.css'); ?>">
 </head>
 
 <body class="emergency_alert_body">
@@ -52,35 +54,32 @@ if (!isset($alerts) || !isset($summary)) {
                     <span>Staff Schedule</span>
                 </a>
 
-                <a href="resourcesController.php" class="emergency_alert_nav_item" id="emergency_alert_nav_resources">
-                    <span>Resources</span>
-                </a>
+                <details class="admin-resources-menu">
+                    <summary class="emergency_alert_nav_item" id="emergency_alert_nav_resources"><span>Resources</span></summary>
+                    <div class="admin-resources-subnav">
+                        <a href="resourcesController.php?section=bed-capacity">Bed Capacity</a>
+                        <a href="resourcesController.php?section=ambulance">Ambulance</a>
+                        <a href="resourcesController.php?section=ptv">PTV</a>
+                    </div>
+                </details>
 
                 <a href="hospitalnetworkController.php" class="emergency_alert_nav_item"
                     id="emergency_alert_nav_network">
                     <span>Referral</span>
                 </a>
 
-                <a href="analyticsController.php" class="emergency_alert_nav_item" id="emergency_alert_nav_analytics">
-                    <span>Analytics</span>
-                </a>
-
                 <a href="demographicsController.php" class="emergency_alert_nav_item" id="emergency_alert_nav_logs">
                     <span>Logs &amp; Demographics</span>
+                </a>
+
+                <a href="manageAccountsController.php" class="emergency_alert_nav_item" id="emergency_alert_nav_manage_accounts">
+                    <span>Manage Accounts</span>
                 </a>
 
                 <a href="settingsController.php" class="emergency_alert_nav_item" id="emergency_alert_nav_settings">
                     <span>Settings</span>
                 </a>
             </nav>
-            <div class="emergency_alert_system_status" id="emergency_alert_system_status">
-                <span class="emergency_alert_system_status_icon" aria-hidden="true">!</span>
-
-                <div>
-                    <p class="emergency_alert_system_status_title">System Status</p>
-                    <p class="emergency_alert_system_status_sub">All systems operational.</p>
-                </div>
-            </div>
         </aside>
 
         <main class="emergency_alert_main" id="emergency_alert_main">
@@ -94,12 +93,6 @@ if (!isset($alerts) || !isset($summary)) {
                 </div>
 
                 <div class="emergency_alert_header_controls" id="emergency_alert_header_controls">
-                    <label class="emergency_alert_search" id="emergency_alert_search_wrap">
-                        <span class="emergency_alert_search_icon" aria-hidden="true">⌕</span>
-                        <input type="search" id="emergency_alert_search_input" class="emergency_alert_search_input"
-                            placeholder="Search incidents, hospitals, or units..." autocomplete="off">
-                    </label>
-
                     <div class="emergency_alert_notification_wrap">
                         <button type="button" class="emergency_alert_bell" id="emergency_alert_bell_btn"
                             aria-label="Notifications" aria-expanded="false"
@@ -134,47 +127,63 @@ if (!isset($alerts) || !isset($summary)) {
 
             <section class="emergency_alert_summary" id="emergency_alert_summary" aria-label="Emergency alert summary">
                 <button type="button" class="emergency_alert_summary_card" id="emergency_alert_summary_all"
-                    data-status="all">
+                    data-category="all">
                     <span class="emergency_alert_summary_label">All</span>
                     <strong class="emergency_alert_summary_value"
                         id="emergency_alert_summary_all_value"><?= (int) ($summary['all'] ?? 0) ?></strong>
                 </button>
 
-                <button type="button" class="emergency_alert_summary_card" id="emergency_alert_summary_critical"
-                    data-status="critical">
-                    <span class="emergency_alert_summary_label">Critical</span>
+                <button type="button" class="emergency_alert_summary_card" id="emergency_alert_summary_emergent"
+                    data-category="emergent">
+                    <span class="emergency_alert_summary_label">Emergent</span>
                     <strong class="emergency_alert_summary_value"
-                        id="emergency_alert_summary_critical_value"><?= (int) ($summary['critical'] ?? 0) ?></strong>
+                        id="emergency_alert_summary_emergent_value"><?= (int) ($summary['emergent'] ?? 0) ?></strong>
                 </button>
 
                 <button type="button" class="emergency_alert_summary_card" id="emergency_alert_summary_urgent"
-                    data-status="urgent">
+                    data-category="urgent">
                     <span class="emergency_alert_summary_label">Urgent</span>
                     <strong class="emergency_alert_summary_value"
                         id="emergency_alert_summary_urgent_value"><?= (int) ($summary['urgent'] ?? 0) ?></strong>
                 </button>
 
-                <button type="button" class="emergency_alert_summary_card" id="emergency_alert_summary_stable"
-                    data-status="stable">
-                    <span class="emergency_alert_summary_label">Stable</span>
+                <button type="button" class="emergency_alert_summary_card" id="emergency_alert_summary_non_urgent"
+                    data-category="non_urgent">
+                    <span class="emergency_alert_summary_label">Non-Urgent</span>
                     <strong class="emergency_alert_summary_value"
-                        id="emergency_alert_summary_stable_value"><?= (int) ($summary['stable'] ?? 0) ?></strong>
+                        id="emergency_alert_summary_non_urgent_value"><?= (int) ($summary['non_urgent'] ?? 0) ?></strong>
+                </button>
+
+                <button type="button" class="emergency_alert_summary_card" id="emergency_alert_summary_expectant"
+                    data-category="expectant">
+                    <span class="emergency_alert_summary_label">Expectant</span>
+                    <strong class="emergency_alert_summary_value"
+                        id="emergency_alert_summary_expectant_value"><?= (int) ($summary['expectant'] ?? 0) ?></strong>
                 </button>
 
             </section>
 
-            <section class="emergency_alert_filter_bar" id="emergency_alert_filter_bar" aria-label="Alert filters">
-                <button type="button" class="emergency_alert_filter emergency_alert_filter_active"
-                    id="emergency_alert_filter_all" data-status="all">ALL</button>
-                <button type="button" class="emergency_alert_filter" id="emergency_alert_filter_critical"
-                    data-status="critical">CRITICAL</button>
-                <button type="button" class="emergency_alert_filter" id="emergency_alert_filter_urgent"
-                    data-status="urgent">URGENT</button>
-                <button type="button" class="emergency_alert_filter" id="emergency_alert_filter_stable"
-                    data-status="stable">STABLE</button>
-            </section>
+            <div class="emergency_alert_case_toolbar">
+                <label class="emergency_alert_search" id="emergency_alert_search_wrap">
+                    <span class="emergency_alert_search_icon" aria-hidden="true">⌕</span>
+                    <input type="search" id="emergency_alert_search_input" class="emergency_alert_search_input"
+                        placeholder="Search incidents, hospitals, or units..." autocomplete="off">
+                </label>
+                <section class="emergency_alert_filter_bar" id="emergency_alert_filter_bar" aria-label="Category filters">
+                    <button type="button" class="emergency_alert_filter emergency_alert_filter_active"
+                        id="emergency_alert_filter_all" data-category="all">ALL</button>
+                    <button type="button" class="emergency_alert_filter" id="emergency_alert_filter_emergent"
+                        data-category="emergent">EMERGENT</button>
+                    <button type="button" class="emergency_alert_filter" id="emergency_alert_filter_urgent"
+                        data-category="urgent">URGENT</button>
+                    <button type="button" class="emergency_alert_filter" id="emergency_alert_filter_non_urgent"
+                        data-category="non_urgent">NON-URGENT</button>
+                    <button type="button" class="emergency_alert_filter" id="emergency_alert_filter_expectant"
+                        data-category="expectant">EXPECTANT</button>
+                </section>
+            </div>
 
-            <div class="emergency_alert_notice" id="emergency_alert_critical_notice" hidden>
+            <div class="emergency_alert_notice" id="emergency_alert_emergent_notice" hidden>
                 THESE CASES NEED IMMEDIATE STAFF NOTIFICATION. CONFIRM DOCTOR AND NURSE ASSIGNMENT AS SOON AS POSSIBLE.
             </div>
 
@@ -184,7 +193,7 @@ if (!isset($alerts) || !isset($summary)) {
                         data-view="all">
                         <thead id="emergency_alert_table_head">
                             <tr id="emergency_alert_table_head_row">
-                                <th>STATUS</th>
+                                <th>CATEGORY</th>
                                 <th>INCIDENT / PATIENT</th>
                                 <th>LOCATION</th>
                                 <th>RESPONDER / TRANSPORT</th>
@@ -198,18 +207,22 @@ if (!isset($alerts) || !isset($summary)) {
                                     <?php $reportedParts = preg_split('/\s+/', trim((string) ($alert['reportedAt'] ?? '')), 2); ?>
                                     <tr class="emergency_alert_row" id="emergency_alert_row_<?= (int) $alert['id'] ?>"
                                         data-alert-id="<?= (int) $alert['id'] ?>"
-                                        data-status="<?= htmlspecialchars(strtolower($alert['status'])) ?>"
+                                        data-category="<?= htmlspecialchars($alert['triageCategory'] ?? 'unclassified') ?>"
                                         style="animation-delay: <?= $index * 55 ?>ms;">
                                         <td>
-                                            <select class="emergency_alert_status_select" data-action="status"
-                                                data-alert-id="<?= (int) $alert['id'] ?>" aria-label="Change incident status">
-                                                <?php foreach (['critical' => 'Critical', 'urgent' => 'Urgent', 'stable' => 'Stable'] as $statusValue => $statusLabel): ?>
-                                                    <option value="<?= $statusValue ?>"
-                                                        <?= strtolower($alert['status']) === $statusValue ? 'selected' : '' ?>>
-                                                        <?= $statusLabel ?>
+                                            <select class="emergency_alert_category_select" data-action="triage_category"
+                                                data-alert-id="<?= (int) $alert['id'] ?>" aria-label="Change emergency category">
+                                                <?php if ($alert['triageCategory'] === null): ?>
+                                                    <option value="" selected disabled>Unclassified</option>
+                                                <?php endif; ?>
+                                                <?php foreach (['emergent' => 'Emergent', 'urgent' => 'Urgent', 'non_urgent' => 'Non-Urgent', 'expectant' => 'Expectant'] as $categoryValue => $categoryLabel): ?>
+                                                    <option value="<?= $categoryValue ?>"
+                                                        <?= $alert['triageCategory'] === $categoryValue ? 'selected' : '' ?>>
+                                                        <?= $categoryLabel ?>
                                                     </option>
                                                 <?php endforeach; ?>
                                             </select>
+                                            <small class="emergency_alert_lifecycle"><?= htmlspecialchars(ucfirst($alert['incidentStatus'])) ?></small>
                                         </td>
                                         <td class="emergency_alert_incident_cell">
                                             <strong
@@ -286,6 +299,8 @@ if (!isset($alerts) || !isset($summary)) {
     </div>
 
     <div class="emergency_alert_toast" id="emergency_alert_toast" role="status" aria-live="polite"></div>
+
+    <?php require __DIR__ . '/staffAlertDrawerView.php'; ?>
 
     <script type="application/json"
         id="emergency_alert_initial_data"><?= htmlspecialchars(json_encode($initialData ?? ['alerts' => $alerts, 'summary' => $summary], JSON_UNESCAPED_SLASHES), ENT_NOQUOTES) ?></script>

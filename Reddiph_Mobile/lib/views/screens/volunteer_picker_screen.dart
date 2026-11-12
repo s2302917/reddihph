@@ -173,34 +173,34 @@ class _VolunteerPickerScreenState extends State<VolunteerPickerScreen> {
                           ),
                           const SizedBox(height: 6),
                         ],
-                        const SizedBox(height: 2),
-                        const _ApprovalHint(),
-                        const SizedBox(height: 8),
-                        SizedBox(
-                          height: 42,
-                          width: double.infinity,
-                          child: FilledButton(
-                            onPressed:
-                                _loading || _error != null || _selected == null
-                                    ? null
-                                    : _continue,
-                            style: FilledButton.styleFrom(
-                              backgroundColor: _volunteerBrown,
-                              disabledBackgroundColor: _volunteerBrown,
-                              disabledForegroundColor: Colors.white54,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(11),
-                              ),
+                      const SizedBox(height: 2),
+                      const _ApprovalHint(),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        height: 42,
+                        width: double.infinity,
+                        child: FilledButton(
+                          onPressed:
+                              _loading || _error != null || _selected == null
+                                  ? null
+                                  : _continue,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: _volunteerBrown,
+                            disabledBackgroundColor: _volunteerBrown,
+                            disabledForegroundColor: Colors.white54,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(11),
                             ),
-                            child: const Text(
-                              'NEXT: REVIEW AND SEND',
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w800,
-                              ),
+                          ),
+                          child: const Text(
+                            'NEXT: REVIEW AND SEND',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
                             ),
                           ),
                         ),
+                      ),
                     ],
                   ),
                 ),

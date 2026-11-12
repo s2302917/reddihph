@@ -26,24 +26,23 @@
                     id="incomingdispatch-nav-alerts">Emergency Cases</a>
                 <a href="staffschedController.php" class="incomingdispatch-nav-item"
                     id="incomingdispatch-nav-schedule">Staff Schedule</a>
-                <a href="resourcesController.php" class="incomingdispatch-nav-item"
-                    id="incomingdispatch-nav-resources">Resources</a>
+                <details class="admin-resources-menu">
+                    <summary class="incomingdispatch-nav-item" id="incomingdispatch-nav-resources">Resources</summary>
+                    <div class="admin-resources-subnav">
+                        <a href="resourcesController.php?section=bed-capacity">Bed Capacity</a>
+                        <a href="resourcesController.php?section=ambulance">Ambulance</a>
+                        <a href="resourcesController.php?section=ptv">PTV</a>
+                    </div>
+                </details>
                 <a href="hospitalnetworkController.php" class="incomingdispatch-nav-item"
                     id="incomingdispatch-nav-network">Referral</a>
-                <a href="analyticsController.php" class="incomingdispatch-nav-item"
-                    id="incomingdispatch-nav-analytics">Analytics</a>
                 <a href="demographicsController.php" class="incomingdispatch-nav-item incomingdispatch-nav-item--active"
                     id="incomingdispatch-nav-logs">Logs &amp; Demographics</a>
+                <a href="manageAccountsController.php" class="incomingdispatch-nav-item"
+                    id="incomingdispatch-nav-manage-accounts">Manage Accounts</a>
                 <a href="settingsController.php" class="incomingdispatch-nav-item"
                     id="incomingdispatch-nav-settings">Settings</a>
             </nav>
-            <div class="incomingdispatch-system-status" id="incomingdispatch-system-status">
-                <span class="incomingdispatch-system-status-icon">!</span>
-                <div>
-                    <p class="incomingdispatch-system-status-title">System Status</p>
-                    <p class="incomingdispatch-system-status-sub">All systems operational.</p>
-                </div>
-            </div>
         </aside>
 
         <main class="incomingdispatch-main demographics-main" id="demographics-page">
@@ -105,6 +104,13 @@
                 </div>
             </header>
 
+            <?php if ($dataLoadErrors): ?>
+                <p class="demographics-load-warning" role="alert">
+                    Some data could not be loaded (<?= htmlspecialchars(implode(', ', $dataLoadErrors)) ?>).
+                    Check the database connection and application log before treating this as an empty result.
+                </p>
+            <?php endif; ?>
+
             <section class="demographics-stats" aria-label="Demographic summary">
                 <article class="demographics-stat-card" data-stat="18 active alerts">
                     <div class="demographics-stat-icon demographics-stat-icon--alert">!</div>
@@ -136,50 +142,95 @@
                 </article>
             </section>
 
+            <form class="demographics-log-search" method="get" action="demographicsController.php"
+                role="search" aria-label="Search emergency logs">
+                <input type="hidden" name="range" value="<?= htmlspecialchars((string) $range) ?>">
+                <?php if ($range === 'custom'): ?>
+                    <input type="hidden" name="from" value="<?= htmlspecialchars((string) $fromDate) ?>">
+                    <input type="hidden" name="to" value="<?= htmlspecialchars((string) $toDate) ?>">
+                <?php endif; ?>
+                <label for="demographics-log-search-input">Search emergency logs</label>
+                <input type="search" id="demographics-log-search-input" name="q"
+                    value="<?= htmlspecialchars($searchQuery) ?>"
+                    placeholder="Patient, incident ID, type, hospital, or referral"
+                    autocomplete="off">
+                <button type="submit">Search</button>
+                <?php if ($searchQuery !== ''): ?>
+                    <a href="<?= htmlspecialchars($clearSearchUrl) ?>">Clear search</a>
+                <?php endif; ?>
+            </form>
+
             <section class="demographics-panel demographics-log-panel" aria-label="Emergency logs">
                 <div class="demographics-panel-header">
                     <h2>Emergency Logs</h2>
-                    <div class="demographics-filter-group" aria-label="Log filters">
+                    <div class="demographics-filter-group" aria-label="Filter logs by emergency category">
                         <button class="demographics-filter demographics-filter--active" data-filter="all"
                             type="button">All</button>
-                        <button class="demographics-filter" data-filter="critical" type="button">Critical</button>
-                        <button class="demographics-filter" data-filter="pending" type="button">Pending</button>
-                        <button class="demographics-filter" data-filter="assigned" type="button">Assigned</button>
-                        <button class="demographics-filter" data-filter="arrived" type="button">Arrived</button>
-                        <button class="demographics-filter" data-filter="resolved" type="button">Resolved</button>
+                        <button class="demographics-filter" data-filter="emergent" type="button">Emergent</button>
+                        <button class="demographics-filter" data-filter="urgent" type="button">Urgent</button>
+                        <button class="demographics-filter" data-filter="non_urgent" type="button">Non-Urgent</button>
+                        <button class="demographics-filter" data-filter="expectant" type="button">Expectant</button>
+                        <button class="demographics-filter" data-filter="unclassified" type="button">Unclassified</button>
                     </div>
                 </div>
 
                 <table class="demographics-log-table">
                     <thead>
                         <tr>
-                            <th>Time</th>
-                            <th>Patient / Caller</th>
+                            <th>Last Updated</th>
+                            <th>Incident Number</th>
+                            <th>Patient Name</th>
                             <th>Location</th>
                             <th>Type</th>
-                            <th>Status</th>
+                            <th>Category</th>
+                            <th>Workflow</th>
                             <th>Assigned To</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php foreach ($logs as $log): ?>
-                            <tr data-status="<?php echo htmlspecialchars(strtolower($log['statusClass'] ?? 'pending')); ?>">
-                                <td><?php echo htmlspecialchars($log['time']); ?></td>
+                            <tr data-status="<?php echo htmlspecialchars(strtolower($log['statusClass'] ?? 'pending')); ?>"
+                                data-category="<?php echo htmlspecialchars($log['triageCategory'] ?? 'unclassified'); ?>">
+                                <td>
+                                    <div class="demographics-patient-cell">
+                                        <span><?php echo htmlspecialchars($log['updatedAt']); ?></span>
+                                        <small>Reported <?= htmlspecialchars($log['time']); ?></small>
+                                    </div>
+                                </td>
+                                <td>#<?= (int) $log['incidentId'] ?></td>
                                 <td>
                                     <div class="demographics-patient-cell">
                                         <span
                                             class="demographics-patient-name"><?php echo htmlspecialchars($log['patient']); ?></span>
-                                        <small><?php echo htmlspecialchars($log['caller']); ?></small>
+                                        <small>Caller: <?= htmlspecialchars($log['caller']); ?></small>
                                     </div>
                                 </td>
                                 <td><?php echo htmlspecialchars($log['location']); ?></td>
                                 <td><?php echo htmlspecialchars($log['type']); ?></td>
+                                <td><span class="demographics-status demographics-status--category"
+                                        style="background-color: <?= htmlspecialchars(IncidentTriageCategory::color($log['triageCategory'] ?? null)) ?>; color: <?= ($log['triageCategory'] ?? null) === 'urgent' ? '#000000' : '#FFFFFF' ?>"><?= htmlspecialchars($log['triageCategoryLabel']) ?></span>
+                                </td>
                                 <td><span
                                         class="demographics-status demographics-status--<?php echo htmlspecialchars($log['statusClass'] ?? 'pending'); ?>"><?php echo htmlspecialchars($log['status']); ?></span>
                                 </td>
                                 <td><?php echo htmlspecialchars($log['assigned']); ?></td>
                             </tr>
                         <?php endforeach; ?>
+                        <?php if ($logsError !== null): ?>
+                            <tr data-empty-state>
+                                <td colspan="8" class="demographics-log-empty demographics-log-empty--error">
+                                    <?= htmlspecialchars($logsError) ?>
+                                </td>
+                            </tr>
+                        <?php elseif (!$logs): ?>
+                            <tr data-empty-state>
+                                <td colspan="8" class="demographics-log-empty">
+                                    <?= $searchQuery !== ''
+                                        ? 'No emergency logs match this search.'
+                                        : 'No emergency logs are available for this date range.' ?>
+                                </td>
+                            </tr>
+                        <?php endif; ?>
                     </tbody>
                 </table>
                 <nav class="demographics-log-pagination" aria-label="Emergency log pages">
